@@ -136,7 +136,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
 
       {viewMode === 'CALENDAR' ? (
         <div className="space-y-6 animate-in slide-in-from-top-4 duration-500">
-          <div className="bg-white/60 backdrop-blur-xl rounded-[40px] p-5 shadow-2xl shadow-slate-200/40 border border-white">
+          <div className="bg-white/60 backdrop-blur-xl rounded-[40px] p-5 shadow-2xl border border-white">
             <div className="grid grid-cols-7 mb-4">
               {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((d, i) => (
                 <div key={i} className="text-center text-[8px] font-black uppercase text-slate-300 py-1 tracking-widest">{d}</div>
@@ -182,7 +182,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
                 <span className={`text-xs font-black ${dailyBalances[selectedDay || 1] >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>{Math.round(dailyBalances[selectedDay || 1])}€</span>
               </div>
             </div>
-            <div className="bg-white rounded-[32px] shadow-xl shadow-slate-200/30 border border-slate-50 overflow-hidden divide-y divide-slate-50">
+            <div className="bg-white rounded-[32px] shadow-xl border border-slate-50 overflow-hidden divide-y divide-slate-50">
               {dayTransactions.length > 0 ? dayTransactions.map((t, idx) => (
                 <TransactionItem key={t.id} t={t} category={categories.find(c => c.id === t.categoryId)} isLast={idx === dayTransactions.length - 1} isOpen={openItemId === t.id} onToggle={() => setOpenItemId(openItemId === t.id ? null : t.id)} onDelete={onDelete} onEdit={onEdit} />
               )) : (
@@ -196,23 +196,21 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
         </div>
       ) : (
         <div className="space-y-4 animate-in fade-in duration-500">
-           {/* Summary Header for List Mode */}
-           <div className="bg-indigo-600 p-5 rounded-[32px] text-white shadow-xl shadow-indigo-200/50 flex justify-between items-center relative overflow-hidden">
-             <div className="absolute -right-4 -top-4 w-20 h-20 bg-white/10 rounded-full blur-xl" />
+           <div className="bg-indigo-600 p-5 rounded-[32px] text-white shadow-xl flex justify-between items-center relative overflow-hidden">
              <div>
-               <span className="text-[9px] font-black uppercase tracking-widest text-indigo-200 block mb-1">Report du mois précédent</span>
+               <span className="text-[9px] font-black uppercase tracking-widest text-indigo-200 block mb-1">Report précédent</span>
                <div className="text-2xl font-black tracking-tight">{carryOver.toLocaleString('fr-FR')}€</div>
              </div>
              <div className="text-right">
-               <span className="text-[9px] font-black uppercase tracking-widest text-indigo-200 block mb-1">Mouvements {MONTHS_FR[month]}</span>
+               <span className="text-[9px] font-black uppercase tracking-widest text-indigo-200 block mb-1">Flux {MONTHS_FR[month]}</span>
                <div className="text-lg font-bold">{(totalBalance - carryOver).toLocaleString('fr-FR')}€</div>
              </div>
            </div>
 
-           <div className="bg-white rounded-[32px] shadow-xl shadow-slate-200/30 border border-slate-50 overflow-hidden divide-y divide-slate-50">
+           <div className="bg-white rounded-[32px] shadow-xl border border-slate-50 overflow-hidden divide-y divide-slate-50">
             {filteredTransactions.length > 0 ? filteredTransactions.map((t, idx) => (
               <TransactionItem key={t.id} t={t} category={categories.find(c => c.id === t.categoryId)} isLast={idx === filteredTransactions.length - 1} isOpen={openItemId === t.id} onToggle={() => setOpenItemId(openItemId === t.id ? null : t.id)} onDelete={onDelete} onEdit={onEdit} />
-            )) : <div className="p-16 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest italic">Aucune opération enregistrée</div>}
+            )) : <div className="p-16 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest italic">Aucune opération</div>}
           </div>
         </div>
       )}

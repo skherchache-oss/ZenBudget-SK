@@ -157,7 +157,6 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
 
   return (
     <div className="space-y-6 pb-24">
-      {/* En-tête avec Solde Élégant */}
       <div className="flex items-center justify-between px-1">
         <h2 className="text-2xl font-black tracking-tighter text-slate-800">Charges Fixes</h2>
         <div className="bg-white border border-slate-100 rounded-full px-4 py-2 flex items-center gap-2 shadow-sm">
@@ -171,11 +170,11 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
       <div className="bg-gray-900 text-white p-8 rounded-[48px] shadow-2xl relative overflow-hidden">
         <div className="relative z-10">
           <h2 className="text-xl font-logo font-extrabold mb-1 tracking-tight">Sérénité ⚡️</h2>
-          <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest opacity-70 mb-6">Abonnements et prélèvements récurrents</p>
+          <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest opacity-70 mb-6">Prélèvements mensuels programmés</p>
           
           <div className="pt-6 border-t border-white/10">
-            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-300 block mb-1">Total charges fixes actives</span>
-            <div className="text-2xl font-black">{totalFixedAmount.toLocaleString('fr-FR')}€ <span className="text-xs font-medium text-gray-500 uppercase">/ mois</span></div>
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-300 block mb-1">Total mensuel charges fixes</span>
+            <div className="text-3xl font-black">{totalFixedAmount.toLocaleString('fr-FR')}€</div>
           </div>
         </div>
         <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl" />
@@ -206,8 +205,7 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
         <div ref={formRef} className="pt-4">
           {showAdd ? (
             <div className="bg-white p-6 rounded-[40px] border-2 border-indigo-100 shadow-xl shadow-indigo-100/20 animate-in slide-in-from-bottom duration-300">
-              <h3 className="text-xs font-black uppercase tracking-widest text-indigo-600 mb-6 flex items-center gap-2">
-                <span className="w-6 h-6 rounded-full bg-indigo-50 flex items-center justify-center text-[10px]">✨</span>
+              <h3 className="text-xs font-black uppercase tracking-widest text-indigo-600 mb-6">
                 {editingTpl ? 'Modifier le prélèvement' : 'Nouveau prélèvement'}
               </h3>
               
@@ -231,81 +229,51 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="bg-gray-50 p-4 rounded-3xl">
-                    <label className="text-[9px] font-black uppercase text-gray-400 tracking-widest mb-1 block ml-1">Montant (€)</label>
+                    <label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Montant (€)</label>
                     <input 
-                      type="number" 
-                      step="0.01"
-                      value={amount}
-                      onChange={e => setAmount(e.target.value)}
-                      placeholder="0.00"
-                      className="bg-transparent text-xl font-black w-full outline-none"
-                      required
+                      type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)}
+                      placeholder="0.00" className="bg-transparent text-xl font-black w-full outline-none" required
                     />
                   </div>
                   <div className="bg-gray-50 p-4 rounded-3xl">
-                    <label className="text-[9px] font-black uppercase text-gray-400 tracking-widest mb-1 block ml-1">Jour du mois</label>
+                    <label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Jour du mois</label>
                     <input 
-                      type="number" 
-                      min="1" 
-                      max="31"
-                      value={day}
-                      onChange={e => setDay(e.target.value)}
-                      className="bg-transparent text-xl font-black w-full outline-none"
-                      required
+                      type="number" min="1" max="31" value={day} onChange={e => setDay(e.target.value)}
+                      className="bg-transparent text-xl font-black w-full outline-none" required
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-[9px] font-black uppercase text-gray-400 tracking-widest mb-3 block ml-1">Catégorie</label>
+                  <label className="text-[9px] font-black uppercase text-gray-400 block mb-3">Catégorie</label>
                   <div className="grid grid-cols-4 gap-2">
                     {filteredCategories.map(cat => (
                       <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => setCategoryId(cat.id)}
-                        className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-all border-2 ${
-                          categoryId === cat.id 
-                          ? 'border-indigo-500 bg-indigo-50' 
-                          : 'border-transparent bg-gray-50'
-                        }`}
+                        key={cat.id} type="button" onClick={() => setCategoryId(cat.id)}
+                        className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-all border-2 ${categoryId === cat.id ? 'border-indigo-500 bg-indigo-50' : 'border-transparent bg-gray-50'}`}
                       >
                         <span className="text-xl">{cat.icon}</span>
-                        <span className="text-[8px] font-black text-gray-500 uppercase truncate w-full text-center tracking-tight">{cat.name}</span>
+                        <span className="text-[8px] font-black text-gray-500 uppercase truncate w-full text-center">{cat.name}</span>
                       </button>
                     ))}
                   </div>
                 </div>
 
                 <input 
-                  type="text"
-                  placeholder="Note (ex: Netflix, Loyer...)"
-                  value={comment}
-                  onChange={e => setComment(e.target.value)}
-                  className="w-full bg-gray-50 p-4 rounded-2xl text-xs font-bold outline-none border-none focus:ring-2 focus:ring-indigo-100"
+                  type="text" placeholder="Note (ex: Netflix, Loyer...)" value={comment} onChange={e => setComment(e.target.value)}
+                  className="w-full bg-gray-50 p-4 rounded-2xl text-xs font-bold outline-none"
                 />
 
-                <div className="flex gap-3 pt-2">
-                  <button 
-                    type="button"
-                    onClick={cancelEdit}
-                    className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-gray-400 bg-gray-50 rounded-2xl"
-                  >
-                    Annuler
-                  </button>
-                  <button 
-                    type="submit"
-                    className="flex-1 py-4 text-[10px] font-black uppercase tracking-widest text-white bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-100"
-                  >
-                    Enregistrer
-                  </button>
+                <div className="flex gap-3">
+                  <button type="button" onClick={cancelEdit} className="flex-1 py-4 text-[10px] font-black uppercase text-gray-400 bg-gray-50 rounded-2xl">Annuler</button>
+                  <button type="submit" className="flex-1 py-4 text-[10px] font-black uppercase text-white bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-100">Enregistrer</button>
                 </div>
               </form>
             </div>
           ) : (
             <button 
               onClick={() => { cancelEdit(); setShowAdd(true); }} 
-              className="w-full py-5 border-2 border-dashed border-gray-200 rounded-[32px] text-gray-400 font-black text-[10px] uppercase tracking-[0.2em] hover:border-emerald-300 hover:text-emerald-600 transition-all flex items-center justify-center gap-3 bg-white/50"
+              className="w-full py-5 border-2 border-dashed border-gray-200 rounded-[32px] text-gray-400 font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 bg-white/50"
             >
               <IconPlus className="w-6 h-6" /> Ajouter un prélèvement
             </button>

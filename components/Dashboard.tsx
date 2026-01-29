@@ -143,7 +143,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* 1. BLOC SOLDES (Clarté absolue) */}
+      {/* 1. BLOC SOLDES */}
       <div className={`relative overflow-visible p-7 rounded-[40px] border transition-all shadow-xl shadow-slate-200/20 shrink-0 ${projectedBalance < 0 ? 'bg-red-50/50 border-red-200' : 'bg-white border-slate-50'}`}>
         <div className="relative z-10 flex flex-col gap-6">
           <div className="space-y-1">
@@ -164,7 +164,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                </div>
             </div>
             <div className="text-right space-y-1">
-               <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block">Utilisation</span>
+               <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block">Consommation</span>
                <div className="text-2xl font-black text-slate-900 leading-none">
                  {usagePercent.toFixed(0)}%
                </div>
@@ -198,27 +198,19 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* 3. ASSISTANT ZEN AI */}
-      <div className="bg-slate-900 text-white p-6 rounded-[32px] shadow-2xl relative overflow-visible ring-1 ring-white/10 shrink-0 h-auto min-h-[100px] flex flex-col justify-center">
+      {/* 3. ASSISTANT AI */}
+      <div className="bg-slate-900 text-white p-6 rounded-[32px] shadow-2xl h-auto min-h-[100px] flex flex-col justify-center">
         <div className="flex items-center gap-2 mb-3">
           <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,1)] animate-pulse" />
-          <h4 className="font-black text-[9px] uppercase tracking-[0.3em] text-indigo-400">Intelligence financière</h4>
+          <h4 className="font-black text-[9px] uppercase tracking-[0.3em] text-indigo-400">Conseil Zen</h4>
         </div>
-        <div className={`transition-opacity duration-500 ${loadingAdvice ? 'opacity-30' : 'opacity-100'}`}>
-          <p className="text-[13px] font-medium leading-relaxed italic text-indigo-50">
-            "{aiAdvice}"
-          </p>
-        </div>
-        <div className="absolute -bottom-2 -right-2 w-16 h-16 bg-indigo-500/10 rounded-full blur-xl pointer-events-none" />
+        <p className={`text-[13px] font-medium italic text-indigo-50 leading-relaxed transition-opacity ${loadingAdvice ? 'opacity-30' : 'opacity-100'}`}>
+          "{aiAdvice}"
+        </p>
       </div>
 
-      {/* 4. GRAPHIQUE ANALYTIQUE */}
+      {/* 4. GRAPHIQUE */}
       <div className="bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm shrink-0">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Visualisation</h3>
-          <span className="text-[8px] font-black text-indigo-500 bg-indigo-50 px-2 py-1 rounded">Répartition</span>
-        </div>
-
         <div className="w-full h-[180px] relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -235,20 +227,20 @@ const Dashboard: React.FC<DashboardProps> = ({
                 onMouseLeave={() => setActiveIndex(null)}
               >
                 {categorySummary.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} style={{ outline: 'none', cursor: 'pointer' }} />
+                  <Cell key={`cell-${index}`} fill={entry.color} style={{ outline: 'none' }} />
                 ))}
               </Pie>
             </PieChart>
           </ResponsiveContainer>
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
             {hoveredCategory ? (
-              <div className="text-center animate-in zoom-in duration-300">
+              <div className="text-center animate-in zoom-in">
                 <span className="text-3xl leading-none">{hoveredCategory.icon}</span>
                 <div className="text-[10px] font-black text-slate-900 mt-1">{Math.round(hoveredCategory.percent)}%</div>
               </div>
             ) : (
               <div className="text-center">
-                <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest block">Sorties</span>
+                <span className="text-[8px] font-black text-slate-300 uppercase block">Sorties</span>
                 <span className="text-sm font-black text-slate-900">{Math.round(currentMonthStats.expenses)}€</span>
               </div>
             )}
@@ -256,24 +248,18 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* 5. DÉTAIL PAR CATÉGORIE */}
+      {/* 5. DÉTAILS CATÉGORIES */}
       <div className="bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm shrink-0">
-        <div className="flex items-center justify-between border-b border-slate-50 pb-4 mb-5">
-           <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Postes de dépenses</h4>
-           <span className="text-[9px] font-black text-slate-300 tracking-widest">{categorySummary.length} actifs</span>
-        </div>
-        
         <div className="space-y-6">
           {categorySummary.length > 0 ? categorySummary.map((cat, idx) => (
-            <div key={cat.id} className="group" onMouseEnter={() => setActiveIndex(idx)} onMouseLeave={() => setActiveIndex(null)}>
+            <div key={cat.id} onMouseEnter={() => setActiveIndex(idx)} onMouseLeave={() => setActiveIndex(null)}>
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center text-lg">{cat.icon}</div>
-                  <span className="text-[11px] font-bold text-slate-800 uppercase tracking-tight truncate max-w-[120px]">{cat.name}</span>
+                  <span className="text-[11px] font-bold text-slate-800 uppercase tracking-tight">{cat.name}</span>
                 </div>
                 <div className="text-right">
                   <span className="text-[11px] font-black text-slate-900">{Math.round(cat.value)}€</span>
-                  <span className="text-[9px] font-bold text-slate-300 ml-2">{Math.round(cat.percent)}%</span>
                 </div>
               </div>
               <div className="h-1.5 w-full bg-slate-50 rounded-full overflow-hidden">
@@ -281,7 +267,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               </div>
             </div>
           )) : (
-            <div className="py-8 text-center opacity-30 grayscale italic text-[10px] font-black uppercase tracking-widest">Aucune donnée ce mois</div>
+            <div className="py-8 text-center opacity-30 italic text-[10px] uppercase font-black">Aucune donnée ce mois</div>
           )}
         </div>
       </div>
