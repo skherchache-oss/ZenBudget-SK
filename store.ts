@@ -47,8 +47,8 @@ export const getInitialState = (): AppState => {
     const parsed = JSON.parse(saved);
 
     // SYNCHRONISATION DES CATÉGORIES
-    // On s'assure que les catégories par défaut (Impôts, Épargne, etc.) sont présentes 
-    // même si l'utilisateur a déjà une sauvegarde.
+    // On s'assure que les catégories par défaut (Impôts, Épargne) sont présentes 
+    // même si l'utilisateur a déjà une sauvegarde locale.
     const savedCategories: Category[] = parsed.categories || [];
     const mergedCategories = [...DEFAULT_CATEGORIES];
     
@@ -58,12 +58,19 @@ export const getInitialState = (): AppState => {
       }
     });
 
+    // Validation de l'ID de compte actif
+    const accounts = parsed.accounts || [defaultAcc];
+    const activeAccountId = accounts.find((a: any) => a.id === parsed.activeAccountId) 
+      ? parsed.activeAccountId 
+      : accounts[0].id;
+
     return { 
       ...defaultState, 
       ...parsed, 
       user: defaultUser,
-      categories: mergedCategories, // On utilise la liste fusionnée
-      activeAccountId: parsed.activeAccountId || defaultAcc.id 
+      accounts: accounts,
+      categories: mergedCategories,
+      activeAccountId: activeAccountId 
     };
   } catch (e) {
     return defaultState;

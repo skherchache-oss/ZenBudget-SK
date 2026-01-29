@@ -29,19 +29,20 @@ const App: React.FC = () => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
-  // SOLDE RÉEL : Somme de toutes les transactions réelles passées/présentes
+  // SOLDE RÉEL (Aujourd'hui) : Somme brute de toutes les transactions passées et présentes
   const balanceToday = useMemo(() => {
     if (!activeAccount) return 0;
-    const now = new Date().getTime();
+    const now = new Date();
     return activeAccount.transactions.reduce((acc, t) => {
-      if (new Date(t.date).getTime() <= now) {
+      const tDate = new Date(t.date);
+      if (tDate <= now) {
         return acc + (t.type === 'INCOME' ? t.amount : -t.amount);
       }
       return acc;
     }, 0);
   }, [activeAccount.transactions]);
 
-  // Transactions effectives du mois sélectionné (Réelles + Virtuelles)
+  // Transactions effectives du mois sélectionné (Réelles + Virtuelles/Prévues)
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
     const manualOnes = activeAccount.transactions.filter(t => {
@@ -78,19 +79,35 @@ const App: React.FC = () => {
   const projectedBalance = useMemo(() => {
     if (!activeAccount) return 0;
     
-    // 1. Performance de tout le passé avant le mois sélectionné
-    const pastPerformance = activeAccount.transactions.reduce((acc, t) => {
-      const d = new Date(t.date);
-      const isBefore = (d.getFullYear() < currentYear) || (d.getFullYear() === currentYear && d.getMonth() < currentMonth);
-      if (isBefore) return acc + (t.type === 'INCOME' ? t.amount : -t.amount);
+    // Performance historique totale jusqu'à la fin du mois affiché
+    const endOfCurrentViewMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
+    
+    // 1. Transactions réelles passées et futures (jusqu'à fin de mois sélectionné)
+    const realPerf = activeAccount.transactions.reduce((acc, t) => {
+      if (new Date(t.date) <= endOfCurrentViewMonth) {
+        return acc + (t.type === 'INCOME' ? t.amount : -t.amount);
+      }
       return acc;
     }, 0);
 
-    // 2. Performance du mois en cours (réelle + prévisions)
-    const monthPerformance = effectiveTransactions.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
-    
-    return pastPerformance + monthPerformance;
-  }, [activeAccount, effectiveTransactions, currentMonth, currentYear]);
+    // 2. Transactions prévues (virtuelles) restantes dans le mois sélectionné
+    const now = new Date();
+    const materializedTplIds = new Set(activeAccount.transactions.map(t => t.templateId).filter(Boolean));
+    const virtualPerf = (activeAccount.recurringTemplates || [])
+      .filter(tpl => tpl.isActive && !materializedTplIds.has(tpl.id))
+      .reduce((acc, tpl) => {
+        const day = Math.min(tpl.dayOfMonth, new Date(currentYear, currentMonth + 1, 0).getDate());
+        const tplDate = new Date(currentYear, currentMonth, day, 12, 0, 0);
+        // On n'ajoute la prévision que si elle est dans le futur par rapport à "maintenant" 
+        // ET qu'elle tombe dans le mois sélectionné (déjà garanti par la logique de tplDate)
+        if (tplDate > now && tplDate <= endOfCurrentViewMonth) {
+          return acc + (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
+        }
+        return acc;
+      }, 0);
+
+    return realPerf + virtualPerf;
+  }, [activeAccount, currentMonth, currentYear]);
 
   const handleMonthChange = (delta: number) => {
     const d = new Date(currentYear, currentMonth + delta, 1);
@@ -100,17 +117,22 @@ const App: React.FC = () => {
   };
 
   const handleUpsertTransaction = (t: Omit<Transaction, 'id'> & { id?: string }) => {
+    if (!t.amount || !t.categoryId) return;
+
     setState(prev => {
       const acc = prev.accounts.find(a => a.id === prev.activeAccountId) || prev.accounts[0];
       let nextTransactions = [...acc.transactions];
       
       const targetId = t.id || editingTransaction?.id;
+      // Vérifier si c'est une édition d'un item réel existant
       const isExisting = targetId && !targetId.toString().startsWith('virtual-') && acc.transactions.some(item => item.id === targetId);
 
       if (isExisting) {
-        nextTransactions = nextTransactions.map(item => item.id === targetId ? ({ ...t, id: targetId } as Transaction) : item);
+        nextTransactions = nextTransactions.map(item => 
+          item.id === targetId ? ({ ...t, id: targetId } as Transaction) : item
+        );
       } else {
-        const newId = (targetId && !targetId.toString().startsWith('virtual-')) ? targetId : generateId();
+        const newId = generateId();
         nextTransactions = [{ ...t, id: newId } as Transaction, ...nextTransactions];
       }
 

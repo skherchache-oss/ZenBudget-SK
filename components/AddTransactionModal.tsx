@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useMemo } from 'react';
 import { Category, TransactionType, Transaction } from '../types';
 
 interface AddTransactionModalProps {
@@ -28,129 +29,161 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ categories, o
     }
   }, [editItem]);
 
-  const filteredCategories = categories.filter(c => c.type === type);
+  const filteredCategories = useMemo(() => 
+    categories.filter(c => c.type === type),
+    [categories, type]
+  );
+
+  // Si on change de type, on s'assure que la catégorie sélectionnée appartient bien au nouveau type
+  useEffect(() => {
+    if (categoryId) {
+      const exists = filteredCategories.some(c => c.id === categoryId);
+      if (!exists && filteredCategories.length > 0) {
+        setCategoryId(''); // Réinitialiser si invalide pour le type
+      }
+    }
+  }, [type, filteredCategories]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || !categoryId) return;
+    const parsedAmount = parseFloat(amount);
+    if (!parsedAmount || isNaN(parsedAmount) || !categoryId) {
+      // Animation visuelle de refus ou alerte discrète
+      return;
+    }
     
+    // Création de la date à 12h00 pour éviter les décalages de fuseau horaire
     const [year, month, day] = date.split('-').map(Number);
     const secureDate = new Date(year, month - 1, day, 12, 0, 0).toISOString();
 
     onAdd({
       id: editItem?.id,
-      amount: parseFloat(amount),
+      amount: parsedAmount,
       type,
       categoryId,
       comment,
       date: secureDate,
       isRecurring
     });
-    onClose();
   };
 
+  const isFormValid = useMemo(() => {
+    return parseFloat(amount) > 0 && categoryId !== '';
+  }, [amount, categoryId]);
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm transition-all overflow-hidden">
-      <div className="bg-white w-full max-w-md rounded-t-[32px] sm:rounded-[32px] shadow-2xl p-6 overflow-y-auto max-h-[95vh] animate-in slide-in-from-bottom duration-300">
-        
-        {/* Header de la Modal */}
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm transition-all overflow-hidden">
+      <div className="bg-white w-full max-w-md rounded-t-[40px] sm:rounded-[40px] shadow-2xl p-7 overflow-y-auto max-h-[95vh] animate-in slide-in-from-bottom duration-300">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-black text-gray-900">{editItem ? 'Modifier' : 'Nouvelle'} opération</h2>
+          <h2 className="text-xl font-black text-gray-900 tracking-tight">{editItem ? 'Modifier' : 'Ajouter'} l'opération</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition text-gray-400 active:scale-90">
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6 pb-6">
-          {/* Sélecteur Type */}
-          <div className="flex p-1 bg-gray-100 rounded-2xl">
+        <form onSubmit={handleSubmit} className="space-y-7">
+          <div className="flex p-1 bg-gray-100 rounded-2xl shrink-0">
             <button 
               type="button"
-              onClick={() => { setType('EXPENSE'); setCategoryId(''); }}
-              className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${type === 'EXPENSE' ? 'bg-red-500 text-white shadow-lg' : 'text-gray-500'}`}
+              onClick={() => setType('EXPENSE')}
+              className={`flex-1 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${type === 'EXPENSE' ? 'bg-red-500 text-white shadow-lg' : 'text-gray-500 hover:text-gray-800'}`}
             >
               Dépense
             </button>
             <button 
               type="button"
-              onClick={() => { setType('INCOME'); setCategoryId(''); }}
-              className={`flex-1 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all ${type === 'INCOME' ? 'bg-emerald-500 text-white shadow-lg' : 'text-gray-500'}`}
+              onClick={() => setType('INCOME')}
+              className={`flex-1 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${type === 'INCOME' ? 'bg-emerald-500 text-white shadow-lg' : 'text-gray-500 hover:text-gray-800'}`}
             >
               Revenu
             </button>
           </div>
 
-          {/* Saisie Montant */}
-          <div className="text-center bg-gray-50 py-6 rounded-[32px] border border-gray-100">
-            <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.3em] mb-2 block">Montant (€)</label>
-            <input 
-              type="number" 
-              step="0.01"
-              inputMode="decimal"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.00"
-              className="w-full text-center text-5xl font-black focus:outline-none placeholder-gray-200 text-gray-900 bg-transparent border-none ring-0"
-              autoFocus={!editItem}
-              required
-            />
+          <div className="text-center bg-gray-50/50 py-10 rounded-[40px] border border-gray-100/50">
+            <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.3em] mb-3 block">Montant en euros</label>
+            <div className="flex items-center justify-center gap-2">
+              <input 
+                type="number" 
+                inputMode="decimal"
+                step="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                placeholder="0.00"
+                className="w-full text-center text-6xl font-black focus:outline-none placeholder-gray-200 text-gray-900 bg-transparent border-none ring-0 outline-none"
+                autoFocus={!editItem}
+                required
+              />
+            </div>
           </div>
 
-          {/* Liste Catégories */}
           <div>
-            <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.3em] mb-4 block ml-1">Catégorie</label>
+            <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.3em] mb-4 block ml-1">Choisir une catégorie</label>
             <div className="grid grid-cols-4 gap-3">
               {filteredCategories.map(cat => (
                 <button
                   key={cat.id}
                   type="button"
                   onClick={() => setCategoryId(cat.id)}
-                  className={`flex flex-col items-center gap-2 p-3 rounded-2xl transition-all border-2 ${
+                  className={`flex flex-col items-center gap-2 p-3.5 rounded-2xl transition-all border-2 ${
                     categoryId === cat.id 
-                    ? 'border-indigo-600 bg-indigo-50' 
-                    : 'border-transparent bg-gray-50'
+                    ? 'border-indigo-600 bg-indigo-50/50 shadow-sm' 
+                    : 'border-transparent bg-gray-50/80 hover:bg-gray-100'
                   }`}
                 >
                   <span className="text-2xl">{cat.icon}</span>
-                  <span className="text-[9px] font-black text-gray-600 truncate w-full text-center uppercase">{cat.name}</span>
+                  <span className="text-[9px] font-black text-gray-600 truncate w-full text-center uppercase tracking-tight leading-none">{cat.name}</span>
                 </button>
               ))}
             </div>
           </div>
 
-          {/* Options supplémentaires */}
           <div className="space-y-4">
-            <input 
-              type="text" 
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="Note (facultatif)"
-              className="w-full p-4 bg-gray-50 rounded-2xl border-none focus:ring-2 focus:ring-indigo-500 text-sm"
-            />
+            <div className="bg-gray-50/50 p-5 rounded-2xl border border-gray-100/50">
+              <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.3em] mb-2 block">Note facultative</label>
+              <input 
+                type="text" 
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="Détail de l'opération..."
+                className="w-full bg-transparent border-none focus:ring-0 transition text-sm font-semibold text-gray-800 p-0"
+              />
+            </div>
             
             <div className="grid grid-cols-2 gap-4">
-              <input 
-                type="date" 
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full p-4 bg-gray-50 rounded-2xl border-none text-sm font-black"
-              />
-              <button 
-                type="button"
-                onClick={() => setIsRecurring(!isRecurring)}
-                className={`flex items-center justify-center gap-2 p-4 rounded-2xl border-2 transition-all ${
-                  isRecurring ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-gray-50 border-transparent text-gray-400'
-                }`}
-              >
-                <span className="text-[10px] font-black uppercase">Fixe</span>
-              </button>
+              <div className="bg-gray-50/50 p-5 rounded-2xl border border-gray-100/50">
+                <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.3em] mb-2 block">Date</label>
+                <input 
+                  type="date" 
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  className="w-full bg-transparent border-none focus:ring-0 transition text-sm font-black text-gray-800 p-0"
+                />
+              </div>
+              <div className="flex items-center justify-center">
+                <button 
+                  type="button"
+                  onClick={() => setIsRecurring(!isRecurring)}
+                  className={`flex items-center gap-2.5 px-5 py-3.5 rounded-2xl border-2 transition-all w-full justify-center ${
+                    isRecurring ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-gray-50 border-transparent text-gray-400 hover:text-gray-600'
+                  }`}
+                >
+                  <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${isRecurring ? 'border-emerald-600' : 'border-gray-300'}`}>
+                    {isRecurring && <div className="w-1.5 h-1.5 bg-emerald-600 rounded-full" />}
+                  </div>
+                  <span className="text-[10px] font-black uppercase tracking-widest">Fixe</span>
+                </button>
+              </div>
             </div>
           </div>
 
-          {/* Bouton Validation */}
           <button 
             type="submit"
-            className={`w-full py-5 text-white font-black rounded-2xl shadow-xl active:scale-[0.97] transition-all uppercase text-xs tracking-widest ${editItem ? 'bg-indigo-600' : 'bg-gray-900'}`}
+            disabled={!isFormValid}
+            className={`w-full py-6 text-white font-black rounded-[24px] shadow-2xl active:scale-[0.98] transition-all transform tracking-[0.2em] uppercase text-xs ${
+              !isFormValid 
+                ? 'bg-gray-200 cursor-not-allowed text-gray-400 shadow-none' 
+                : (editItem ? 'bg-indigo-600 shadow-indigo-200' : 'bg-gray-900 shadow-gray-200')
+            }`}
           >
             {editItem ? 'Mettre à jour' : 'Enregistrer'}
           </button>

@@ -46,7 +46,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   projectedBalance 
 }) => {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const [aiAdvice, setAiAdvice] = useState<string>("Analyse en cours...");
+  const [aiAdvice, setAiAdvice] = useState<string>("Analyse zen en cours...");
   const [loadingAdvice, setLoadingAdvice] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
 
@@ -83,17 +83,19 @@ const Dashboard: React.FC<DashboardProps> = ({
   useEffect(() => {
     const fetchAiAdvice = async () => {
       if (!process.env.API_KEY) {
-        setAiAdvice(projectedBalance < 0 ? "Le solde prévisionnel est négatif. Pensez à différer certaines dépenses non essentielles." : "Votre budget est équilibré. Continuez cette gestion rigoureuse pour vos projets futurs.");
+        setAiAdvice(projectedBalance < 0 
+          ? "Attention : votre solde projeté fin de mois est négatif. Analysez vos sorties." 
+          : "Gestion sereine : votre budget est équilibré pour la fin de ce cycle.");
         return;
       }
       setLoadingAdvice(true);
       try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const prompt = `ZenBudget Fin: Dispo maintenant ${balanceToday}€, Fin de mois ${projectedBalance}€. Revenus mois ${currentMonthStats.income}€, Dépenses ${currentMonthStats.expenses}€. Donne 1 conseil financier zen ultra-court (60 car max, français).`;
+        const prompt = `ZenBudget Financial Assistant: Today's real balance ${balanceToday}€. Selected month end projected balance ${projectedBalance}€. Current month income ${currentMonthStats.income}€, expenses ${currentMonthStats.expenses}€. Provide 1 super-short financial tip (70 characters max, in French).`;
         const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
-        setAiAdvice(response.text || "La simplicité est la sophistication suprême en finance.");
+        setAiAdvice(response.text || "La discipline financière offre la liberté.");
       } catch (err) {
-        setAiAdvice("Observez vos flux sans jugement, ajustez avec sagesse.");
+        setAiAdvice("Observez vos flux sans jugement et ajustez avec sagesse.");
       } finally {
         setLoadingAdvice(false);
       }
@@ -112,7 +114,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   return (
     <div className="flex flex-col h-full space-y-6 overflow-y-auto no-scrollbar pb-24 px-1 animate-in fade-in slide-in-from-bottom-4 duration-700">
       
-      {/* 0. Sélecteur de Compte */}
+      {/* Sélecteur de Compte */}
       <div className="flex items-center justify-between shrink-0">
         <div className="relative">
           <button 
@@ -136,29 +138,29 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* 1. BLOC SOLDES (Ultra-visible, aucun rognage) */}
-      <div className={`relative overflow-hidden p-6 rounded-[32px] border transition-all shadow-xl shadow-slate-200/20 shrink-0 ${projectedBalance < 0 ? 'bg-red-50/50 border-red-200' : 'bg-white border-slate-50'}`}>
+      {/* 1. BLOC SOLDES (Clarté absolue) */}
+      <div className={`relative overflow-visible p-7 rounded-[40px] border transition-all shadow-xl shadow-slate-200/20 shrink-0 ${projectedBalance < 0 ? 'bg-red-50/50 border-red-200' : 'bg-white border-slate-50'}`}>
         <div className="relative z-10 flex flex-col gap-6">
           <div className="space-y-1">
-            <span className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">Cash Aujourd'hui</span>
+            <span className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] block">Cash aujourd'hui</span>
             <div className="flex items-baseline gap-2">
-              <span className="text-4xl sm:text-5xl font-black tracking-tighter text-slate-900">
+              <span className="text-5xl font-black tracking-tighter text-slate-900 leading-none">
                 {Math.round(balanceToday).toLocaleString('fr-FR')}
               </span>
               <span className="text-2xl font-black text-slate-300">€</span>
             </div>
           </div>
           
-          <div className="grid grid-cols-2 gap-4 pt-5 border-t border-slate-100">
+          <div className="grid grid-cols-2 gap-4 pt-6 border-t border-slate-100">
             <div className="space-y-1">
                <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block">Fin de mois ({MONTHS_FR[month]})</span>
-               <div className={`text-2xl font-black ${projectedBalance >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
+               <div className={`text-2xl font-black leading-none ${projectedBalance >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
                  {Math.round(projectedBalance).toLocaleString('fr-FR')}€
                </div>
             </div>
             <div className="text-right space-y-1">
-               <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block">Consommation</span>
-               <div className="text-2xl font-black text-slate-900">
+               <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block">Utilisation</span>
+               <div className="text-2xl font-black text-slate-900 leading-none">
                  {usagePercent.toFixed(0)}%
                </div>
             </div>
@@ -169,22 +171,22 @@ const Dashboard: React.FC<DashboardProps> = ({
       {/* 2. BLOC FLUX */}
       <div className="grid grid-cols-2 gap-4 shrink-0">
         <div className="bg-white p-5 rounded-[28px] border border-slate-50 shadow-sm">
-          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Entrées</span>
-          <div className="text-lg font-black text-emerald-600">+{currentMonthStats.income.toLocaleString('fr-FR')}€</div>
+          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Entrées du mois</span>
+          <div className="text-xl font-black text-emerald-600">+{currentMonthStats.income.toLocaleString('fr-FR')}€</div>
         </div>
         <div className="bg-white p-5 rounded-[28px] border border-slate-50 shadow-sm text-right">
-          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Sorties</span>
-          <div className="text-lg font-black text-slate-900">-{currentMonthStats.expenses.toLocaleString('fr-FR')}€</div>
+          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Sorties du mois</span>
+          <div className="text-xl font-black text-slate-900">-{currentMonthStats.expenses.toLocaleString('fr-FR')}€</div>
         </div>
       </div>
 
-      {/* 3. ASSISTANT ZEN AI (CORRECTION ROGNAGE - h-auto) */}
-      <div className="bg-slate-900 text-white p-6 rounded-[28px] shadow-2xl relative overflow-visible ring-1 ring-white/10 shrink-0">
+      {/* 3. ASSISTANT ZEN AI (Correction Rognage - h-auto) */}
+      <div className="bg-slate-900 text-white p-6 rounded-[32px] shadow-2xl relative overflow-visible ring-1 ring-white/10 shrink-0 h-auto min-h-[100px] flex flex-col justify-center">
         <div className="flex items-center gap-2 mb-3">
           <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,1)] animate-pulse" />
-          <h4 className="font-black text-[9px] uppercase tracking-[0.3em] text-indigo-400">Intelligence Zen</h4>
+          <h4 className="font-black text-[9px] uppercase tracking-[0.3em] text-indigo-400">Intelligence financière</h4>
         </div>
-        <div className={`min-h-[40px] flex items-center transition-opacity duration-500 ${loadingAdvice ? 'opacity-30' : 'opacity-100'}`}>
+        <div className={`transition-opacity duration-500 ${loadingAdvice ? 'opacity-30' : 'opacity-100'}`}>
           <p className="text-[13px] font-medium leading-relaxed italic text-indigo-50">
             "{aiAdvice}"
           </p>
@@ -223,12 +225,12 @@ const Dashboard: React.FC<DashboardProps> = ({
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
             {hoveredCategory ? (
               <div className="text-center animate-in zoom-in duration-300">
-                <span className="text-3xl">{hoveredCategory.icon}</span>
+                <span className="text-3xl leading-none">{hoveredCategory.icon}</span>
                 <div className="text-[10px] font-black text-slate-900 mt-1">{Math.round(hoveredCategory.percent)}%</div>
               </div>
             ) : (
               <div className="text-center">
-                <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest block">Dépenses</span>
+                <span className="text-[8px] font-black text-slate-300 uppercase tracking-widest block">Sorties</span>
                 <span className="text-sm font-black text-slate-900">{Math.round(currentMonthStats.expenses)}€</span>
               </div>
             )}
@@ -240,7 +242,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       <div className="bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm shrink-0">
         <div className="flex items-center justify-between border-b border-slate-50 pb-4 mb-5">
            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Postes de dépenses</h4>
-           <span className="text-[9px] font-black text-slate-300">{categorySummary.length} actifs</span>
+           <span className="text-[9px] font-black text-slate-300 tracking-widest">{categorySummary.length} actifs</span>
         </div>
         
         <div className="space-y-6">
@@ -249,7 +251,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center text-lg">{cat.icon}</div>
-                  <span className="text-[11px] font-bold text-slate-800 uppercase tracking-tight">{cat.name}</span>
+                  <span className="text-[11px] font-bold text-slate-800 uppercase tracking-tight truncate max-w-[120px]">{cat.name}</span>
                 </div>
                 <div className="text-right">
                   <span className="text-[11px] font-black text-slate-900">{Math.round(cat.value)}€</span>
@@ -261,7 +263,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               </div>
             </div>
           )) : (
-            <div className="py-8 text-center opacity-30 grayscale italic text-[10px] font-black uppercase tracking-widest">Aucune donnée</div>
+            <div className="py-8 text-center opacity-30 grayscale italic text-[10px] font-black uppercase tracking-widest">Aucune donnée ce mois</div>
           )}
         </div>
       </div>
