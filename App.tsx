@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { AppState, ViewType, Transaction, Category, RecurringTemplate, BudgetAccount } from './types';
 import { getInitialState, saveState, generateId } from './store';
@@ -19,6 +20,9 @@ const App: React.FC = () => {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [modalInitialDate, setModalInitialDate] = useState<string>(new Date().toISOString());
   
+  // État partagé pour le jour sélectionné dans le calendrier
+  const [selectedDay, setSelectedDay] = useState<number | null>(new Date().getMonth() === currentMonth ? new Date().getDate() : 1);
+
   const isResetting = useRef(false);
 
   useEffect(() => {
@@ -30,6 +34,12 @@ const App: React.FC = () => {
   const activeAccount = useMemo(() => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
+
+  const currentTotalBalance = useMemo(() => {
+    if (!activeAccount) return 0;
+    const transactionsSum = activeAccount.transactions.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
+    return transactionsSum;
+  }, [activeAccount]);
 
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
@@ -61,6 +71,8 @@ const App: React.FC = () => {
     const d = new Date(currentYear, currentMonth + delta, 1);
     setCurrentMonth(d.getMonth());
     setCurrentYear(d.getFullYear());
+    // On réinitialise le jour sélectionné au changement de mois pour plus de clarté
+    setSelectedDay(1);
   };
 
   const handleUpsertTransaction = (t: Omit<Transaction, 'id'> & { id?: string }) => {
@@ -120,26 +132,58 @@ const App: React.FC = () => {
   };
 
   const handleDeleteTransaction = (id: string) => {
-    setState(prev => ({
-      ...prev,
-      accounts: prev.accounts.map(a => a.id === activeAccount.id ? {
-        ...a,
-        recurringTemplates: id.toString().startsWith('virtual-') 
-          ? (a.recurringTemplates || []).map(tpl => tpl.id === id.split('-')[1] ? { ...tpl, isActive: false } : tpl)
-          : a.recurringTemplates,
-        transactions: !id.toString().startsWith('virtual-')
-          ? a.transactions.filter(t => t.id !== id)
-          : a.transactions
-      } : a)
-    }));
+    if (id.toString().startsWith('virtual-')) {
+      const templateId = id.split('-')[1];
+      setState(prev => ({
+        ...prev,
+        accounts: prev.accounts.map(a => a.id === activeAccount.id ? {
+          ...a,
+          recurringTemplates: (a.recurringTemplates || []).map(tpl => 
+            tpl.id === templateId ? { ...tpl, isActive: false } : tpl
+          )
+        } : a)
+      }));
+    } else {
+      setState(prev => ({
+        ...prev,
+        accounts: prev.accounts.map(a => a.id === activeAccount.id ? {
+          ...a,
+          transactions: a.transactions.filter(t => t.id !== id)
+        } : a)
+      }));
+    }
   };
 
   const handleHardReset = () => {
-    if (window.confirm("🚨 RÉINITIALISATION TOTALE\n\nSouhaitez-vous vraiment effacer TOUTES vos données ?")) {
+    if (window.confirm("🚨 RÉINITIALISATION TOTALE\n\nSouhaitez-vous vraiment effacer TOUTES vos données ? Cette action est irréversible.")) {
       isResetting.current = true;
-      localStorage.removeItem('zenbudget_state_v3');
-      window.location.reload();
+      localStorage.clear();
+      window.location.href = window.location.pathname;
     }
+  };
+
+  const handleDeleteAccount = (accountId: string) => {
+    if (state.accounts.length <= 1) return;
+    setState(prev => {
+      const nextAccounts = prev.accounts.filter(a => a.id !== accountId);
+      const nextActiveId = prev.activeAccountId === accountId ? nextAccounts[0].id : prev.activeAccountId;
+      return { 
+        ...prev, 
+        accounts: nextAccounts, 
+        activeAccountId: nextActiveId 
+      };
+    });
+  };
+
+  const handleFABClick = () => {
+    setEditingTransaction(null);
+    if (activeView === 'TRANSACTIONS' && selectedDay) {
+      const dateStr = new Date(currentYear, currentMonth, selectedDay, 12, 0, 0).toISOString();
+      setModalInitialDate(dateStr);
+    } else {
+      setModalInitialDate(new Date().toISOString());
+    }
+    setShowAddModal(true);
   };
 
   return (
@@ -151,20 +195,20 @@ const App: React.FC = () => {
             <h1 className="text-xl font-black tracking-tight text-slate-800 font-logo">ZenBudget</h1>
           </div>
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-full border border-slate-200">
-             <button onClick={() => handleMonthChange(-1)} className="p-1.5 hover:bg-white rounded-full transition-all active:scale-90 text-slate-400">
+             <button onClick={() => handleMonthChange(-1)} className="p-1.5 hover:bg-white rounded-full transition-all active:scale-90 text-slate-400 hover:text-indigo-600">
                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15 19l-7-7 7-7" /></svg>
              </button>
-             <span className="text-[10px] font-black uppercase tracking-widest px-2 min-w-[80px] text-center text-slate-600">
+             <span className="text-[10px] font-black uppercase tracking-widest px-2 min-w-[100px] text-center text-slate-600">
                {MONTHS_FR[currentMonth]} {currentYear}
              </span>
-             <button onClick={() => handleMonthChange(1)} className="p-1.5 hover:bg-white rounded-full transition-all active:scale-90 text-slate-400">
+             <button onClick={() => handleMonthChange(1)} className="p-1.5 hover:bg-white rounded-full transition-all active:scale-90 text-slate-400 hover:text-indigo-600">
                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M9 5l7 7-7 7" /></svg>
              </button>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto no-scrollbar max-w-2xl w-full mx-auto px-4 py-6 pb-32">
+      <main className="flex-1 overflow-y-auto no-scrollbar max-w-2xl w-full mx-auto px-6 py-8 pb-40">
         {activeView === 'DASHBOARD' && (
           <Dashboard 
             transactions={effectiveTransactions} 
@@ -186,6 +230,9 @@ const App: React.FC = () => {
             onDelete={handleDeleteTransaction}
             onEdit={(t) => { setEditingTransaction(t); setShowAddModal(true); }}
             onAddAtDate={(date) => { setModalInitialDate(date); setShowAddModal(true); }}
+            selectedDay={selectedDay}
+            onSelectDay={setSelectedDay}
+            totalBalance={currentTotalBalance}
           />
         )}
         {activeView === 'RECURRING' && (
@@ -196,6 +243,7 @@ const App: React.FC = () => {
               ...prev, 
               accounts: prev.accounts.map(a => a.id === activeAccount.id ? { ...a, recurringTemplates: templates } : a) 
             }))}
+            totalBalance={currentTotalBalance}
           />
         )}
         {activeView === 'SETTINGS' && (
@@ -205,14 +253,7 @@ const App: React.FC = () => {
             onUpdateBudget={() => {}}
             onUpdateAccounts={(accounts) => setState(prev => ({ ...prev, accounts }))}
             onSetActiveAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))}
-            onDeleteAccount={(id) => {
-              if (state.accounts.length > 1) {
-                setState(prev => {
-                  const filtered = prev.accounts.filter(a => a.id !== id);
-                  return { ...prev, accounts: filtered, activeAccountId: filtered[0].id };
-                });
-              }
-            }}
+            onDeleteAccount={handleDeleteAccount}
             onReset={handleHardReset}
             onLogout={() => {}}
           />
@@ -221,17 +262,17 @@ const App: React.FC = () => {
 
       {activeView !== 'SETTINGS' && (
         <button 
-          onClick={() => { setEditingTransaction(null); setModalInitialDate(new Date().toISOString()); setShowAddModal(true); }} 
-          className="fixed bottom-24 right-6 w-14 h-14 bg-slate-900 text-white rounded-full shadow-lg flex items-center justify-center active:scale-95 transition-all z-40 border-2 border-white"
+          onClick={handleFABClick} 
+          className="fixed bottom-[100px] right-6 w-16 h-16 bg-slate-900 text-white rounded-[24px] shadow-2xl flex items-center justify-center active:scale-90 transition-all z-40 border-4 border-white"
         >
-          <IconPlus className="w-7 h-7" />
+          <IconPlus className="w-8 h-8" />
         </button>
       )}
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-slate-100 flex justify-around items-center pt-3 pb-[env(safe-area-inset-bottom,1.5rem)] px-6 z-40 shadow-lg">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-100 flex justify-around items-center pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))] px-6 z-40 shadow-[0_-10px_30px_rgba(0,0,0,0.03)]">
         <NavBtn active={activeView === 'DASHBOARD'} onClick={() => setActiveView('DASHBOARD')} icon={<IconHome />} label="Stats" />
         <NavBtn active={activeView === 'TRANSACTIONS'} onClick={() => setActiveView('TRANSACTIONS')} icon={<IconCalendar />} label="Journal" />
-        <NavBtn active={activeView === 'RECURRING'} onClick={() => { setEditingTransaction(null); setActiveView('RECURRING'); }} icon={<IconPlus className="rotate-45" />} label="Fixes" />
+        <NavBtn active={activeView === 'RECURRING'} onClick={() => { setEditingTransaction(null); setActiveView('RECURRING'); }} icon={<IconPlus className="rotate-45 shadow-none" />} label="Fixes" />
         <NavBtn active={activeView === 'SETTINGS'} onClick={() => setActiveView('SETTINGS')} icon={<IconSettings />} label="Réglages" />
       </nav>
 
@@ -249,9 +290,9 @@ const App: React.FC = () => {
 };
 
 const NavBtn: React.FC<{ active: boolean; onClick: () => void; icon: React.ReactNode; label: string }> = ({ active, onClick, icon, label }) => (
-  <button onClick={onClick} className={`flex flex-col items-center gap-1 transition-colors ${active ? 'text-indigo-600' : 'text-slate-400'}`}>
-    <div className={`w-6 h-6 ${active ? 'scale-110' : 'scale-100'} transition-transform`}>{icon}</div>
-    <span className="text-[10px] font-bold uppercase tracking-tighter">{label}</span>
+  <button onClick={onClick} className={`flex flex-col items-center gap-1.5 transition-all duration-300 active:scale-95 ${active ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}>
+    <div className={`w-6 h-6 ${active ? 'scale-110 text-indigo-600' : 'scale-100'} transition-transform`}>{icon}</div>
+    <span className={`text-[9px] font-black uppercase tracking-widest ${active ? 'opacity-100' : 'opacity-70'}`}>{label}</span>
   </button>
 );
 

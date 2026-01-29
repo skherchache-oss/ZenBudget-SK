@@ -8,6 +8,7 @@ interface RecurringManagerProps {
   recurringTemplates: RecurringTemplate[];
   categories: Category[];
   onUpdate: (templates: RecurringTemplate[]) => void;
+  totalBalance: number;
 }
 
 const RecurringItem: React.FC<{
@@ -96,7 +97,7 @@ const RecurringItem: React.FC<{
   );
 };
 
-const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates, categories, onUpdate }) => {
+const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates, categories, onUpdate, totalBalance }) => {
   const [editingTpl, setEditingTpl] = useState<RecurringTemplate | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [openItemId, setOpenItemId] = useState<string | null>(null);
@@ -108,7 +109,6 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
   const [comment, setComment] = useState('');
   const [day, setDay] = useState('1');
 
-  // Effet pour scroller vers le formulaire quand on commence une édition
   useEffect(() => {
     if (showAdd && formRef.current) {
       setTimeout(() => {
@@ -151,8 +151,19 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
 
   return (
     <div className="space-y-6 pb-24">
+      {/* En-tête avec Solde Élégant */}
+      <div className="flex items-center justify-between px-1">
+        <h2 className="text-2xl font-black tracking-tighter text-slate-800">Charges Fixes</h2>
+        <div className="bg-white border border-slate-100 rounded-full px-4 py-2 flex items-center gap-2 shadow-sm">
+           <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Solde total</span>
+           <span className={`text-sm font-black ${totalBalance >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
+            {totalBalance.toLocaleString('fr-FR')}€
+           </span>
+        </div>
+      </div>
+
       <div className="bg-gray-900 text-white p-8 rounded-[48px] shadow-2xl relative overflow-hidden">
-        <h2 className="text-2xl font-logo font-extrabold mb-1 relative z-10 tracking-tight">Charges Fixes ⚡️</h2>
+        <h2 className="text-xl font-logo font-extrabold mb-1 relative z-10 tracking-tight">Sérénité ⚡️</h2>
         <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest relative z-10 opacity-70">Abonnements et prélèvements récurrents</p>
       </div>
 
