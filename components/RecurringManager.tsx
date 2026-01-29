@@ -1,5 +1,5 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { RecurringTemplate, TransactionType, Category } from '../types';
 import { generateId } from '../store';
 import { IconPlus } from './Icons';
@@ -109,6 +109,12 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
   const [comment, setComment] = useState('');
   const [day, setDay] = useState('1');
 
+  const totalFixedAmount = useMemo(() => {
+    return recurringTemplates
+      .filter(tpl => tpl.isActive && tpl.type === 'EXPENSE')
+      .reduce((acc, tpl) => acc + tpl.amount, 0);
+  }, [recurringTemplates]);
+
   useEffect(() => {
     if (showAdd && formRef.current) {
       setTimeout(() => {
@@ -163,8 +169,16 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
       </div>
 
       <div className="bg-gray-900 text-white p-8 rounded-[48px] shadow-2xl relative overflow-hidden">
-        <h2 className="text-xl font-logo font-extrabold mb-1 relative z-10 tracking-tight">Sérénité ⚡️</h2>
-        <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest relative z-10 opacity-70">Abonnements et prélèvements récurrents</p>
+        <div className="relative z-10">
+          <h2 className="text-xl font-logo font-extrabold mb-1 tracking-tight">Sérénité ⚡️</h2>
+          <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest opacity-70 mb-6">Abonnements et prélèvements récurrents</p>
+          
+          <div className="pt-6 border-t border-white/10">
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-300 block mb-1">Total charges fixes actives</span>
+            <div className="text-2xl font-black">{totalFixedAmount.toLocaleString('fr-FR')}€ <span className="text-xs font-medium text-gray-500 uppercase">/ mois</span></div>
+          </div>
+        </div>
+        <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl" />
       </div>
 
       <div className="space-y-2">

@@ -33,7 +33,6 @@ const App: React.FC = () => {
   const balanceToday = useMemo(() => {
     if (!activeAccount) return 0;
     const now = new Date();
-    // On calcule sur l'intégralité du tableau des transactions réelles
     return activeAccount.transactions.reduce((acc, t) => {
       const tDate = new Date(t.date);
       if (tDate <= now) {
@@ -43,9 +42,10 @@ const App: React.FC = () => {
     }, 0);
   }, [activeAccount.transactions]);
 
-  // Transactions du mois sélectionné (Mélange de Réelles + Virtuelles/Projections)
+  // Transactions du mois sélectionné (Réelles + Virtuelles filtrées par deletedVirtualIds)
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
+    
     // 1. Les réelles du mois
     const manualOnes = activeAccount.transactions.filter(t => {
       const d = new Date(t.date);
@@ -53,17 +53,19 @@ const App: React.FC = () => {
     });
 
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    // On identifie les templates qui ont déjà été matérialisés par une transaction réelle ce mois-ci
     const materializedTplIds = new Set(manualOnes.map(t => t.templateId).filter(Boolean));
+    const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
 
-    // 2. Les virtuelles (projections des charges fixes non encore payées)
+    // 2. Les virtuelles
     const virtuals: Transaction[] = (activeAccount.recurringTemplates || [])
       .filter(tpl => tpl.isActive && !materializedTplIds.has(tpl.id))
       .map(tpl => {
         const day = Math.min(tpl.dayOfMonth, daysInMonth);
         const isoDate = new Date(currentYear, currentMonth, day, 12, 0, 0).toISOString();
+        const vId = `virtual-${tpl.id}-${currentMonth}-${currentYear}`;
+        
         return {
-          id: `virtual-${tpl.id}-${currentMonth}-${currentYear}`,
+          id: vId,
           amount: tpl.amount,
           type: tpl.type,
           categoryId: tpl.categoryId,
@@ -72,7 +74,8 @@ const App: React.FC = () => {
           isRecurring: true,
           templateId: tpl.id
         };
-      });
+      })
+      .filter(v => !deletedVirtuals.has(v.id));
 
     return [...manualOnes, ...virtuals].sort((a, b) => 
       new Date(b.date).getTime() - new Date(a.date).getTime()
@@ -86,17 +89,18 @@ const App: React.FC = () => {
     // Performance historique totale (réelle)
     let total = activeAccount.transactions.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
 
-    // On ajoute les transactions virtuelles du mois en cours (si elles sont dans le futur)
+    // On ajoute les transactions virtuelles du mois en cours qui ne sont pas supprimées
     const now = new Date();
     const materializedTplIds = new Set(activeAccount.transactions.map(t => t.templateId).filter(Boolean));
+    const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
     
     (activeAccount.recurringTemplates || []).forEach(tpl => {
       if (!tpl.isActive || materializedTplIds.has(tpl.id)) return;
       const day = Math.min(tpl.dayOfMonth, new Date(currentYear, currentMonth + 1, 0).getDate());
       const tplDate = new Date(currentYear, currentMonth, day, 12, 0, 0);
-      
-      // On n'ajoute que si la date de projection est dans le futur
-      if (tplDate > now) {
+      const vId = `virtual-${tpl.id}-${currentMonth}-${currentYear}`;
+
+      if (tplDate > now && !deletedVirtuals.has(vId)) {
         total += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
       }
     });
@@ -120,25 +124,27 @@ const App: React.FC = () => {
 
       const acc = { ...prev.accounts[accIndex] };
       let nextTransactions = [...acc.transactions];
+      let nextDeletedVirtuals = [...(acc.deletedVirtualIds || [])];
       
       const targetId = t.id || editingTransaction?.id;
-      // On ne modifie une transaction réelle que si l'ID n'est pas "virtual-"
       const isVirtual = targetId && targetId.toString().startsWith('virtual-');
       const exists = targetId && !isVirtual && nextTransactions.some(item => item.id === targetId);
 
       if (exists) {
-        // Mise à jour d'une transaction réelle existante
         nextTransactions = nextTransactions.map(item => 
           item.id === targetId ? ({ ...t, id: targetId } as Transaction) : item
         );
       } else {
-        // Ajout d'une nouvelle transaction réelle (ou matérialisation d'une virtuelle)
+        // Si on édite une virtuelle, elle devient une réelle matérialisée
+        if (isVirtual && targetId) {
+          nextDeletedVirtuals.push(targetId);
+        }
         const newId = generateId();
         nextTransactions = [{ ...t, id: newId } as Transaction, ...nextTransactions];
       }
 
       const nextAccounts = [...prev.accounts];
-      nextAccounts[accIndex] = { ...acc, transactions: nextTransactions };
+      nextAccounts[accIndex] = { ...acc, transactions: nextTransactions, deletedVirtualIds: nextDeletedVirtuals };
 
       return { ...prev, accounts: nextAccounts };
     });
@@ -148,18 +154,25 @@ const App: React.FC = () => {
   };
 
   const handleDeleteTransaction = (id: string) => {
-    if (id.startsWith('virtual-')) {
-      // Pour une virtuelle, on ne peut pas vraiment "supprimer" car elle est générée.
-      // Mais dans le flux utilisateur, on ignore simplement l'action ou on pourrait désactiver le template.
-      return;
-    }
-    setState(prev => ({
-      ...prev,
-      accounts: prev.accounts.map(a => a.id === activeAccount.id ? {
-        ...a,
-        transactions: a.transactions.filter(t => t.id !== id)
-      } : a)
-    }));
+    setState(prev => {
+      const accIndex = prev.accounts.findIndex(a => a.id === prev.activeAccountId);
+      if (accIndex === -1) return prev;
+
+      const acc = { ...prev.accounts[accIndex] };
+      let nextTransactions = [...acc.transactions];
+      let nextDeletedVirtuals = [...(acc.deletedVirtualIds || [])];
+
+      if (id.startsWith('virtual-')) {
+        nextDeletedVirtuals.push(id);
+      } else {
+        nextTransactions = nextTransactions.filter(t => t.id !== id);
+      }
+
+      const nextAccounts = [...prev.accounts];
+      nextAccounts[accIndex] = { ...acc, transactions: nextTransactions, deletedVirtualIds: nextDeletedVirtuals };
+
+      return { ...prev, accounts: nextAccounts };
+    });
   };
 
   return (

@@ -61,6 +61,7 @@ export interface BudgetAccount {
   transactions: Transaction[];
   recurringTemplates: RecurringTemplate[];
   recurringSyncLog: string[];
+  deletedVirtualIds?: string[]; // IDs des transactions virtuelles supprimées par l'utilisateur
   monthlyBudget: number;
 }
 

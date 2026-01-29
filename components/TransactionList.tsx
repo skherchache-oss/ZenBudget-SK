@@ -33,14 +33,15 @@ const TransactionItem: React.FC<{
   const handleAction = (e: React.MouseEvent, action: 'edit' | 'delete') => {
     e.preventDefault(); e.stopPropagation();
     if (action === 'delete') {
-      if (isVirtual) {
-        // On ne supprime pas une virtuelle (elle est juste une projection)
-        onToggle();
-        return;
+      if (!isConfirmingDelete) { 
+        setIsConfirmingDelete(true); 
+        return; 
       }
-      if (!isConfirmingDelete) { setIsConfirmingDelete(true); return; }
-      onDelete(t.id); setIsConfirmingDelete(false);
-    } else { onEdit(t); }
+      onDelete(t.id); 
+      setIsConfirmingDelete(false);
+    } else { 
+      onEdit(t); 
+    }
     onToggle();
   };
 
@@ -51,7 +52,7 @@ const TransactionItem: React.FC<{
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
           <span className="text-[8px] font-black uppercase tracking-widest">Éditer</span>
         </button>
-        <button onClick={(e) => handleAction(e, 'delete')} className={`w-20 h-full flex flex-col items-center justify-center gap-1.5 transition-all ${isConfirmingDelete ? 'bg-black text-white' : 'bg-red-600 text-white active:bg-red-700'} ${isVirtual ? 'opacity-30 grayscale cursor-not-allowed' : ''}`}>
+        <button onClick={(e) => handleAction(e, 'delete')} className={`w-20 h-full flex flex-col items-center justify-center gap-1.5 transition-all ${isConfirmingDelete ? 'bg-black text-white' : 'bg-red-600 text-white active:bg-red-700'}`}>
           <span className="text-[8px] font-black uppercase px-2 text-center leading-tight tracking-widest">{isConfirmingDelete ? 'Sûr ?' : 'Supprimer'}</span>
         </button>
       </div>

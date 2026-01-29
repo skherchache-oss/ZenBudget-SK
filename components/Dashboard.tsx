@@ -53,11 +53,16 @@ const Dashboard: React.FC<DashboardProps> = ({
   const currentMonthStats = useMemo(() => {
     let income = 0;
     let expenses = 0;
+    let fixedExpenses = 0;
     transactions.forEach(t => {
-      if (t.type === 'INCOME') income += t.amount;
-      else expenses += t.amount;
+      if (t.type === 'INCOME') {
+        income += t.amount;
+      } else {
+        expenses += t.amount;
+        if (t.isRecurring) fixedExpenses += t.amount;
+      }
     });
-    return { income, expenses };
+    return { income, expenses, fixedExpenses, variableExpenses: expenses - fixedExpenses };
   }, [transactions]);
 
   const totalExpenses = currentMonthStats.expenses || 1;
@@ -91,7 +96,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       setLoadingAdvice(true);
       try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const prompt = `ZenBudget Financial Assistant: Today's real balance ${balanceToday}€. Selected month end projected balance ${projectedBalance}€. Current month income ${currentMonthStats.income}€, expenses ${currentMonthStats.expenses}€. Provide 1 super-short financial tip (70 characters max, in French).`;
+        const prompt = `ZenBudget Financial Assistant: Today's real balance ${balanceToday}€. Selected month end projected balance ${projectedBalance}€. Current month income ${currentMonthStats.income}€, fixed expenses ${currentMonthStats.fixedExpenses}€, variable expenses ${currentMonthStats.variableExpenses}€. Provide 1 super-short financial tip (70 characters max, in French).`;
         const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
         setAiAdvice(response.text || "La discipline financière offre la liberté.");
       } catch (err) {
@@ -168,19 +173,32 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* 2. BLOC FLUX */}
-      <div className="grid grid-cols-2 gap-4 shrink-0">
-        <div className="bg-white p-5 rounded-[28px] border border-slate-50 shadow-sm">
-          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Entrées du mois</span>
-          <div className="text-xl font-black text-emerald-600">+{currentMonthStats.income.toLocaleString('fr-FR')}€</div>
+      {/* 2. BLOC FLUX DÉTAILLÉ */}
+      <div className="space-y-4 shrink-0">
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-white p-5 rounded-[28px] border border-slate-50 shadow-sm">
+            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Entrées du mois</span>
+            <div className="text-xl font-black text-emerald-600">+{currentMonthStats.income.toLocaleString('fr-FR')}€</div>
+          </div>
+          <div className="bg-white p-5 rounded-[28px] border border-slate-50 shadow-sm text-right">
+            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Sorties du mois</span>
+            <div className="text-xl font-black text-slate-900">-{currentMonthStats.expenses.toLocaleString('fr-FR')}€</div>
+          </div>
         </div>
-        <div className="bg-white p-5 rounded-[28px] border border-slate-50 shadow-sm text-right">
-          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Sorties du mois</span>
-          <div className="text-xl font-black text-slate-900">-{currentMonthStats.expenses.toLocaleString('fr-FR')}€</div>
+        
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-indigo-50/50 p-4 rounded-[24px] border border-indigo-100/40">
+            <span className="text-[7px] font-black text-indigo-400 uppercase tracking-[0.2em] block mb-1">Charges Fixes</span>
+            <div className="text-sm font-black text-indigo-900">{currentMonthStats.fixedExpenses.toLocaleString('fr-FR')}€</div>
+          </div>
+          <div className="bg-slate-50 p-4 rounded-[24px] border border-slate-200/40 text-right">
+            <span className="text-[7px] font-black text-slate-400 uppercase tracking-[0.2em] block mb-1">Charges Variables</span>
+            <div className="text-sm font-black text-slate-900">{currentMonthStats.variableExpenses.toLocaleString('fr-FR')}€</div>
+          </div>
         </div>
       </div>
 
-      {/* 3. ASSISTANT ZEN AI (Correction Rognage - h-auto) */}
+      {/* 3. ASSISTANT ZEN AI */}
       <div className="bg-slate-900 text-white p-6 rounded-[32px] shadow-2xl relative overflow-visible ring-1 ring-white/10 shrink-0 h-auto min-h-[100px] flex flex-col justify-center">
         <div className="flex items-center gap-2 mb-3">
           <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_rgba(129,140,248,1)] animate-pulse" />
