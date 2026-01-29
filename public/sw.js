@@ -1,18 +1,39 @@
-const CACHE_NAME = 'ZenBudget-SK';
+const CACHE_NAME = 'zenbudget-v1';
 const ASSETS = [
-  './',
-  './index.html',
-  './style.css',
-  './script.js',
-  './manifest.json'
+  '/',
+  '/index.html',
+  '/manifest.json',
+  '/ZB-logo-192.png',
+  '/ZB-logo-512.png'
 ];
 
-// Installation et mise en cache
-self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS)));
+// Installation : Mise en cache des fichiers de base
+self.addEventListener('install', (event) => {
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(ASSETS);
+    })
+  );
+  self.skipWaiting(); // Force la mise à jour immédiate
 });
 
-// Stratégie : Réseau d'abord, sinon Cache
-self.addEventListener('fetch', (e) => {
-  e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+// Activation : Nettoyage des anciens caches
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    caches.keys().then((keys) => {
+      return Promise.all(
+        keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
+      );
+    })
+  );
+});
+
+// Stratégie : Network First (Priorité au réseau, sinon cache)
+// C'est la meilleure stratégie pour une app de budget afin d'avoir les données fraîches
+self.addEventListener('fetch', (event) => {
+  event.respondWith(
+    fetch(event.request).catch(() => {
+      return caches.match(event.request);
+    })
+  );
 });
