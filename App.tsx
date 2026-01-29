@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { AppState, ViewType, Transaction, Category, RecurringTemplate, BudgetAccount } from './types';
 import { getInitialState, saveState, generateId } from './store';
 import { MONTHS_FR } from './constants';
@@ -29,12 +29,12 @@ const App: React.FC = () => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
-  // SOLDE RÉEL (Aujourd'hui) : Somme de tout le passé
+  // SOLDE RÉEL : Somme de toutes les transactions réelles passées/présentes
   const balanceToday = useMemo(() => {
     if (!activeAccount) return 0;
-    const now = new Date();
+    const now = new Date().getTime();
     return activeAccount.transactions.reduce((acc, t) => {
-      if (new Date(t.date).getTime() <= now.getTime()) {
+      if (new Date(t.date).getTime() <= now) {
         return acc + (t.type === 'INCOME' ? t.amount : -t.amount);
       }
       return acc;
@@ -74,20 +74,43 @@ const App: React.FC = () => {
     );
   }, [activeAccount, currentMonth, currentYear]);
 
-  // SOLDE PROJETÉ (Fin du mois)
+  // SOLDE PROJETÉ : Solde aujourd'hui + ce qu'il reste à dépenser/gagner jusqu'à la fin du mois sélectionné
   const projectedBalance = useMemo(() => {
     if (!activeAccount) return 0;
-    // On calcule la performance de tout le passé avant le mois en cours
-    const pastPerformance = activeAccount.transactions.reduce((acc, t) => {
-      const d = new Date(t.date);
-      const isBeforeMonth = (d.getFullYear() < currentYear) || (d.getFullYear() === currentYear && d.getMonth() < currentMonth);
-      if (isBeforeMonth) return acc + (t.type === 'INCOME' ? t.amount : -t.amount);
-      return acc;
-    }, 0);
+    const now = new Date().getTime();
+    
+    // 1. On part du solde réel actuel
+    let total = balanceToday;
 
-    const monthPerformance = effectiveTransactions.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
-    return pastPerformance + monthPerformance;
-  }, [activeAccount, effectiveTransactions, currentMonth, currentYear]);
+    // 2. On ajoute les transactions futures (réelles et prévues) uniquement si elles sont après MAINTENANT 
+    // et jusqu'à la fin du mois sélectionné
+    const endOfMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59).getTime();
+    
+    // Transactions réelles futures dans le mois sélectionné
+    activeAccount.transactions.forEach(t => {
+      const tTime = new Date(t.date).getTime();
+      if (tTime > now && tTime <= endOfMonth) {
+        total += (t.type === 'INCOME' ? t.amount : -t.amount);
+      }
+    });
+
+    // Transactions récurrentes non matérialisées restant dans le mois sélectionné
+    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const materializedTplIds = new Set(activeAccount.transactions.filter(t => t.templateId).map(t => t.templateId));
+
+    (activeAccount.recurringTemplates || []).forEach(tpl => {
+      if (!tpl.isActive || materializedTplIds.has(tpl.id)) return;
+      
+      const day = Math.min(tpl.dayOfMonth, daysInMonth);
+      const tplTime = new Date(currentYear, currentMonth, day, 12, 0, 0).getTime();
+      
+      if (tplTime > now && tplTime <= endOfMonth) {
+        total += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
+      }
+    });
+
+    return total;
+  }, [activeAccount, balanceToday, currentMonth, currentYear]);
 
   const handleMonthChange = (delta: number) => {
     const d = new Date(currentYear, currentMonth + delta, 1);
@@ -105,10 +128,8 @@ const App: React.FC = () => {
       const isExisting = targetId && !targetId.toString().startsWith('virtual-') && acc.transactions.some(item => item.id === targetId);
 
       if (isExisting) {
-        // MODIFICATION SANS DOUBLON
         nextTransactions = nextTransactions.map(item => item.id === targetId ? ({ ...t, id: targetId } as Transaction) : item);
       } else {
-        // NOUVELLE TRANSACTION
         const newId = (targetId && !targetId.toString().startsWith('virtual-')) ? targetId : generateId();
         nextTransactions = [{ ...t, id: newId } as Transaction, ...nextTransactions];
       }

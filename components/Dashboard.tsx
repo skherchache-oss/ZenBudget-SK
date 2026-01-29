@@ -36,7 +36,7 @@ const renderActiveShape = (props: any) => {
 
 const Dashboard: React.FC<DashboardProps> = ({ transactions, categories, activeAccount, allAccounts, onSwitchAccount, month, year, balanceToday, projectedBalance }) => {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const [aiAdvice, setAiAdvice] = useState<string>("Analyse en cours...");
+  const [aiAdvice, setAiAdvice] = useState<string>("Analyse de votre sérénité...");
   const [loadingAdvice, setLoadingAdvice] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
 
@@ -73,17 +73,17 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, categories, activeA
   useEffect(() => {
     const fetchAiAdvice = async () => {
       if (!process.env.API_KEY) {
-        setAiAdvice(projectedBalance < 0 ? "Vigilance : vos charges fixes dépassent vos ressources fin de mois." : "Équilibre parfait. Votre gestion est sereine.");
+        setAiAdvice(projectedBalance < 0 ? "Prudence : vos dépenses projetées dépassent vos revenus. Un ajustement est conseillé." : "Gestion exemplaire. Votre budget de fin de mois est sécurisé.");
         return;
       }
       setLoadingAdvice(true);
       try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const prompt = `ZenBudget Dash: Dispo ${balanceToday}€, Fin de mois ${projectedBalance}€. Revenus mois ${currentMonthStats.income}€, Dépenses ${currentMonthStats.expenses}€. Conseil financier bref (70 car max).`;
+        const prompt = `ZenBudget Analysis: Real Balance Today ${balanceToday}€, Projected End of Month ${projectedBalance}€. Monthly Income ${currentMonthStats.income}€, Monthly Expenses ${currentMonthStats.expenses}€. Provide 1 short financial advice (max 80 chars, French).`;
         const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
-        setAiAdvice(response.text || "La discipline est la clé de la liberté.");
+        setAiAdvice(response.text || "La discipline financière est la clé de la liberté.");
       } catch (err) {
-        setAiAdvice("Analyse zen en pause. Gardez l'œil sur vos soldes.");
+        setAiAdvice("Pilotez vos flux avec précision pour une sérénité totale.");
       } finally {
         setLoadingAdvice(false);
       }
@@ -100,10 +100,10 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, categories, activeA
   const hoveredCategory = activeIndex !== null ? categorySummary[activeIndex] : null;
 
   return (
-    <div className="flex flex-col h-full space-y-5 overflow-y-auto no-scrollbar pb-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="flex flex-col h-full space-y-6 overflow-y-auto no-scrollbar pb-10 animate-in fade-in slide-in-from-bottom-4 duration-700">
       
-      {/* Switcher Compte */}
-      <div className="flex items-center justify-between px-1">
+      {/* 0. Sélecteur de Compte */}
+      <div className="flex items-center justify-between px-1 shrink-0">
         <div className="relative">
           <button 
             onClick={() => setShowAccountMenu(!showAccountMenu)}
@@ -114,9 +114,9 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, categories, activeA
             <svg className={`w-3 h-3 text-slate-400 transition-transform ${showAccountMenu ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" /></svg>
           </button>
           {showAccountMenu && (
-            <div className="absolute top-12 left-0 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-[70] animate-in zoom-in-95 duration-200">
+            <div className="absolute top-12 left-0 w-48 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-slate-100 py-2 z-[70] animate-in zoom-in-95 duration-200">
               {allAccounts.map(acc => (
-                <button key={acc.id} onClick={() => { onSwitchAccount(acc.id); setShowAccountMenu(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-600">
+                <button key={acc.id} onClick={() => { onSwitchAccount(acc.id); setShowAccountMenu(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-indigo-50/50 text-[10px] font-black uppercase tracking-widest text-slate-600">
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: acc.color }} />
                   {acc.name}
                 </button>
@@ -126,30 +126,28 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, categories, activeA
         </div>
       </div>
 
-      {/* 1. Bloc Soldes (CORRIGÉ POUR ÉVITER LE ROGNAGE) */}
-      <div className={`relative overflow-hidden p-6 rounded-[32px] border transition-all shadow-xl shadow-slate-200/20 ${projectedBalance < 0 ? 'bg-red-50/40 border-red-100' : 'bg-white border-slate-50'}`}>
+      {/* 1. BLOC SOLDES (Anti-rognage) */}
+      <div className={`relative overflow-hidden p-6 rounded-[40px] border transition-all shadow-xl shadow-slate-200/20 shrink-0 ${projectedBalance < 0 ? 'bg-red-50/40 border-red-100' : 'bg-white border-slate-50'}`}>
         <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative z-10 space-y-6">
-          <div className="flex flex-col">
-            <span className="text-slate-400 text-[9px] font-black uppercase tracking-[0.2em] block mb-1">Disponible Aujourd'hui</span>
-            <div className="flex items-baseline gap-2">
-              <h2 className="text-4xl sm:text-5xl font-black tracking-tighter leading-none text-slate-900">
-                {Math.round(balanceToday).toLocaleString('fr-FR')}
-              </h2>
-              <span className="text-2xl font-black text-slate-300">€</span>
-            </div>
+        <div className="relative z-10">
+          <span className="text-slate-400 text-[9px] font-black uppercase tracking-[0.2em] block mb-2">Disponible Aujourd'hui</span>
+          <div className="flex items-baseline gap-2 mb-6">
+            <h2 className="text-4xl sm:text-5xl font-black tracking-tighter leading-none text-slate-900 truncate">
+              {Math.round(balanceToday).toLocaleString('fr-FR')}
+            </h2>
+            <span className="text-2xl font-black text-slate-300 shrink-0">€</span>
           </div>
           
           <div className="grid grid-cols-2 gap-6 pt-5 border-t border-slate-50/50">
             <div>
                <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block mb-1.5">Fin de mois ({MONTHS_FR[month]})</span>
-               <div className={`text-2xl font-black leading-none ${projectedBalance >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
+               <div className={`text-xl font-black leading-none ${projectedBalance >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
                  {Math.round(projectedBalance).toLocaleString('fr-FR')}€
                </div>
             </div>
             <div className="text-right">
-               <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block mb-1.5">Conso. Budget</span>
-               <div className="text-2xl font-black text-slate-900 leading-none">
+               <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block mb-1.5">Consommation</span>
+               <div className="text-xl font-black text-slate-900 leading-none">
                  {usagePercent.toFixed(0)}%
                </div>
             </div>
@@ -157,35 +155,35 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, categories, activeA
         </div>
       </div>
 
-      {/* 2. Flux Entrées / Sorties */}
+      {/* 2. BLOC FLUX (Entrées / Sorties) */}
       <div className="grid grid-cols-2 gap-4 shrink-0">
-        <div className="bg-white p-5 rounded-[28px] border border-slate-50 shadow-sm transition-all hover:shadow-md">
+        <div className="bg-white p-5 rounded-[28px] border border-slate-50 shadow-sm">
           <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Total Entrées</span>
           <div className="text-xl font-black text-emerald-600 truncate">+{currentMonthStats.income.toLocaleString('fr-FR')}€</div>
         </div>
-        <div className="bg-white p-5 rounded-[28px] border border-slate-50 shadow-sm text-right transition-all hover:shadow-md">
+        <div className="bg-white p-5 rounded-[28px] border border-slate-50 shadow-sm text-right">
           <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1.5">Total Sorties</span>
           <div className="text-xl font-black text-slate-900 truncate">-{currentMonthStats.expenses.toLocaleString('fr-FR')}€</div>
         </div>
       </div>
 
-      {/* 3. Assistant Zen AI (Positionné SOUS les chiffres de flux) */}
-      <div className="bg-slate-900 text-white p-5 rounded-[28px] shadow-2xl relative overflow-hidden ring-1 ring-white/10 mx-1">
+      {/* 3. ASSISTANT ZEN AI (Position stratégique sous les flux) */}
+      <div className="bg-slate-900 text-white p-5 rounded-[28px] shadow-2xl relative overflow-hidden ring-1 ring-white/10 mx-1 shrink-0 min-h-[100px] flex flex-col justify-center">
         <div className="absolute -top-10 -right-10 w-24 h-24 bg-indigo-500/20 rounded-full blur-2xl" />
-        <div className="flex items-center gap-2.5 mb-2">
+        <div className="flex items-center gap-2.5 mb-2 relative z-10">
           <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 shadow-[0_0_10px_rgba(129,140,248,0.8)] animate-pulse" />
-          <h4 className="font-black text-[8px] uppercase tracking-[0.3em] text-indigo-400">Zen Financial Intelligence</h4>
+          <h4 className="font-black text-[8px] uppercase tracking-[0.3em] text-indigo-400">Zen Intelligence</h4>
         </div>
-        <p className={`text-[12px] font-medium leading-relaxed italic ${loadingAdvice ? 'opacity-30' : 'opacity-100'} transition-opacity duration-500`}>
+        <p className={`text-[12px] font-medium leading-relaxed italic relative z-10 ${loadingAdvice ? 'opacity-30' : 'opacity-100'} transition-opacity duration-500`}>
           "{aiAdvice}"
         </p>
       </div>
 
-      {/* 4. Graphique Analytique */}
-      <div className="bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm space-y-6">
+      {/* 4. GRAPHIQUE ANALYTIQUE */}
+      <div className="bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm space-y-6 shrink-0">
         <div className="flex items-center justify-between">
-          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Visualisation des dépenses</h3>
-          <span className="text-[9px] font-black text-indigo-500 bg-indigo-50 px-2 py-1 rounded-lg">Ce mois</span>
+          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Répartition du mois</h3>
+          <span className="text-[9px] font-black text-indigo-500 bg-indigo-50 px-2 py-1 rounded-lg">Visuel</span>
         </div>
 
         <div className="w-full h-[180px] relative">
@@ -225,8 +223,8 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, categories, activeA
         </div>
       </div>
 
-      {/* 5. Liste des Catégories (Détail par catégorie) */}
-      <div className="bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm">
+      {/* 5. DÉTAIL PAR CATÉGORIE */}
+      <div className="bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm shrink-0">
         <div className="flex items-center justify-between border-b border-slate-50 pb-4 mb-5">
            <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Détail par catégorie</h4>
            <span className="text-[9px] font-black uppercase tracking-widest text-slate-300">{categorySummary.length} postes</span>
@@ -237,22 +235,22 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, categories, activeA
             <div key={cat.id} className="group cursor-pointer" onMouseEnter={() => setActiveIndex(idx)} onMouseLeave={() => setActiveIndex(null)}>
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-3.5">
-                  <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center text-lg border border-slate-100 shadow-sm">{cat.icon}</div>
+                  <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center text-lg border border-slate-100">{cat.icon}</div>
                   <span className="text-[11px] font-bold text-slate-800 truncate max-w-[140px] uppercase tracking-tight">{cat.name}</span>
                 </div>
-                <div className="text-right">
+                <div className="text-right shrink-0">
                   <span className="text-[11px] font-black text-slate-900">{Math.round(cat.value)}€</span>
                   <span className="text-[9px] font-bold text-slate-400 ml-2">{Math.round(cat.percent)}%</span>
                 </div>
               </div>
               <div className="h-2 w-full bg-slate-50 rounded-full overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-700 delay-100" style={{ backgroundColor: cat.color, width: `${cat.percent}%` }} />
+                <div className="h-full rounded-full transition-all duration-700" style={{ backgroundColor: cat.color, width: `${cat.percent}%` }} />
               </div>
             </div>
           )) : (
-            <div className="py-12 text-center flex flex-col items-center gap-2">
-              <span className="text-3xl grayscale opacity-30">📊</span>
-              <div className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">Aucune dépense ce mois</div>
+            <div className="py-12 text-center flex flex-col items-center gap-2 opacity-30 grayscale">
+              <span className="text-3xl">📊</span>
+              <div className="text-[10px] font-black uppercase tracking-widest italic">Aucune donnée</div>
             </div>
           )}
         </div>
