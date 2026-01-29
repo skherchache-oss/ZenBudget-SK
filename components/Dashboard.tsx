@@ -18,7 +18,7 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ transactions, categories, activeAccount, allAccounts, onSwitchAccount, month, year }) => {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const [aiAdvice, setAiAdvice] = useState<string>("Analyse de votre sérénité...");
+  const [aiAdvice, setAiAdvice] = useState<string>("Analyse en cours...");
   const [loadingAdvice, setLoadingAdvice] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
 
@@ -66,18 +66,18 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, categories, activeA
   useEffect(() => {
     const fetchAiAdvice = async () => {
       if (!process.env.API_KEY) {
-        setAiAdvice(projection < 0 ? "Attention au découvert prévu." : "Budget équilibré.");
+        setAiAdvice(projection < 0 ? "Attention au découvert." : "Gestion saine ce mois-ci.");
         return;
       }
       setLoadingAdvice(true);
       try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const expenseTotal = currentMonthTransactions.filter(t => t.type === 'EXPENSE').reduce((a, b) => a + b.amount, 0);
-        const prompt = `Analyse très courte pour ${MONTHS_FR[month]}: Revenus ${currentStatus.income}€, Dépenses ${expenseTotal}€, Projection ${projection}€. Conseil 100 car. max.`;
+        const prompt = `Dashboard ${MONTHS_FR[month]}: Revenus ${currentStatus.income}€, Dépenses ${expenseTotal}€, Projection ${projection}€. Conseil ultra-court (90 car. max).`;
         const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
-        setAiAdvice(response.text || "Continuez votre suivi.");
+        setAiAdvice(response.text || "Suivez vos dépenses.");
       } catch (err) {
-        setAiAdvice("Suivez vos dépenses de près.");
+        setAiAdvice("Gardez un œil sur votre budget.");
       } finally {
         setLoadingAdvice(false);
       }
@@ -95,12 +95,12 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, categories, activeA
   const hoveredCategory = activeIndex !== null ? categorySummary[activeIndex] : null;
 
   return (
-    <div className="space-y-3 animate-in fade-in duration-500 max-h-full overflow-hidden flex flex-col">
-      {/* Sélecteur de compte compact */}
-      <div className="relative px-1 flex items-center justify-between shrink-0">
+    <div className="space-y-3 flex flex-col h-full overflow-hidden">
+      {/* Header Compact */}
+      <div className="flex items-center justify-between shrink-0 px-1">
         <button 
           onClick={() => setShowAccountMenu(!showAccountMenu)}
-          className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-gray-100 shadow-sm active:scale-95 transition-all"
+          className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-gray-100 shadow-sm active:scale-95 transition-all relative z-50"
         >
           <div className="w-2 h-2 rounded-full" style={{ backgroundColor: activeAccount.color }} />
           <span className="text-[9px] font-black uppercase tracking-widest text-gray-700">{activeAccount.name}</span>
@@ -108,64 +108,57 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, categories, activeA
         </button>
 
         {showAccountMenu && (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setShowAccountMenu(false)} />
-            <div className="absolute top-full left-0 mt-1 w-40 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 z-50">
-              {allAccounts.map(acc => (
-                <button
-                  key={acc.id}
-                  onClick={() => { onSwitchAccount(acc.id); setShowAccountMenu(false); }}
-                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 text-[9px] font-black uppercase tracking-widest text-gray-500"
-                >
-                  <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: acc.color }} />
-                  {acc.name}
-                </button>
-              ))}
-            </div>
-          </>
+          <div className="absolute top-10 left-0 w-40 bg-white rounded-2xl shadow-xl border border-gray-100 py-1 z-[100] animate-in zoom-in-95 duration-200">
+            {allAccounts.map(acc => (
+              <button key={acc.id} onClick={() => { onSwitchAccount(acc.id); setShowAccountMenu(false); }} className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 text-[9px] font-black uppercase tracking-widest text-gray-500">
+                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: acc.color }} />
+                {acc.name}
+              </button>
+            ))}
+          </div>
         )}
-        <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Stats</span>
+        <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Dashboard</span>
       </div>
 
-      {/* Projection Card Compacte */}
-      <div className={`bg-white p-5 rounded-[32px] shadow-sm border shrink-0 transition-all ${projection < 0 ? 'border-red-100 ring-4 ring-red-50/30' : 'border-gray-50'}`}>
-        <div className="flex items-end justify-between mb-4">
+      {/* Main Stats Card - Ultra Compact */}
+      <div className={`bg-white p-4 rounded-[28px] shadow-sm border shrink-0 ${projection < 0 ? 'border-red-100 bg-red-50/10' : 'border-gray-50'}`}>
+        <div className="flex justify-between items-start mb-4">
           <div>
-            <span className="text-gray-400 text-[9px] font-black uppercase tracking-widest block mb-0.5">Projection fin {MONTHS_FR[month]}</span>
-            <div className={`text-4xl font-black tracking-tighter leading-none ${projection >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
-              {Math.round(projection)}<span className="text-xl ml-0.5">€</span>
+            <span className="text-gray-400 text-[8px] font-black uppercase tracking-[0.2em] block mb-0.5">Projection fin {MONTHS_FR[month]}</span>
+            <div className={`text-4xl font-black tracking-tighter leading-none ${projection >= 0 ? 'text-slate-900' : 'text-red-600'}`}>
+              {Math.round(projection)}<span className="text-xl ml-1">€</span>
             </div>
           </div>
           <div className="text-right">
-            <span className="text-gray-400 text-[8px] font-black uppercase tracking-widest block mb-0.5">Dépensé</span>
+            <span className="text-gray-400 text-[8px] font-black uppercase tracking-[0.2em] block mb-0.5">Utilisation</span>
             <div className="text-xl font-black text-slate-800">{safetyPercentage.toFixed(0)}%</div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <div className="p-3 bg-gray-50/50 rounded-2xl border border-gray-100 flex flex-col">
-            <span className="text-gray-400 text-[8px] font-black uppercase tracking-widest block mb-0.5">Solde au {now.getDate()}</span>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
+            <span className="text-gray-400 text-[7px] font-black uppercase tracking-widest block mb-0.5">Solde actuel</span>
             <span className={`text-sm font-black ${currentStatus.balance >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
               {currentStatus.balance.toLocaleString('fr-FR')}€
             </span>
           </div>
-          <div className="p-3 bg-gray-50/50 rounded-2xl border border-gray-100 flex flex-col">
-            <span className="text-gray-400 text-[8px] font-black uppercase tracking-widest block mb-0.5">Total Dépenses</span>
-            <span className="text-sm font-black text-gray-900">
+          <div className="bg-slate-50/80 p-3 rounded-2xl border border-slate-100">
+            <span className="text-gray-400 text-[7px] font-black uppercase tracking-widest block mb-0.5">Dépensé</span>
+            <span className="text-sm font-black text-slate-900">
               {Math.round(currentMonthTransactions.filter(t => t.type === 'EXPENSE').reduce((a,b)=>a+b.amount,0))}€
             </span>
           </div>
         </div>
       </div>
 
-      {/* Chart Miniaturisé */}
-      <div className="bg-white p-3 rounded-[32px] shadow-sm border border-gray-50 flex-1 min-h-[140px] relative overflow-hidden">
+      {/* Chart - Taille ajustée pour tenir sur l'écran */}
+      <div className="bg-white p-2 rounded-[28px] shadow-sm border border-gray-50 flex-1 min-h-[160px] relative overflow-hidden">
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie
               data={categorySummary}
               cx="50%" cy="50%"
-              innerRadius={45} outerRadius={60}
+              innerRadius={45} outerRadius={62}
               paddingAngle={4}
               dataKey="value"
               stroke="none"
@@ -180,28 +173,27 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, categories, activeA
         </ResponsiveContainer>
         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
           {hoveredCategory ? (
-            <div className="text-center animate-in zoom-in-95 duration-200">
-              <span className="text-lg leading-none">{hoveredCategory.icon}</span>
-              <div className="text-[8px] font-black text-indigo-600 uppercase tracking-tight truncate max-w-[60px]">{hoveredCategory.name}</div>
-              <div className="text-sm font-black text-gray-900 leading-none">{Math.round(hoveredCategory.value)}€</div>
+            <div className="text-center">
+              <span className="text-xl leading-none">{hoveredCategory.icon}</span>
+              <div className="text-[7px] font-black text-indigo-600 uppercase tracking-tighter truncate max-w-[60px]">{hoveredCategory.name}</div>
+              <div className="text-sm font-black text-slate-900 leading-none">{Math.round(hoveredCategory.value)}€</div>
             </div>
           ) : (
             <div className="text-center">
-              <span className="text-[7px] font-black text-gray-300 uppercase tracking-widest block">Catégories</span>
-              <span className="text-xs font-black text-gray-400">Total</span>
+              <span className="text-[7px] font-black text-gray-300 uppercase tracking-widest block">Répartition</span>
+              <span className="text-[10px] font-black text-gray-400">Dépenses</span>
             </div>
           )}
         </div>
       </div>
 
-      {/* Zen Advisor Compact */}
-      <div className="bg-gray-900 text-white p-5 rounded-[32px] shadow-lg relative overflow-hidden shrink-0">
-        <div className="absolute top-0 right-0 w-16 h-16 bg-indigo-500/10 rounded-full blur-xl" />
-        <div className="flex items-center gap-2 mb-1.5">
+      {/* Advisor - Collé en bas */}
+      <div className="bg-slate-900 text-white p-4 rounded-[28px] shadow-lg relative overflow-hidden shrink-0">
+        <div className="flex items-center gap-2 mb-1">
             <div className="w-1 h-1 rounded-full bg-indigo-400 animate-pulse" />
-            <h4 className="font-black text-[8px] uppercase tracking-widest text-indigo-400">Zen Advisor</h4>
+            <h4 className="font-black text-[7px] uppercase tracking-[0.3em] text-indigo-400">Zen Advisor</h4>
         </div>
-        <p className={`text-[12px] font-medium leading-relaxed ${loadingAdvice ? 'opacity-40 animate-pulse' : 'opacity-100'}`}>
+        <p className={`text-[12px] font-medium leading-snug italic ${loadingAdvice ? 'opacity-30' : 'opacity-100'}`}>
           "{aiAdvice}"
         </p>
       </div>
