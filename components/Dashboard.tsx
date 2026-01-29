@@ -18,7 +18,7 @@ interface DashboardProps {
 
 const Dashboard: React.FC<DashboardProps> = ({ transactions, categories, activeAccount, allAccounts, onSwitchAccount, month, year }) => {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const [aiAdvice, setAiAdvice] = useState<string>("Analyse de votre sérénité financière...");
+  const [aiAdvice, setAiAdvice] = useState<string>("Analyse de votre sérénité...");
   const [loadingAdvice, setLoadingAdvice] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
 
@@ -65,27 +65,25 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, categories, activeA
 
   useEffect(() => {
     const fetchAiAdvice = async () => {
-      const apiKey = process.env.API_KEY;
-      if (!apiKey) {
-        setAiAdvice(projection < 0 ? "Attention au découvert prévu." : "Votre budget semble équilibré.");
+      if (!process.env.API_KEY) {
+        setAiAdvice(projection < 0 ? "Attention au découvert prévu." : "Budget équilibré.");
         return;
       }
       setLoadingAdvice(true);
       try {
-        const ai = new GoogleGenAI({ apiKey });
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const expenseTotal = currentMonthTransactions.filter(t => t.type === 'EXPENSE').reduce((a, b) => a + b.amount, 0);
-        const incomeTotal = currentMonthTransactions.filter(t => t.type === 'INCOME').reduce((a, b) => a + b.amount, 0);
-        const prompt = `Analyse courte pour ${MONTHS_FR[month]}: Revenus ${incomeTotal}€, Dépenses ${expenseTotal}€, Projection ${projection}€. Conseil bienveillant max 140 car.`;
+        const prompt = `Analyse très courte pour ${MONTHS_FR[month]}: Revenus ${currentStatus.income}€, Dépenses ${expenseTotal}€, Projection ${projection}€. Conseil 100 car. max.`;
         const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
-        setAiAdvice(response.text || "Continuez votre suivi rigoureux.");
+        setAiAdvice(response.text || "Continuez votre suivi.");
       } catch (err) {
-        setAiAdvice("Continuez à suivre vos dépenses de près.");
+        setAiAdvice("Suivez vos dépenses de près.");
       } finally {
         setLoadingAdvice(false);
       }
     };
     fetchAiAdvice();
-  }, [projection, categorySummary.length]);
+  }, [projection]);
 
   const safetyPercentage = useMemo(() => {
     const totalIncome = currentMonthTransactions.filter(t => t.type === 'INCOME').reduce((acc, t) => acc + t.amount, 0);
@@ -97,107 +95,113 @@ const Dashboard: React.FC<DashboardProps> = ({ transactions, categories, activeA
   const hoveredCategory = activeIndex !== null ? categorySummary[activeIndex] : null;
 
   return (
-    <div className="space-y-5 animate-in fade-in duration-500">
-      <div className="relative px-1 flex items-center justify-between">
+    <div className="space-y-3 animate-in fade-in duration-500 max-h-full overflow-hidden flex flex-col">
+      {/* Sélecteur de compte compact */}
+      <div className="relative px-1 flex items-center justify-between shrink-0">
         <button 
           onClick={() => setShowAccountMenu(!showAccountMenu)}
-          className="flex items-center gap-2 bg-white px-4 py-2 rounded-full border border-gray-100 shadow-sm active:scale-95 transition-all"
+          className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-full border border-gray-100 shadow-sm active:scale-95 transition-all"
         >
-          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: activeAccount.color }} />
-          <span className="text-[10px] font-black uppercase tracking-widest text-gray-700">{activeAccount.name}</span>
+          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: activeAccount.color }} />
+          <span className="text-[9px] font-black uppercase tracking-widest text-gray-700">{activeAccount.name}</span>
           <svg className={`w-3 h-3 text-gray-400 transition-transform ${showAccountMenu ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" /></svg>
         </button>
 
         {showAccountMenu && (
           <>
             <div className="fixed inset-0 z-40" onClick={() => setShowAccountMenu(false)} />
-            <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-gray-100 py-2 z-50 animate-in zoom-in-95 duration-200">
+            <div className="absolute top-full left-0 mt-1 w-40 bg-white rounded-2xl shadow-xl border border-gray-100 py-1.5 z-50">
               {allAccounts.map(acc => (
                 <button
                   key={acc.id}
                   onClick={() => { onSwitchAccount(acc.id); setShowAccountMenu(false); }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors ${acc.id === activeAccount.id ? 'bg-indigo-50/50' : ''}`}
+                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-gray-50 text-[9px] font-black uppercase tracking-widest text-gray-500"
                 >
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: acc.color }} />
-                  <span className={`text-[10px] font-black uppercase tracking-widest ${acc.id === activeAccount.id ? 'text-indigo-600' : 'text-gray-500'}`}>{acc.name}</span>
+                  <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: acc.color }} />
+                  {acc.name}
                 </button>
               ))}
             </div>
           </>
         )}
-        
-        <div className="flex items-center gap-2">
-           <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tableau de bord</span>
-        </div>
+        <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Stats</span>
       </div>
 
-      <div className={`bg-white p-7 rounded-[40px] shadow-sm border transition-all ${projection < 0 ? 'border-red-100 ring-8 ring-red-50/50' : 'border-gray-50'}`}>
-        <div className="mb-8">
-          <span className="text-gray-400 text-[10px] font-black uppercase tracking-widest block mb-1">Projection fin {MONTHS_FR[month]}</span>
-          <div className={`text-6xl font-black tracking-tighter leading-none ${projection >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
-            {Math.round(projection)}<span className="text-3xl ml-1">€</span>
+      {/* Projection Card Compacte */}
+      <div className={`bg-white p-5 rounded-[32px] shadow-sm border shrink-0 transition-all ${projection < 0 ? 'border-red-100 ring-4 ring-red-50/30' : 'border-gray-50'}`}>
+        <div className="flex items-end justify-between mb-4">
+          <div>
+            <span className="text-gray-400 text-[9px] font-black uppercase tracking-widest block mb-0.5">Projection fin {MONTHS_FR[month]}</span>
+            <div className={`text-4xl font-black tracking-tighter leading-none ${projection >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
+              {Math.round(projection)}<span className="text-xl ml-0.5">€</span>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="text-gray-400 text-[8px] font-black uppercase tracking-widest block mb-0.5">Dépensé</span>
+            <div className="text-xl font-black text-slate-800">{safetyPercentage.toFixed(0)}%</div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="p-4 bg-gray-50/50 rounded-3xl border border-gray-100">
-            <span className="text-gray-400 text-[9px] font-black uppercase tracking-widest block mb-1">Solde au {now.getDate()}</span>
-            <span className={`text-lg font-black ${currentStatus.balance >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="p-3 bg-gray-50/50 rounded-2xl border border-gray-100 flex flex-col">
+            <span className="text-gray-400 text-[8px] font-black uppercase tracking-widest block mb-0.5">Solde au {now.getDate()}</span>
+            <span className={`text-sm font-black ${currentStatus.balance >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
               {currentStatus.balance.toLocaleString('fr-FR')}€
             </span>
           </div>
-          <div className="p-4 bg-gray-50/50 rounded-3xl border border-gray-100">
-            <span className="text-gray-400 text-[9px] font-black uppercase tracking-widest block mb-1">Dépensé</span>
-            <span className="text-lg font-black text-gray-900">{safetyPercentage.toFixed(0)}%</span>
+          <div className="p-3 bg-gray-50/50 rounded-2xl border border-gray-100 flex flex-col">
+            <span className="text-gray-400 text-[8px] font-black uppercase tracking-widest block mb-0.5">Total Dépenses</span>
+            <span className="text-sm font-black text-gray-900">
+              {Math.round(currentMonthTransactions.filter(t => t.type === 'EXPENSE').reduce((a,b)=>a+b.amount,0))}€
+            </span>
           </div>
         </div>
       </div>
 
-      <div className="bg-white p-6 rounded-[40px] shadow-sm border border-gray-50">
-        <div className="h-52 relative">
-          <ResponsiveContainer width="100%" height="100%">
-            <PieChart>
-              <Pie
-                data={categorySummary}
-                cx="50%" cy="50%"
-                innerRadius={65} outerRadius={85}
-                paddingAngle={5}
-                dataKey="value"
-                stroke="none"
-                onMouseEnter={(_, index) => setActiveIndex(index)}
-                onMouseLeave={() => setActiveIndex(null)}
-              >
-                {categorySummary.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} style={{ outline: 'none', cursor: 'pointer', opacity: activeIndex === null || activeIndex === index ? 1 : 0.4 }} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            {hoveredCategory ? (
-              <>
-                <span className="text-2xl mb-1">{hoveredCategory.icon}</span>
-                <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">{hoveredCategory.name}</span>
-                <span className="text-xl font-black text-gray-900">{Math.round(hoveredCategory.value)}€</span>
-              </>
-            ) : (
-              <>
-                <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Total Dépenses</span>
-                <span className="text-3xl font-black text-gray-900">
-                  {Math.round(currentMonthTransactions.filter(t => t.type === 'EXPENSE').reduce((a,b)=>a+b.amount,0))}€
-                </span>
-              </>
-            )}
-          </div>
+      {/* Chart Miniaturisé */}
+      <div className="bg-white p-3 rounded-[32px] shadow-sm border border-gray-50 flex-1 min-h-[140px] relative overflow-hidden">
+        <ResponsiveContainer width="100%" height="100%">
+          <PieChart>
+            <Pie
+              data={categorySummary}
+              cx="50%" cy="50%"
+              innerRadius={45} outerRadius={60}
+              paddingAngle={4}
+              dataKey="value"
+              stroke="none"
+              onMouseEnter={(_, index) => setActiveIndex(index)}
+              onMouseLeave={() => setActiveIndex(null)}
+            >
+              {categorySummary.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.color} style={{ outline: 'none', cursor: 'pointer', opacity: activeIndex === null || activeIndex === index ? 1 : 0.4 }} />
+              ))}
+            </Pie>
+          </PieChart>
+        </ResponsiveContainer>
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          {hoveredCategory ? (
+            <div className="text-center animate-in zoom-in-95 duration-200">
+              <span className="text-lg leading-none">{hoveredCategory.icon}</span>
+              <div className="text-[8px] font-black text-indigo-600 uppercase tracking-tight truncate max-w-[60px]">{hoveredCategory.name}</div>
+              <div className="text-sm font-black text-gray-900 leading-none">{Math.round(hoveredCategory.value)}€</div>
+            </div>
+          ) : (
+            <div className="text-center">
+              <span className="text-[7px] font-black text-gray-300 uppercase tracking-widest block">Catégories</span>
+              <span className="text-xs font-black text-gray-400">Total</span>
+            </div>
+          )}
         </div>
       </div>
 
-      <div className="bg-gray-900 text-white p-6 rounded-[40px] shadow-xl relative overflow-hidden group">
-        <div className="absolute -top-4 -right-4 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl group-hover:bg-indigo-500/20 transition-all" />
-        <div className="flex items-center gap-2 mb-3">
-            <h4 className="font-black text-[9px] uppercase tracking-[0.2em] text-indigo-400">Zen Advisor</h4>
+      {/* Zen Advisor Compact */}
+      <div className="bg-gray-900 text-white p-5 rounded-[32px] shadow-lg relative overflow-hidden shrink-0">
+        <div className="absolute top-0 right-0 w-16 h-16 bg-indigo-500/10 rounded-full blur-xl" />
+        <div className="flex items-center gap-2 mb-1.5">
+            <div className="w-1 h-1 rounded-full bg-indigo-400 animate-pulse" />
+            <h4 className="font-black text-[8px] uppercase tracking-widest text-indigo-400">Zen Advisor</h4>
         </div>
-        <p className={`text-[14px] font-medium leading-snug ${loadingAdvice ? 'opacity-40' : 'opacity-100'}`}>
+        <p className={`text-[12px] font-medium leading-relaxed ${loadingAdvice ? 'opacity-40 animate-pulse' : 'opacity-100'}`}>
           "{aiAdvice}"
         </p>
       </div>

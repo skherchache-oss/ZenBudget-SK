@@ -20,7 +20,6 @@ const App: React.FC = () => {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [modalInitialDate, setModalInitialDate] = useState<string>(new Date().toISOString());
   
-  // État partagé pour le jour sélectionné dans le calendrier
   const [selectedDay, setSelectedDay] = useState<number | null>(new Date().getMonth() === currentMonth ? new Date().getDate() : 1);
 
   const isResetting = useRef(false);
@@ -34,12 +33,6 @@ const App: React.FC = () => {
   const activeAccount = useMemo(() => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
-
-  const currentTotalBalance = useMemo(() => {
-    if (!activeAccount) return 0;
-    const transactionsSum = activeAccount.transactions.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
-    return transactionsSum;
-  }, [activeAccount]);
 
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
@@ -67,11 +60,28 @@ const App: React.FC = () => {
     );
   }, [activeAccount, currentMonth, currentYear]);
 
+  // Calcul du solde "Stats" : Uniquement le mois en cours jusqu'à aujourd'hui
+  const currentMonthBalance = useMemo(() => {
+    const now = new Date();
+    const isCurrentPeriod = now.getMonth() === currentMonth && now.getFullYear() === currentYear;
+    
+    return effectiveTransactions.reduce((acc, t) => {
+      const tDate = new Date(t.date);
+      // Si on regarde le mois actuel, on ne compte que jusqu'à aujourd'hui
+      // Si on regarde un mois passé, on compte tout le mois
+      const isPastOrToday = !isCurrentPeriod || tDate.getDate() <= now.getDate();
+      
+      if (isPastOrToday) {
+        return acc + (t.type === 'INCOME' ? t.amount : -t.amount);
+      }
+      return acc;
+    }, 0);
+  }, [effectiveTransactions, currentMonth, currentYear]);
+
   const handleMonthChange = (delta: number) => {
     const d = new Date(currentYear, currentMonth + delta, 1);
     setCurrentMonth(d.getMonth());
     setCurrentYear(d.getFullYear());
-    // On réinitialise le jour sélectionné au changement de mois pour plus de clarté
     setSelectedDay(1);
   };
 
@@ -154,25 +164,25 @@ const App: React.FC = () => {
     }
   };
 
+  // Fix: added missing handleDeleteAccount function
+  const handleDeleteAccount = (id: string) => {
+    setState(prev => {
+      const nextAccounts = prev.accounts.filter(a => a.id !== id);
+      const nextActiveId = prev.activeAccountId === id ? (nextAccounts[0]?.id || prev.activeAccountId) : prev.activeAccountId;
+      return {
+        ...prev,
+        accounts: nextAccounts,
+        activeAccountId: nextActiveId
+      };
+    });
+  };
+
   const handleHardReset = () => {
-    if (window.confirm("🚨 RÉINITIALISATION TOTALE\n\nSouhaitez-vous vraiment effacer TOUTES vos données ? Cette action est irréversible.")) {
+    if (window.confirm("🚨 RÉINITIALISATION TOTALE\n\nEffacer toutes vos données ?")) {
       isResetting.current = true;
       localStorage.clear();
       window.location.href = window.location.pathname;
     }
-  };
-
-  const handleDeleteAccount = (accountId: string) => {
-    if (state.accounts.length <= 1) return;
-    setState(prev => {
-      const nextAccounts = prev.accounts.filter(a => a.id !== accountId);
-      const nextActiveId = prev.activeAccountId === accountId ? nextAccounts[0].id : prev.activeAccountId;
-      return { 
-        ...prev, 
-        accounts: nextAccounts, 
-        activeAccountId: nextActiveId 
-      };
-    });
   };
 
   const handleFABClick = () => {
@@ -232,7 +242,7 @@ const App: React.FC = () => {
             onAddAtDate={(date) => { setModalInitialDate(date); setShowAddModal(true); }}
             selectedDay={selectedDay}
             onSelectDay={setSelectedDay}
-            totalBalance={currentTotalBalance}
+            totalBalance={currentMonthBalance}
           />
         )}
         {activeView === 'RECURRING' && (
@@ -243,7 +253,7 @@ const App: React.FC = () => {
               ...prev, 
               accounts: prev.accounts.map(a => a.id === activeAccount.id ? { ...a, recurringTemplates: templates } : a) 
             }))}
-            totalBalance={currentTotalBalance}
+            totalBalance={currentMonthBalance}
           />
         )}
         {activeView === 'SETTINGS' && (
