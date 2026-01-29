@@ -105,7 +105,6 @@ const Dashboard: React.FC<DashboardProps> = ({
 
       {/* 1. LES 3 CHIFFRES CLÉS */}
       <div className="grid grid-cols-1 gap-4 shrink-0">
-        {/* Compte courant (Le solde BANCAIRE réel) */}
         <div className="bg-slate-900 p-7 rounded-[40px] shadow-2xl relative overflow-hidden ring-1 ring-white/10">
           <div className="relative z-10">
             <span className="text-indigo-400 text-[10px] font-black uppercase tracking-[0.2em] block mb-1">Compte courant</span>
@@ -117,7 +116,6 @@ const Dashboard: React.FC<DashboardProps> = ({
           <div className="absolute -right-6 -top-6 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
         </div>
 
-        {/* Projections Secondaires */}
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm flex flex-col justify-between">
             <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block mb-2">Disponible réel</span>
@@ -136,7 +134,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* 2. BLOCS FLUX & CHARGES (UNIFORMES) */}
+      {/* 2. BLOCS FLUX & CHARGES */}
       <div className="grid grid-cols-2 gap-4 shrink-0">
         <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm">
           <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Entrées</span>
@@ -165,29 +163,73 @@ const Dashboard: React.FC<DashboardProps> = ({
         <p className={`text-[13px] font-medium italic text-indigo-50 leading-tight transition-opacity ${loadingAdvice ? 'opacity-30' : 'opacity-100'}`}>"{aiAdvice}"</p>
       </div>
 
-      {/* 4. GRAPHIQUE */}
-      <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm shrink-0">
-        <div className="w-full h-[180px] relative">
+      {/* 4. GRAPHIQUE & LISTE DES CATÉGORIES */}
+      <div className="bg-white p-6 rounded-[40px] border border-slate-100 shadow-sm shrink-0 space-y-6">
+        <div className="w-full h-[200px] relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie activeIndex={activeIndex === null ? undefined : activeIndex} activeShape={renderActiveShape} data={categorySummary} cx="50%" cy="50%" innerRadius={60} outerRadius={75} paddingAngle={5} dataKey="value" stroke="none" onMouseEnter={(_, idx) => setActiveIndex(idx)} onMouseLeave={() => setActiveIndex(null)}>
+              <Pie 
+                activeIndex={activeIndex === null ? undefined : activeIndex} 
+                activeShape={renderActiveShape} 
+                data={categorySummary} 
+                cx="50%" cy="50%" 
+                innerRadius={65} outerRadius={80} 
+                paddingAngle={5} dataKey="value" 
+                stroke="none" 
+                onMouseEnter={(_, idx) => setActiveIndex(idx)} 
+                onMouseLeave={() => setActiveIndex(null)}
+              >
                 {categorySummary.map((entry, idx) => <Cell key={`cell-${idx}`} fill={entry.color} style={{ outline: 'none' }} />)}
               </Pie>
             </PieChart>
           </ResponsiveContainer>
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
             {hoveredCategory ? (
-              <div className="text-center animate-in zoom-in">
-                <span className="text-3xl leading-none">{hoveredCategory.icon}</span>
-                <div className="text-[10px] font-black text-slate-900 mt-1">{Math.round(hoveredCategory.percent)}%</div>
+              <div className="text-center animate-in zoom-in duration-300">
+                <span className="text-4xl leading-none">{hoveredCategory.icon}</span>
+                <div className="text-[11px] font-black text-slate-900 mt-1 uppercase tracking-tighter">{Math.round(hoveredCategory.percent)}%</div>
               </div>
             ) : (
               <div className="text-center">
-                <span className="text-[8px] font-black text-slate-300 uppercase block">Dépenses</span>
-                <span className="text-sm font-black text-slate-900">{Math.round(stats.expenses)}€</span>
+                <span className="text-[9px] font-black text-slate-300 uppercase block tracking-widest">Dépenses</span>
+                <span className="text-lg font-black text-slate-900">{Math.round(stats.expenses).toLocaleString('fr-FR')}€</span>
               </div>
             )}
           </div>
+        </div>
+
+        {/* Liste détaillée des catégories */}
+        <div className="space-y-3 pt-4 border-t border-slate-50">
+          <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-4 px-1">Répartition des dépenses</h3>
+          {categorySummary.length > 0 ? categorySummary.map((cat, idx) => (
+            <div 
+              key={cat.id} 
+              className={`flex items-center gap-4 p-3 rounded-2xl transition-all ${activeIndex === idx ? 'bg-slate-50 scale-[1.02]' : 'hover:bg-slate-50/50'}`}
+              onMouseEnter={() => setActiveIndex(idx)}
+              onMouseLeave={() => setActiveIndex(null)}
+            >
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0" style={{ backgroundColor: `${cat.color}15`, color: cat.color }}>
+                {cat.icon}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[11px] font-black text-slate-800 uppercase tracking-tight truncate">{cat.name}</span>
+                  <span className="text-[11px] font-black text-slate-900">{Math.round(cat.value).toLocaleString('fr-FR')}€</span>
+                </div>
+                <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full rounded-full transition-all duration-1000" 
+                    style={{ width: `${cat.percent}%`, backgroundColor: cat.color }}
+                  />
+                </div>
+              </div>
+              <div className="text-[9px] font-black text-slate-300 w-8 text-right">
+                {Math.round(cat.percent)}%
+              </div>
+            </div>
+          )) : (
+            <div className="py-8 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest italic">Aucune dépense enregistrée</div>
+          )}
         </div>
       </div>
     </div>
