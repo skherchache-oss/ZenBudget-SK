@@ -19,81 +19,29 @@ const App: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [modalInitialDate, setModalInitialDate] = useState<string>(new Date().toISOString());
-  
   const [selectedDay, setSelectedDay] = useState<number | null>(new Date().getMonth() === currentMonth ? new Date().getDate() : 1);
 
-  const isResetting = useRef(false);
-
   useEffect(() => {
-    if (!isResetting.current) {
-      saveState(state);
-    }
+    saveState(state);
   }, [state]);
 
   const activeAccount = useMemo(() => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
-  const calculateMonthPerformance = (month: number, year: number, account: BudgetAccount) => {
-    const realSum = account.transactions
-      .filter(t => {
-        const d = new Date(t.date);
-        return d.getMonth() === month && d.getFullYear() === year;
-      })
-      .reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
-
-    const materializedTplIds = new Set(
-      account.transactions
-        .filter(t => t.templateId && new Date(t.date).getMonth() === month && new Date(t.date).getFullYear() === year)
-        .map(t => t.templateId)
-    );
-
-    const recurringSum = (account.recurringTemplates || [])
-      .filter(tpl => tpl.isActive && !materializedTplIds.has(tpl.id))
-      .reduce((acc, tpl) => acc + (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount), 0);
-
-    return realSum + recurringSum;
-  };
-
-  const carryOverBalance = useMemo(() => {
-    if (!activeAccount) return 0;
-    let startYear = currentYear;
-    let startMonth = currentMonth;
-    if (activeAccount.transactions.length > 0) {
-      const dates = activeAccount.transactions.map(t => new Date(t.date).getTime());
-      const firstDate = new Date(Math.min(...dates));
-      startYear = firstDate.getFullYear();
-      startMonth = firstDate.getMonth();
-    } else {
-      const oneYearAgo = new Date(currentYear, currentMonth - 12, 1);
-      startYear = oneYearAgo.getFullYear();
-      startMonth = oneYearAgo.getMonth();
-    }
-
-    let runningBalance = 0;
-    let iterMonth = startMonth;
-    let iterYear = startYear;
-
-    while (iterYear < currentYear || (iterYear === currentYear && iterMonth < currentMonth)) {
-      runningBalance += calculateMonthPerformance(iterMonth, iterYear, activeAccount);
-      iterMonth++;
-      if (iterMonth > 11) { iterMonth = 0; iterYear++; }
-    }
-    return runningBalance;
-  }, [activeAccount, currentMonth, currentYear]);
-
-  // Solde "Maintenant" (Report + Transactions réelles jusqu'à aujourd'hui)
+  // SOLDE RÉEL (Aujourd'hui) : Somme de tout le passé
   const balanceToday = useMemo(() => {
     if (!activeAccount) return 0;
     const now = new Date();
-    const realTransactionsToDate = activeAccount.transactions.filter(t => {
-      const d = new Date(t.date);
-      return d.getTime() <= now.getTime();
-    });
-    const sum = realTransactionsToDate.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
-    return carryOverBalance + sum;
-  }, [activeAccount, carryOverBalance]);
+    return activeAccount.transactions.reduce((acc, t) => {
+      if (new Date(t.date).getTime() <= now.getTime()) {
+        return acc + (t.type === 'INCOME' ? t.amount : -t.amount);
+      }
+      return acc;
+    }, 0);
+  }, [activeAccount.transactions]);
 
+  // Transactions effectives du mois sélectionné (Réelles + Virtuelles)
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
     const manualOnes = activeAccount.transactions.filter(t => {
@@ -126,10 +74,20 @@ const App: React.FC = () => {
     );
   }, [activeAccount, currentMonth, currentYear]);
 
+  // SOLDE PROJETÉ (Fin du mois)
   const projectedBalance = useMemo(() => {
-    const monthPerf = effectiveTransactions.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
-    return carryOverBalance + monthPerf;
-  }, [effectiveTransactions, carryOverBalance]);
+    if (!activeAccount) return 0;
+    // On calcule la performance de tout le passé avant le mois en cours
+    const pastPerformance = activeAccount.transactions.reduce((acc, t) => {
+      const d = new Date(t.date);
+      const isBeforeMonth = (d.getFullYear() < currentYear) || (d.getFullYear() === currentYear && d.getMonth() < currentMonth);
+      if (isBeforeMonth) return acc + (t.type === 'INCOME' ? t.amount : -t.amount);
+      return acc;
+    }, 0);
+
+    const monthPerformance = effectiveTransactions.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
+    return pastPerformance + monthPerformance;
+  }, [activeAccount, effectiveTransactions, currentMonth, currentYear]);
 
   const handleMonthChange = (delta: number) => {
     const d = new Date(currentYear, currentMonth + delta, 1);
@@ -144,14 +102,13 @@ const App: React.FC = () => {
       let nextTransactions = [...acc.transactions];
       
       const targetId = t.id || editingTransaction?.id;
-      // Bug fix: identifier si on édite vraiment une transaction existante
-      const isExistingReal = targetId && !targetId.toString().startsWith('virtual-') && acc.transactions.some(item => item.id === targetId);
+      const isExisting = targetId && !targetId.toString().startsWith('virtual-') && acc.transactions.some(item => item.id === targetId);
 
-      if (isExistingReal) {
-        // REMPLACEMENT au lieu d'ajout
+      if (isExisting) {
+        // MODIFICATION SANS DOUBLON
         nextTransactions = nextTransactions.map(item => item.id === targetId ? ({ ...t, id: targetId } as Transaction) : item);
       } else {
-        // AJOUT (Nouvelle ou Matérialisation de virtuelle)
+        // NOUVELLE TRANSACTION
         const newId = (targetId && !targetId.toString().startsWith('virtual-')) ? targetId : generateId();
         nextTransactions = [{ ...t, id: newId } as Transaction, ...nextTransactions];
       }
@@ -184,20 +141,20 @@ const App: React.FC = () => {
             <h1 className="text-lg font-black tracking-tight text-slate-800 font-logo">ZenBudget</h1>
           </div>
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-full border border-slate-200 scale-90 origin-right transition-all">
-             <button onClick={() => handleMonthChange(-1)} className="p-1.5 hover:bg-white rounded-full transition-all active:scale-90 text-slate-400 hover:text-indigo-600">
+             <button onClick={() => handleMonthChange(-1)} className="p-1.5 hover:bg-white rounded-full transition-all text-slate-400">
                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15 19l-7-7 7-7" /></svg>
              </button>
              <span className="text-[9px] font-black uppercase tracking-widest px-2 min-w-[90px] text-center text-slate-600">
                {MONTHS_FR[currentMonth]} {currentYear}
              </span>
-             <button onClick={() => handleMonthChange(1)} className="p-1.5 hover:bg-white rounded-full transition-all active:scale-90 text-slate-400 hover:text-indigo-600">
+             <button onClick={() => handleMonthChange(1)} className="p-1.5 hover:bg-white rounded-full transition-all text-slate-400">
                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M9 5l7 7-7 7" /></svg>
              </button>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 overflow-hidden max-w-2xl w-full mx-auto px-5 py-3 pb-24">
+      <main className="flex-1 overflow-hidden max-w-2xl w-full mx-auto px-5 py-2 pb-24">
         {activeView === 'DASHBOARD' && (
           <Dashboard 
             transactions={effectiveTransactions} 
@@ -208,8 +165,8 @@ const App: React.FC = () => {
             month={currentMonth}
             year={currentYear}
             onViewTransactions={() => setActiveView('TRANSACTIONS')}
-            carryOver={carryOverBalance}
             balanceToday={balanceToday}
+            projectedBalance={projectedBalance}
           />
         )}
         {activeView === 'TRANSACTIONS' && (
@@ -225,7 +182,7 @@ const App: React.FC = () => {
               selectedDay={selectedDay}
               onSelectDay={setSelectedDay}
               totalBalance={projectedBalance}
-              carryOver={carryOverBalance}
+              carryOver={projectedBalance - effectiveTransactions.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0)}
             />
           </div>
         )}
@@ -250,7 +207,7 @@ const App: React.FC = () => {
               onUpdateBudget={() => {}}
               onUpdateAccounts={(accounts) => setState(prev => ({ ...prev, accounts }))}
               onSetActiveAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))}
-              onDeleteAccount={() => {}} // Simple impl for now
+              onDeleteAccount={(id) => setState(prev => ({ ...prev, accounts: prev.accounts.filter(a => a.id !== id) }))}
               onReset={() => {
                 if (window.confirm("Tout effacer ?")) {
                   localStorage.clear();
@@ -272,7 +229,7 @@ const App: React.FC = () => {
           setModalInitialDate(dateStr);
           setShowAddModal(true);
         }} 
-        className="fixed bottom-[100px] right-6 w-14 h-14 bg-slate-900 text-white rounded-[22px] shadow-2xl flex items-center justify-center active:scale-90 transition-all z-40 border-4 border-white"
+        className="fixed bottom-[100px] right-6 w-14 h-14 bg-slate-900 text-white rounded-[22px] shadow-2xl flex items-center justify-center active:scale-90 z-40 border-4 border-white transition-all"
       >
         <IconPlus className="w-7 h-7" />
       </button>
