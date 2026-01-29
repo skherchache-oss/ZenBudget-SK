@@ -67,7 +67,7 @@ const TransactionItem: React.FC<{
         <div className="flex-1 min-w-0">
           <div className="text-[13px] font-black text-slate-800 truncate flex items-center gap-1.5 uppercase tracking-tight">
             {category?.name}
-            {isVirtual && <span className="text-amber-500 text-[9px] animate-pulse">⚡️</span>}
+            {t.isRecurring && <span className="text-amber-500 text-[9px] shrink-0">⚡️</span>}
           </div>
           <div className="text-[10px] text-slate-400 font-medium truncate mt-0.5">{t.comment || 'Note vide'}</div>
         </div>
@@ -112,8 +112,8 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
     return filteredTransactions.filter(t => new Date(t.date).getDate() === selectedDay);
   }, [selectedDay, filteredTransactions]);
 
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
   const startOffset = (new Date(year, month, 1).getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
   const today = new Date();
   const isThisMonth = today.getMonth() === month && today.getFullYear() === year;
 
@@ -148,24 +148,18 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
                 const day = i + 1;
                 const balance = dailyBalances[day];
                 const dayT = filteredTransactions.filter(t => new Date(t.date).getDate() === day);
-                const hasIncome = dayT.some(t => t.type === 'INCOME');
-                const hasExpense = dayT.some(t => t.type === 'EXPENSE');
                 const isSelected = selectedDay === day;
                 const isToday = isThisMonth && today.getDate() === day;
-                
                 return (
-                  <button 
-                    key={day} onClick={() => onSelectDay(day)}
+                  <button key={day} onClick={() => onSelectDay(day)}
                     className={`h-16 rounded-[22px] flex flex-col items-center justify-between py-2.5 transition-all duration-300 border relative ${isSelected ? 'bg-slate-900 border-slate-900 text-white shadow-2xl z-10 scale-110' : (isToday ? 'bg-indigo-50 border-indigo-200 text-indigo-900' : 'bg-white border-slate-50 hover:bg-slate-50 active:scale-95')}`}
                   >
                     <span className={`text-[11px] font-black ${isSelected ? 'text-white' : 'text-slate-800'}`}>{day}</span>
                     <div className="flex flex-col items-center gap-1">
-                      <span className={`text-[7px] font-black tracking-tighter leading-none ${isSelected ? 'text-indigo-300' : (balance >= 0 ? 'text-indigo-600' : 'text-red-500')}`}>
-                        {Math.round(balance)}€
-                      </span>
+                      <span className={`text-[7px] font-black tracking-tighter leading-none ${isSelected ? 'text-indigo-300' : (balance >= 0 ? 'text-indigo-600' : 'text-red-500')}`}>{Math.round(balance)}€</span>
                       <div className="flex gap-0.5">
-                        {hasIncome && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-emerald-300' : 'bg-emerald-400'}`} />}
-                        {hasExpense && <div className={`w-1 h-1 rounded-full ${isSelected ? 'bg-red-300' : 'bg-red-400'}`} />}
+                        {dayT.some(t => t.type === 'INCOME') && <div className="w-1 h-1 rounded-full bg-emerald-400" />}
+                        {dayT.some(t => t.type === 'EXPENSE') && <div className="w-1 h-1 rounded-full bg-red-400" />}
                       </div>
                     </div>
                   </button>
@@ -185,28 +179,16 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
             <div className="bg-white rounded-[32px] shadow-xl border border-slate-50 overflow-hidden divide-y divide-slate-50">
               {dayTransactions.length > 0 ? dayTransactions.map((t, idx) => (
                 <TransactionItem key={t.id} t={t} category={categories.find(c => c.id === t.categoryId)} isLast={idx === dayTransactions.length - 1} isOpen={openItemId === t.id} onToggle={() => setOpenItemId(openItemId === t.id ? null : t.id)} onDelete={onDelete} onEdit={onEdit} />
-              )) : (
-                <div className="py-10 flex flex-col items-center justify-center text-center opacity-40 grayscale">
-                  <span className="text-3xl mb-2">🍃</span>
-                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest italic">Journée calme</div>
-                </div>
-              )}
+              )) : <div className="py-10 text-center opacity-40 italic text-[10px] font-black uppercase tracking-widest">Journée calme</div>}
             </div>
           </div>
         </div>
       ) : (
         <div className="space-y-4 animate-in fade-in duration-500">
            <div className="bg-indigo-600 p-5 rounded-[32px] text-white shadow-xl flex justify-between items-center relative overflow-hidden">
-             <div>
-               <span className="text-[9px] font-black uppercase tracking-widest text-indigo-200 block mb-1">Report précédent</span>
-               <div className="text-2xl font-black tracking-tight">{carryOver.toLocaleString('fr-FR')}€</div>
-             </div>
-             <div className="text-right">
-               <span className="text-[9px] font-black uppercase tracking-widest text-indigo-200 block mb-1">Flux {MONTHS_FR[month]}</span>
-               <div className="text-lg font-bold">{(totalBalance - carryOver).toLocaleString('fr-FR')}€</div>
-             </div>
+             <div><span className="text-[9px] font-black uppercase tracking-widest text-indigo-200 block mb-1">Report précédent</span><div className="text-2xl font-black tracking-tight">{carryOver.toLocaleString('fr-FR')}€</div></div>
+             <div className="text-right"><span className="text-[9px] font-black uppercase tracking-widest text-indigo-200 block mb-1">Flux {MONTHS_FR[month]}</span><div className="text-lg font-bold">{(totalBalance - carryOver).toLocaleString('fr-FR')}€</div></div>
            </div>
-
            <div className="bg-white rounded-[32px] shadow-xl border border-slate-50 overflow-hidden divide-y divide-slate-50">
             {filteredTransactions.length > 0 ? filteredTransactions.map((t, idx) => (
               <TransactionItem key={t.id} t={t} category={categories.find(c => c.id === t.categoryId)} isLast={idx === filteredTransactions.length - 1} isOpen={openItemId === t.id} onToggle={() => setOpenItemId(openItemId === t.id ? null : t.id)} onDelete={onDelete} onEdit={onEdit} />
