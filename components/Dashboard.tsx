@@ -105,7 +105,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
       {/* 1. LES 3 CHIFFRES CLÉS */}
       <div className="grid grid-cols-1 gap-4 shrink-0">
-        {/* Compte courant (RÉEL) */}
+        {/* Compte courant (Le solde BANCAIRE réel) */}
         <div className="bg-slate-900 p-7 rounded-[40px] shadow-2xl relative overflow-hidden ring-1 ring-white/10">
           <div className="relative z-10">
             <span className="text-indigo-400 text-[10px] font-black uppercase tracking-[0.2em] block mb-1">Compte courant</span>
@@ -136,7 +136,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* 2. BLOCS FLUX & CHARGES (MÊME TAILLE) */}
+      {/* 2. BLOCS FLUX & CHARGES (UNIFORMES) */}
       <div className="grid grid-cols-2 gap-4 shrink-0">
         <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm">
           <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Entrées</span>

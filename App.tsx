@@ -29,10 +29,12 @@ const App: React.FC = () => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
-  // COMPTE COURANT : Uniquement les transactions RÉELLES (non virtuelles) passées ou présentes
+  const now = new Date();
+
+  // 1. COMPTE COURANT (Le solde BANCAIRE réel à cet instant)
+  // Somme de TOUTES les transactions du journal dont la date <= maintenant
   const checkingAccountBalance = useMemo(() => {
     if (!activeAccount) return 0;
-    const now = new Date();
     return activeAccount.transactions.reduce((acc, t) => {
       const isVirtual = t.id.toString().startsWith('virtual-');
       if (!isVirtual && new Date(t.date) <= now) {
@@ -42,12 +44,12 @@ const App: React.FC = () => {
     }, 0);
   }, [activeAccount.transactions]);
 
-  // DISPONIBLE RÉEL : Compte Courant - Charges fixes à venir ce mois-ci
+  // 2. DISPONIBLE RÉEL (Le pouvoir d'achat sécurisé)
+  // Compte Courant - Charges Fixes du mois en cours qui ne sont pas encore passées
   const availableBalance = useMemo(() => {
     if (!activeAccount) return 0;
-    const now = new Date();
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
     
-    // On identifie ce qui est déjà payé ce mois-ci
     const currentMonthManuals = activeAccount.transactions.filter(t => {
       const d = new Date(t.date);
       return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
@@ -55,22 +57,56 @@ const App: React.FC = () => {
     const materializedIds = new Set(currentMonthManuals.map(t => t.templateId).filter(Boolean));
     const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
 
-    // On calcule les charges fixes du mois qui ne sont pas encore passées
     const remainingFixed = (activeAccount.recurringTemplates || [])
       .filter(tpl => tpl.isActive && tpl.type === 'EXPENSE' && !materializedIds.has(tpl.id))
       .reduce((acc, tpl) => {
-        const day = Math.min(tpl.dayOfMonth, new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate());
+        const day = Math.min(tpl.dayOfMonth, endOfMonth.getDate());
         const tplDate = new Date(now.getFullYear(), now.getMonth(), day, 12, 0, 0);
         const vId = `virtual-${tpl.id}-${now.getMonth()}-${now.getFullYear()}`;
-        // Si la charge est future et non supprimée manuellement
-        if (tplDate > now && !deletedVirtuals.has(vId)) return acc + tpl.amount;
+        // Si la charge est future (dans le mois en cours)
+        if (tplDate > now && tplDate <= endOfMonth && !deletedVirtuals.has(vId)) return acc + tpl.amount;
         return acc;
       }, 0);
 
     return checkingAccountBalance - remainingFixed;
   }, [activeAccount, checkingAccountBalance]);
 
-  // Transactions pour l'affichage (Réelles + Virtuelles pour projection)
+  // 3. SOLDE PROJETÉ (Atterrissage fin de mois sélectionné)
+  const projectedBalance = useMemo(() => {
+    if (!activeAccount) return 0;
+    // On part du solde historique TOTAL (incluant transactions futures saisies manuellement)
+    let total = activeAccount.transactions.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
+    
+    // On définit les bornes du mois affiché
+    const startOfView = new Date(currentYear, currentMonth, 1, 0, 0, 0);
+    const endOfView = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
+
+    // On récupère les IDs déjà matérialisés dans ce mois
+    const manualsInView = activeAccount.transactions.filter(t => {
+      const d = new Date(t.date);
+      return d >= startOfView && d <= endOfView;
+    });
+    const materializedIds = new Set(manualsInView.map(t => t.templateId).filter(Boolean));
+    const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
+
+    // On ajoute uniquement les prélèvements VIRTUELS qui ne sont pas encore passés (futurs par rapport à maintenant)
+    // ET qui appartiennent au mois affiché
+    (activeAccount.recurringTemplates || []).forEach(tpl => {
+      if (!tpl.isActive || materializedIds.has(tpl.id)) return;
+      
+      const day = Math.min(tpl.dayOfMonth, endOfView.getDate());
+      const tplDate = new Date(currentYear, currentMonth, day, 12, 0, 0);
+      const vId = `virtual-${tpl.id}-${currentMonth}-${currentYear}`;
+
+      if (tplDate > now && tplDate <= endOfView && !deletedVirtuals.has(vId)) {
+        total += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
+      }
+    });
+
+    return total;
+  }, [activeAccount, currentMonth, currentYear]);
+
+  // Transactions effectives pour affichage (Journal)
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
     const manualOnes = activeAccount.transactions.filter(t => {
@@ -102,51 +138,13 @@ const App: React.FC = () => {
     return [...manualOnes, ...virtuals].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [activeAccount, currentMonth, currentYear]);
 
-  // SOLDE PROJETÉ (Fin du mois affiché)
-  const projectedBalance = useMemo(() => {
-    if (!activeAccount) return 0;
-    // Base : Toutes les transactions réelles (passées et futures)
-    let total = activeAccount.transactions.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
-    const now = new Date();
-    
-    // On ajoute les virtuelles du mois sélectionné (si non matérialisées et non supprimées)
-    const currentMonthManuals = activeAccount.transactions.filter(t => {
-      const d = new Date(t.date);
-      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
-    });
-    const materializedIds = new Set(currentMonthManuals.map(t => t.templateId).filter(Boolean));
-    const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
-    
-    (activeAccount.recurringTemplates || []).forEach(tpl => {
-      if (!tpl.isActive || materializedIds.has(tpl.id)) return;
-      const day = Math.min(tpl.dayOfMonth, new Date(currentYear, currentMonth + 1, 0).getDate());
-      const tplDate = new Date(currentYear, currentMonth, day, 12, 0, 0);
-      const vId = `virtual-${tpl.id}-${currentMonth}-${currentYear}`;
-      // On n'ajoute que les virtuelles qui sont dans le futur par rapport à "maintenant"
-      if (tplDate > now && !deletedVirtuals.has(vId)) {
-        // Mais seulement si elles appartiennent au mois que l'on regarde
-        if (tplDate.getMonth() === currentMonth && tplDate.getFullYear() === currentYear) {
-          total += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
-        }
-      }
-    });
-    return total;
-  }, [activeAccount, currentMonth, currentYear]);
-
-  // Logic for switching months and years
   const handleMonthChange = (offset: number) => {
     let nextMonth = currentMonth + offset;
     let nextYear = currentYear;
-    if (nextMonth < 0) {
-      nextMonth = 11;
-      nextYear -= 1;
-    } else if (nextMonth > 11) {
-      nextMonth = 0;
-      nextYear += 1;
-    }
+    if (nextMonth < 0) { nextMonth = 11; nextYear -= 1; }
+    else if (nextMonth > 11) { nextMonth = 0; nextYear += 1; }
     setCurrentMonth(nextMonth);
     setCurrentYear(nextYear);
-    // Reset selected day to the first of the month when changing month
     setSelectedDay(1);
   };
 
@@ -163,7 +161,6 @@ const App: React.FC = () => {
       const isVirtual = targetId?.toString().startsWith('virtual-');
       const templateId = t.templateId || (isVirtual ? targetId?.toString().split('-')[1] : undefined);
 
-      // Synchro avec le module "Fixes"
       if (t.isRecurring && templateId) {
         nextTemplates = nextTemplates.map(tpl => tpl.id === templateId ? {
           ...tpl, amount: t.amount, categoryId: t.categoryId, comment: t.comment, type: t.type
