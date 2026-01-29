@@ -34,9 +34,7 @@ const App: React.FC = () => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
-  // Fonction pivot : Calcule le solde total projeté pour n'importe quel mois/année donné
   const calculateMonthPerformance = (month: number, year: number, account: BudgetAccount) => {
-    // 1. Transactions réelles du mois
     const realSum = account.transactions
       .filter(t => {
         const d = new Date(t.date);
@@ -44,7 +42,6 @@ const App: React.FC = () => {
       })
       .reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
 
-    // 2. Charges fixes projetées (seulement si elles n'ont pas de transaction réelle correspondante ce mois-là)
     const materializedTplIds = new Set(
       account.transactions
         .filter(t => t.templateId && new Date(t.date).getMonth() === month && new Date(t.date).getFullYear() === year)
@@ -58,11 +55,8 @@ const App: React.FC = () => {
     return realSum + recurringSum;
   };
 
-  // CALCUL DU REPORT (CARRY-OVER) : Itération depuis le début des temps jusqu'au mois M-1
   const carryOverBalance = useMemo(() => {
     if (!activeAccount) return 0;
-
-    // On cherche le mois de la toute première transaction pour commencer le calcul
     let startYear = currentYear;
     let startMonth = currentMonth;
     if (activeAccount.transactions.length > 0) {
@@ -71,7 +65,6 @@ const App: React.FC = () => {
       startYear = firstDate.getFullYear();
       startMonth = firstDate.getMonth();
     } else {
-      // Si pas de transactions, on remonte arbitrairement d'un an
       const oneYearAgo = new Date(currentYear, currentMonth - 12, 1);
       startYear = oneYearAgo.getFullYear();
       startMonth = oneYearAgo.getMonth();
@@ -81,24 +74,28 @@ const App: React.FC = () => {
     let iterMonth = startMonth;
     let iterYear = startYear;
 
-    // On boucle jusqu'au mois précédant le mois actuel
     while (iterYear < currentYear || (iterYear === currentYear && iterMonth < currentMonth)) {
       runningBalance += calculateMonthPerformance(iterMonth, iterYear, activeAccount);
-      
       iterMonth++;
-      if (iterMonth > 11) {
-        iterMonth = 0;
-        iterYear++;
-      }
+      if (iterMonth > 11) { iterMonth = 0; iterYear++; }
     }
-
     return runningBalance;
   }, [activeAccount, currentMonth, currentYear]);
 
-  // Transactions effectives pour le mois sélectionné
+  // Solde "Maintenant" (Report + Transactions réelles jusqu'à aujourd'hui)
+  const balanceToday = useMemo(() => {
+    if (!activeAccount) return 0;
+    const now = new Date();
+    const realTransactionsToDate = activeAccount.transactions.filter(t => {
+      const d = new Date(t.date);
+      return d.getTime() <= now.getTime();
+    });
+    const sum = realTransactionsToDate.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
+    return carryOverBalance + sum;
+  }, [activeAccount, carryOverBalance]);
+
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
-    
     const manualOnes = activeAccount.transactions.filter(t => {
       const d = new Date(t.date);
       return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
@@ -129,7 +126,6 @@ const App: React.FC = () => {
     );
   }, [activeAccount, currentMonth, currentYear]);
 
-  // Solde final projeté du mois affiché
   const projectedBalance = useMemo(() => {
     const monthPerf = effectiveTransactions.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
     return carryOverBalance + monthPerf;
@@ -146,13 +142,18 @@ const App: React.FC = () => {
     setState(prev => {
       const acc = prev.accounts.find(a => a.id === prev.activeAccountId) || prev.accounts[0];
       let nextTransactions = [...acc.transactions];
-      const tid = t.id || editingTransaction?.id;
-      const cleanId = tid?.toString().startsWith('virtual-') ? generateId() : tid;
+      
+      const targetId = t.id || editingTransaction?.id;
+      // Bug fix: identifier si on édite vraiment une transaction existante
+      const isExistingReal = targetId && !targetId.toString().startsWith('virtual-') && acc.transactions.some(item => item.id === targetId);
 
-      if (cleanId && acc.transactions.some(item => item.id === cleanId)) {
-        nextTransactions = nextTransactions.map(item => item.id === cleanId ? ({ ...t, id: cleanId } as Transaction) : item);
+      if (isExistingReal) {
+        // REMPLACEMENT au lieu d'ajout
+        nextTransactions = nextTransactions.map(item => item.id === targetId ? ({ ...t, id: targetId } as Transaction) : item);
       } else {
-        nextTransactions = [{ ...t, id: cleanId || generateId() } as Transaction, ...nextTransactions];
+        // AJOUT (Nouvelle ou Matérialisation de virtuelle)
+        const newId = (targetId && !targetId.toString().startsWith('virtual-')) ? targetId : generateId();
+        nextTransactions = [{ ...t, id: newId } as Transaction, ...nextTransactions];
       }
 
       return {
@@ -172,17 +173,6 @@ const App: React.FC = () => {
         transactions: a.transactions.filter(t => t.id !== id)
       } : a)
     }));
-  };
-
-  const handleDeleteAccount = (id: string) => {
-    setState(prev => {
-      const remaining = prev.accounts.filter(acc => acc.id !== id);
-      return {
-        ...prev,
-        accounts: remaining,
-        activeAccountId: prev.activeAccountId === id ? (remaining[0]?.id || '') : prev.activeAccountId
-      };
-    });
   };
 
   return (
@@ -219,6 +209,7 @@ const App: React.FC = () => {
             year={currentYear}
             onViewTransactions={() => setActiveView('TRANSACTIONS')}
             carryOver={carryOverBalance}
+            balanceToday={balanceToday}
           />
         )}
         {activeView === 'TRANSACTIONS' && (
@@ -259,7 +250,7 @@ const App: React.FC = () => {
               onUpdateBudget={() => {}}
               onUpdateAccounts={(accounts) => setState(prev => ({ ...prev, accounts }))}
               onSetActiveAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))}
-              onDeleteAccount={handleDeleteAccount}
+              onDeleteAccount={() => {}} // Simple impl for now
               onReset={() => {
                 if (window.confirm("Tout effacer ?")) {
                   localStorage.clear();

@@ -1,5 +1,4 @@
 
-import React from 'react';
 import { Category } from './types';
 
 export const DEFAULT_CATEGORIES: Category[] = [
@@ -15,6 +14,8 @@ export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'exp-4', name: 'Loisirs', icon: '🎬', color: '#fbbf24', type: 'EXPENSE' },
   { id: 'exp-5', name: 'Santé', icon: '💊', color: '#60a5fa', type: 'EXPENSE' },
   { id: 'exp-6', name: 'Abonnements', icon: '📱', color: '#818cf8', type: 'EXPENSE' },
+  { id: 'exp-8', name: 'Impôts', icon: '📝', color: '#f97316', type: 'EXPENSE' },
+  { id: 'exp-9', name: 'Épargne', icon: '📥', color: '#0ea5e9', type: 'EXPENSE' },
   { id: 'exp-7', name: 'Autres', icon: '📦', color: '#94a3b8', type: 'EXPENSE' },
 ];
 
