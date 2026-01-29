@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { AppState, Category, BudgetAccount } from '../types';
 import { IconPlus } from './Icons';
@@ -67,8 +68,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
     const body = encodeURIComponent(
       `Bonjour !\n\nVoici mon retour sur l'application ZenBudget :\n\n[Écrivez votre message ici]\n\n---\nInfos techniques :\nDate: ${new Date().toLocaleDateString()}\nVersion: 3.7`
     );
-    // REMPLACE par ton email réel ici
-    window.location.href = `mailto:ton-email@exemple.com?subject=${subject}&body=${body}`;
+    window.location.href = `mailto:s.kherchache@gmail.com?subject=${subject}&body=${body}`;
   };
 
   return (
