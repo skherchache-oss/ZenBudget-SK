@@ -1,4 +1,5 @@
-import { AppState, BudgetAccount, User } from './types';
+
+import { AppState, BudgetAccount, User, Category } from './types';
 import { DEFAULT_CATEGORIES } from './constants';
 
 const STORAGE_KEY = 'zenbudget_state_v3';
@@ -43,20 +44,28 @@ export const getInitialState = (): AppState => {
   try {
     const saved = window.localStorage.getItem(STORAGE_KEY);
     if (!saved) return defaultState;
-    
     const parsed = JSON.parse(saved);
+
+    // SYNCHRONISATION DES CATÉGORIES
+    // On s'assure que les catégories par défaut (Impôts, Épargne, etc.) sont présentes 
+    // même si l'utilisateur a déjà une sauvegarde.
+    const savedCategories: Category[] = parsed.categories || [];
+    const mergedCategories = [...DEFAULT_CATEGORIES];
     
-    // Sécurité : on vérifie que le compte actif existe toujours dans la liste
-    const activeExists = parsed.accounts?.some((a: BudgetAccount) => a.id === parsed.activeAccountId);
+    savedCategories.forEach(sc => {
+      if (!mergedCategories.find(dc => dc.id === sc.id)) {
+        mergedCategories.push(sc);
+      }
+    });
 
     return { 
       ...defaultState, 
       ...parsed, 
-      user: defaultUser, // On garde l'utilisateur local par défaut
-      activeAccountId: activeExists ? parsed.activeAccountId : (parsed.accounts?.[0]?.id || defaultAcc.id)
+      user: defaultUser,
+      categories: mergedCategories, // On utilise la liste fusionnée
+      activeAccountId: parsed.activeAccountId || defaultAcc.id 
     };
   } catch (e) {
-    console.error("Erreur de chargement du stockage local", e);
     return defaultState;
   }
 };
@@ -65,7 +74,5 @@ export const saveState = (state: AppState) => {
   if (!isStorageAvailable()) return;
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch (e) {
-    console.error("Erreur lors de la sauvegarde", e);
-  }
+  } catch (e) {}
 };

@@ -74,43 +74,23 @@ const App: React.FC = () => {
     );
   }, [activeAccount, currentMonth, currentYear]);
 
-  // SOLDE PROJETÉ : Solde aujourd'hui + ce qu'il reste à dépenser/gagner jusqu'à la fin du mois sélectionné
+  // SOLDE PROJETÉ (Fin du mois sélectionné)
   const projectedBalance = useMemo(() => {
     if (!activeAccount) return 0;
-    const now = new Date().getTime();
     
-    // 1. On part du solde réel actuel
-    let total = balanceToday;
+    // 1. Performance de tout le passé avant le mois sélectionné
+    const pastPerformance = activeAccount.transactions.reduce((acc, t) => {
+      const d = new Date(t.date);
+      const isBefore = (d.getFullYear() < currentYear) || (d.getFullYear() === currentYear && d.getMonth() < currentMonth);
+      if (isBefore) return acc + (t.type === 'INCOME' ? t.amount : -t.amount);
+      return acc;
+    }, 0);
 
-    // 2. On ajoute les transactions futures (réelles et prévues) uniquement si elles sont après MAINTENANT 
-    // et jusqu'à la fin du mois sélectionné
-    const endOfMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59).getTime();
+    // 2. Performance du mois en cours (réelle + prévisions)
+    const monthPerformance = effectiveTransactions.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
     
-    // Transactions réelles futures dans le mois sélectionné
-    activeAccount.transactions.forEach(t => {
-      const tTime = new Date(t.date).getTime();
-      if (tTime > now && tTime <= endOfMonth) {
-        total += (t.type === 'INCOME' ? t.amount : -t.amount);
-      }
-    });
-
-    // Transactions récurrentes non matérialisées restant dans le mois sélectionné
-    const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
-    const materializedTplIds = new Set(activeAccount.transactions.filter(t => t.templateId).map(t => t.templateId));
-
-    (activeAccount.recurringTemplates || []).forEach(tpl => {
-      if (!tpl.isActive || materializedTplIds.has(tpl.id)) return;
-      
-      const day = Math.min(tpl.dayOfMonth, daysInMonth);
-      const tplTime = new Date(currentYear, currentMonth, day, 12, 0, 0).getTime();
-      
-      if (tplTime > now && tplTime <= endOfMonth) {
-        total += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
-      }
-    });
-
-    return total;
-  }, [activeAccount, balanceToday, currentMonth, currentYear]);
+    return pastPerformance + monthPerformance;
+  }, [activeAccount, effectiveTransactions, currentMonth, currentYear]);
 
   const handleMonthChange = (delta: number) => {
     const d = new Date(currentYear, currentMonth + delta, 1);
