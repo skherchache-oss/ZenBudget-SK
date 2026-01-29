@@ -34,11 +34,17 @@ const App: React.FC = () => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
-  // Toutes les transactions (réelles + virtuelles projetées pour le mois sélectionné)
+  // Toutes les transactions du mois (réelles + virtuelles projetées)
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
-    const manualOnes = activeAccount.transactions.filter(t => !t.templateId && !t.isRecurring);
+    // On garde les transactions manuelles du mois sélectionné
+    const manualOnes = activeAccount.transactions.filter(t => {
+      const d = new Date(t.date);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    });
+
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    // On génère les virtuelles SEULEMENT si elles n'ont pas déjà été "matérialisées" (sauvegardées)
     const virtuals: Transaction[] = (activeAccount.recurringTemplates || [])
       .filter(tpl => tpl.isActive)
       .map(tpl => {
@@ -61,36 +67,22 @@ const App: React.FC = () => {
     );
   }, [activeAccount, currentMonth, currentYear]);
 
-  // Solde de report : Somme de tout AVANT le mois en cours
+  // SOLDE DE REPORT : Somme de TOUTES les transactions passées avant le 1er du mois
   const carryOverBalance = useMemo(() => {
     if (!activeAccount) return 0;
     const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
     
-    // On ne compte que les transactions manuelles passées avant ce mois
-    const pastTransactions = activeAccount.transactions.filter(t => {
-      const d = new Date(t.date);
-      return d < firstDayOfMonth && !t.templateId;
-    });
+    // On somme TOUT ce qui est avant cette date dans le registre des transactions réelles
+    return activeAccount.transactions
+      .filter(t => new Date(t.date) < firstDayOfMonth)
+      .reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
+  }, [activeAccount.transactions, currentMonth, currentYear]);
 
-    return pastTransactions.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
-  }, [activeAccount, currentMonth, currentYear]);
-
-  // Solde du mois en cours jusqu'à aujourd'hui (incluant carryOver)
-  const currentMonthBalance = useMemo(() => {
-    const now = new Date();
-    const isCurrentPeriod = now.getMonth() === currentMonth && now.getFullYear() === currentYear;
-    
-    const monthlySum = effectiveTransactions.reduce((acc, t) => {
-      const tDate = new Date(t.date);
-      const isPastOrToday = !isCurrentPeriod || tDate.getDate() <= now.getDate();
-      if (isPastOrToday) {
-        return acc + (t.type === 'INCOME' ? t.amount : -t.amount);
-      }
-      return acc;
-    }, 0);
-
+  // Solde final projeté (Report + Mouvements du mois)
+  const projectedBalance = useMemo(() => {
+    const monthlySum = effectiveTransactions.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
     return carryOverBalance + monthlySum;
-  }, [effectiveTransactions, carryOverBalance, currentMonth, currentYear]);
+  }, [effectiveTransactions, carryOverBalance]);
 
   const handleMonthChange = (delta: number) => {
     const d = new Date(currentYear, currentMonth + delta, 1);
@@ -100,138 +92,85 @@ const App: React.FC = () => {
   };
 
   const handleUpsertTransaction = (t: Omit<Transaction, 'id'> & { id?: string }) => {
-    if (editingTransaction?.id.toString().startsWith('virtual-') || editingTransaction?.templateId) {
-      const targetTemplateId = editingTransaction.templateId || editingTransaction.id.toString().split('-')[1];
-      setState(prev => ({
+    setState(prev => {
+      const acc = prev.accounts.find(a => a.id === prev.activeAccountId) || prev.accounts[0];
+      let nextTransactions = [...acc.transactions];
+      const tid = t.id || editingTransaction?.id;
+
+      // Si c'était une transaction virtuelle, on la transforme en réelle en la sauvegardant
+      const cleanId = tid?.toString().startsWith('virtual-') ? generateId() : tid;
+
+      if (cleanId && acc.transactions.some(item => item.id === cleanId)) {
+        nextTransactions = nextTransactions.map(item => item.id === cleanId ? ({ ...t, id: cleanId } as Transaction) : item);
+      } else {
+        nextTransactions = [{ ...t, id: cleanId || generateId() } as Transaction, ...nextTransactions];
+      }
+
+      return {
         ...prev,
-        accounts: prev.accounts.map(a => a.id === activeAccount.id ? {
-          ...a,
-          recurringTemplates: (a.recurringTemplates || []).map(tpl => 
-            tpl.id === targetTemplateId ? { 
-              ...tpl, 
-              amount: t.amount, 
-              categoryId: t.categoryId, 
-              comment: t.comment, 
-              type: t.type,
-              dayOfMonth: new Date(t.date).getDate()
-            } : tpl
-          )
-        } : a)
-      }));
-    } else if (t.isRecurring && !t.id) {
-      const newTpl: RecurringTemplate = {
-        id: generateId(),
-        amount: t.amount,
-        categoryId: t.categoryId,
-        comment: t.comment,
-        type: t.type,
-        dayOfMonth: new Date(t.date).getDate(),
-        isActive: true
+        accounts: prev.accounts.map(a => a.id === acc.id ? { ...a, transactions: nextTransactions } : a)
       };
-      setState(prev => ({
-        ...prev,
-        accounts: prev.accounts.map(a => a.id === activeAccount.id ? { 
-          ...a, 
-          recurringTemplates: [...(a.recurringTemplates || []), newTpl] 
-        } : a)
-      }));
-    } else {
-      setState(prev => {
-        const acc = prev.accounts.find(a => a.id === prev.activeAccountId) || prev.accounts[0];
-        let nextTransactions = [...acc.transactions];
-        const tid = t.id || editingTransaction?.id;
-        if (tid) {
-          nextTransactions = nextTransactions.map(item => item.id === tid ? ({ ...t, id: tid } as Transaction) : item);
-        } else {
-          nextTransactions = [{ ...t, id: generateId() } as Transaction, ...nextTransactions];
-        }
-        return {
-          ...prev,
-          accounts: prev.accounts.map(a => a.id === acc.id ? { ...a, transactions: nextTransactions } : a)
-        };
-      });
-    }
+    });
     setShowAddModal(false);
     setEditingTransaction(null);
   };
 
   const handleDeleteTransaction = (id: string) => {
-    if (id.toString().startsWith('virtual-')) {
-      const templateId = id.split('-')[1];
-      setState(prev => ({
-        ...prev,
-        accounts: prev.accounts.map(a => a.id === activeAccount.id ? {
-          ...a,
-          recurringTemplates: (a.recurringTemplates || []).map(tpl => 
-            tpl.id === templateId ? { ...tpl, isActive: false } : tpl
-          )
-        } : a)
-      }));
-    } else {
-      setState(prev => ({
-        ...prev,
-        accounts: prev.accounts.map(a => a.id === activeAccount.id ? {
-          ...a,
-          transactions: a.transactions.filter(t => t.id !== id)
-        } : a)
-      }));
-    }
+    setState(prev => ({
+      ...prev,
+      accounts: prev.accounts.map(a => a.id === activeAccount.id ? {
+        ...a,
+        transactions: a.transactions.filter(t => t.id !== id)
+      } : a)
+    }));
   };
 
+  // Ajout de la fonction manquante pour la gestion de la suppression d'un compte
   const handleDeleteAccount = (id: string) => {
     setState(prev => {
-      const nextAccounts = prev.accounts.filter(a => a.id !== id);
-      const nextActiveId = prev.activeAccountId === id ? (nextAccounts[0]?.id || prev.activeAccountId) : prev.activeAccountId;
+      const remainingAccounts = prev.accounts.filter(acc => acc.id !== id);
       return {
         ...prev,
-        accounts: nextAccounts,
-        activeAccountId: nextActiveId
+        accounts: remainingAccounts,
+        activeAccountId: prev.activeAccountId === id 
+          ? (remainingAccounts[0]?.id || '') 
+          : prev.activeAccountId
       };
     });
   };
 
-  const handleHardReset = () => {
-    if (window.confirm("🚨 RÉINITIALISATION TOTALE\n\nEffacer toutes vos données ?")) {
-      isResetting.current = true;
-      localStorage.clear();
-      window.location.href = window.location.pathname;
-    }
-  };
-
   const handleFABClick = () => {
     setEditingTransaction(null);
-    if (activeView === 'TRANSACTIONS' && selectedDay) {
-      const dateStr = new Date(currentYear, currentMonth, selectedDay, 12, 0, 0).toISOString();
-      setModalInitialDate(dateStr);
-    } else {
-      setModalInitialDate(new Date().toISOString());
-    }
+    const dateStr = selectedDay 
+      ? new Date(currentYear, currentMonth, selectedDay, 12, 0, 0).toISOString()
+      : new Date().toISOString();
+    setModalInitialDate(dateStr);
     setShowAddModal(true);
   };
 
   return (
     <div className="flex flex-col h-screen bg-[#F8F9FD] text-slate-900 overflow-hidden font-sans">
-      <header className="bg-white/80 backdrop-blur-xl border-b border-slate-100 px-6 py-4 safe-top shrink-0 z-50">
+      <header className="bg-white/80 backdrop-blur-xl border-b border-slate-100 px-6 py-3 safe-top shrink-0 z-50">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <IconLogo className="w-9 h-9" />
-            <h1 className="text-xl font-black tracking-tight text-slate-800 font-logo">ZenBudget</h1>
+            <IconLogo className="w-8 h-8" />
+            <h1 className="text-lg font-black tracking-tight text-slate-800 font-logo">ZenBudget</h1>
           </div>
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-full border border-slate-200">
-             <button onClick={() => handleMonthChange(-1)} className="p-1.5 hover:bg-white rounded-full transition-all active:scale-90 text-slate-400 hover:text-indigo-600">
-               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15 19l-7-7 7-7" /></svg>
+          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-full border border-slate-200 scale-90 origin-right">
+             <button onClick={() => handleMonthChange(-1)} className="p-1.5 hover:bg-white rounded-full transition-all active:scale-90 text-slate-400">
+               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15 19l-7-7 7-7" /></svg>
              </button>
-             <span className="text-[10px] font-black uppercase tracking-widest px-2 min-w-[100px] text-center text-slate-600">
+             <span className="text-[9px] font-black uppercase tracking-widest px-2 min-w-[90px] text-center text-slate-600">
                {MONTHS_FR[currentMonth]} {currentYear}
              </span>
-             <button onClick={() => handleMonthChange(1)} className="p-1.5 hover:bg-white rounded-full transition-all active:scale-90 text-slate-400 hover:text-indigo-600">
-               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M9 5l7 7-7 7" /></svg>
+             <button onClick={() => handleMonthChange(1)} className="p-1.5 hover:bg-white rounded-full transition-all active:scale-90 text-slate-400">
+               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M9 5l7 7-7 7" /></svg>
              </button>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 overflow-hidden max-w-2xl w-full mx-auto px-6 py-4 pb-24">
+      <main className="flex-1 overflow-hidden max-w-2xl w-full mx-auto px-5 py-3 pb-24">
         {activeView === 'DASHBOARD' && (
           <Dashboard 
             transactions={effectiveTransactions} 
@@ -257,7 +196,7 @@ const App: React.FC = () => {
               onAddAtDate={(date) => { setModalInitialDate(date); setShowAddModal(true); }}
               selectedDay={selectedDay}
               onSelectDay={setSelectedDay}
-              totalBalance={currentMonthBalance}
+              totalBalance={projectedBalance}
               carryOver={carryOverBalance}
             />
           </div>
@@ -271,7 +210,7 @@ const App: React.FC = () => {
                 ...prev, 
                 accounts: prev.accounts.map(a => a.id === activeAccount.id ? { ...a, recurringTemplates: templates } : a) 
               }))}
-              totalBalance={currentMonthBalance}
+              totalBalance={projectedBalance}
             />
           </div>
         )}
@@ -284,26 +223,29 @@ const App: React.FC = () => {
               onUpdateAccounts={(accounts) => setState(prev => ({ ...prev, accounts }))}
               onSetActiveAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))}
               onDeleteAccount={handleDeleteAccount}
-              onReset={handleHardReset}
+              onReset={() => {
+                if (window.confirm("Tout effacer ?")) {
+                  localStorage.clear();
+                  window.location.reload();
+                }
+              }}
               onLogout={() => {}}
             />
           </div>
         )}
       </main>
 
-      {activeView !== 'SETTINGS' && (
-        <button 
-          onClick={handleFABClick} 
-          className="fixed bottom-[100px] right-6 w-16 h-16 bg-slate-900 text-white rounded-[24px] shadow-2xl flex items-center justify-center active:scale-90 transition-all z-40 border-4 border-white"
-        >
-          <IconPlus className="w-8 h-8" />
-        </button>
-      )}
+      <button 
+        onClick={handleFABClick} 
+        className="fixed bottom-[100px] right-6 w-14 h-14 bg-slate-900 text-white rounded-[22px] shadow-2xl flex items-center justify-center active:scale-90 transition-all z-40 border-4 border-white"
+      >
+        <IconPlus className="w-7 h-7" />
+      </button>
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-100 flex justify-around items-center pt-3 pb-[max(1.5rem,env(safe-area-inset-bottom))] px-6 z-40 shadow-[0_-10px_30px_rgba(0,0,0,0.03)]">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-100 flex justify-around items-center pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] px-6 z-40">
         <NavBtn active={activeView === 'DASHBOARD'} onClick={() => setActiveView('DASHBOARD')} icon={<IconHome />} label="Stats" />
         <NavBtn active={activeView === 'TRANSACTIONS'} onClick={() => setActiveView('TRANSACTIONS')} icon={<IconCalendar />} label="Journal" />
-        <NavBtn active={activeView === 'RECURRING'} onClick={() => { setEditingTransaction(null); setActiveView('RECURRING'); }} icon={<IconPlus className="rotate-45 shadow-none" />} label="Fixes" />
+        <NavBtn active={activeView === 'RECURRING'} onClick={() => setActiveView('RECURRING')} icon={<IconPlus className="rotate-45" />} label="Fixes" />
         <NavBtn active={activeView === 'SETTINGS'} onClick={() => setActiveView('SETTINGS')} icon={<IconSettings />} label="Réglages" />
       </nav>
 
@@ -321,9 +263,9 @@ const App: React.FC = () => {
 };
 
 const NavBtn: React.FC<{ active: boolean; onClick: () => void; icon: React.ReactNode; label: string }> = ({ active, onClick, icon, label }) => (
-  <button onClick={onClick} className={`flex flex-col items-center gap-1.5 transition-all duration-300 active:scale-95 ${active ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}>
-    <div className={`w-6 h-6 ${active ? 'scale-110 text-indigo-600' : 'scale-100'} transition-transform`}>{icon}</div>
-    <span className={`text-[9px] font-black uppercase tracking-widest ${active ? 'opacity-100' : 'opacity-70'}`}>{label}</span>
+  <button onClick={onClick} className={`flex flex-col items-center gap-1 transition-all active:scale-95 ${active ? 'text-indigo-600' : 'text-slate-400'}`}>
+    <div className={`w-5 h-5 ${active ? 'scale-110' : 'scale-100'}`}>{icon}</div>
+    <span className="text-[8px] font-black uppercase tracking-widest">{label}</span>
   </button>
 );
 
