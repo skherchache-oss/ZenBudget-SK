@@ -13,6 +13,7 @@ interface TransactionListProps {
   selectedDay: number | null;
   onSelectDay: (day: number | null) => void;
   totalBalance: number;
+  carryOver: number;
 }
 
 const TransactionItem: React.FC<{ 
@@ -71,7 +72,7 @@ const TransactionItem: React.FC<{
   );
 };
 
-const TransactionList: React.FC<TransactionListProps> = ({ transactions, categories, month, year, onDelete, onEdit, onAddAtDate, selectedDay, onSelectDay, totalBalance }) => {
+const TransactionList: React.FC<TransactionListProps> = ({ transactions, categories, month, year, onDelete, onEdit, onAddAtDate, selectedDay, onSelectDay, totalBalance, carryOver }) => {
   const [viewMode, setViewMode] = useState<'LIST' | 'CALENDAR'>('CALENDAR');
   const [openItemId, setOpenItemId] = useState<string | null>(null);
 
@@ -85,13 +86,13 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
   const dailyBalances = useMemo(() => {
     const days: Record<number, number> = {};
     const daysInMonth = new Date(year, month + 1, 0).getDate();
-    for(let i = 1; i <= daysInMonth; i++) days[i] = 0;
-
-    // Calcul du flux chronologique
-    const chronological = [...filteredTransactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    let running = 0;
     
-    // On itère sur les jours pour propager le solde
+    // Initialisation avec le carryOver du mois précédent
+    let running = carryOver;
+    
+    // On trie par ordre chronologique pour calculer le flux exact
+    const chronological = [...filteredTransactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    
     for(let i = 1; i <= daysInMonth; i++) {
       const dayTransactions = chronological.filter(t => new Date(t.date).getDate() === i);
       dayTransactions.forEach(t => {
@@ -100,7 +101,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
       days[i] = running;
     }
     return days;
-  }, [filteredTransactions, month, year]);
+  }, [filteredTransactions, carryOver, month, year]);
 
   const dayTransactions = useMemo(() => {
     if (selectedDay === null) return [];
@@ -111,8 +112,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
   const startOffset = (new Date(year, month, 1).getDay() + 6) % 7;
 
   return (
-    <div className="space-y-4">
-      {/* Header Statique */}
+    <div className="space-y-4 pb-20">
       <div className="flex items-center justify-between px-1">
         <h2 className="text-xl font-black tracking-tighter text-slate-800">Journal</h2>
         <div className="bg-white border border-slate-100 rounded-full px-3 py-1.5 flex items-center gap-2 shadow-sm ring-2 ring-indigo-50/50">
@@ -129,7 +129,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
       </div>
 
       {viewMode === 'CALENDAR' ? (
-        <div className="space-y-4">
+        <div className="space-y-4 animate-in fade-in slide-in-from-top duration-300">
           <div className="bg-white rounded-[28px] p-4 shadow-sm border border-slate-100">
             <div className="grid grid-cols-7 mb-2">
               {['L', 'M', 'M', 'J', 'V', 'S', 'D'].map((d, i) => (
@@ -166,12 +166,12 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
             <div className="bg-white rounded-[20px] shadow-sm border border-slate-100 overflow-hidden divide-y divide-gray-50">
               {dayTransactions.length > 0 ? dayTransactions.map((t, idx) => (
                 <TransactionItem key={t.id} t={t} category={categories.find(c => c.id === t.categoryId)} isLast={idx === dayTransactions.length - 1} isOpen={openItemId === t.id} onToggle={() => setOpenItemId(openItemId === t.id ? null : t.id)} onDelete={onDelete} onEdit={onEdit} />
-              )) : <div className="py-6 text-center text-[8px] font-black text-slate-300 uppercase tracking-widest">Aucune opération</div>}
+              )) : <div className="py-6 text-center text-[8px] font-black text-slate-300 uppercase tracking-widest italic">Aucun mouvement</div>}
             </div>
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-[20px] shadow-sm border border-slate-100 overflow-hidden divide-y divide-gray-50">
+        <div className="bg-white rounded-[20px] shadow-sm border border-slate-100 overflow-hidden divide-y divide-gray-50 animate-in fade-in duration-300">
           {filteredTransactions.length > 0 ? filteredTransactions.map((t, idx) => (
             <TransactionItem key={t.id} t={t} category={categories.find(c => c.id === t.categoryId)} isLast={idx === filteredTransactions.length - 1} isOpen={openItemId === t.id} onToggle={() => setOpenItemId(openItemId === t.id ? null : t.id)} onDelete={onDelete} onEdit={onEdit} />
           )) : <div className="p-12 text-center text-[8px] font-black text-slate-300 uppercase tracking-widest">Journal vide</div>}

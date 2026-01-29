@@ -34,6 +34,7 @@ const App: React.FC = () => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
+  // Toutes les transactions (réelles + virtuelles projetées pour le mois sélectionné)
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
     const manualOnes = activeAccount.transactions.filter(t => !t.templateId && !t.isRecurring);
@@ -60,23 +61,36 @@ const App: React.FC = () => {
     );
   }, [activeAccount, currentMonth, currentYear]);
 
-  // Calcul du solde "Stats" : Uniquement le mois en cours jusqu'à aujourd'hui
+  // Solde de report : Somme de tout AVANT le mois en cours
+  const carryOverBalance = useMemo(() => {
+    if (!activeAccount) return 0;
+    const firstDayOfMonth = new Date(currentYear, currentMonth, 1);
+    
+    // On ne compte que les transactions manuelles passées avant ce mois
+    const pastTransactions = activeAccount.transactions.filter(t => {
+      const d = new Date(t.date);
+      return d < firstDayOfMonth && !t.templateId;
+    });
+
+    return pastTransactions.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
+  }, [activeAccount, currentMonth, currentYear]);
+
+  // Solde du mois en cours jusqu'à aujourd'hui (incluant carryOver)
   const currentMonthBalance = useMemo(() => {
     const now = new Date();
     const isCurrentPeriod = now.getMonth() === currentMonth && now.getFullYear() === currentYear;
     
-    return effectiveTransactions.reduce((acc, t) => {
+    const monthlySum = effectiveTransactions.reduce((acc, t) => {
       const tDate = new Date(t.date);
-      // Si on regarde le mois actuel, on ne compte que jusqu'à aujourd'hui
-      // Si on regarde un mois passé, on compte tout le mois
       const isPastOrToday = !isCurrentPeriod || tDate.getDate() <= now.getDate();
-      
       if (isPastOrToday) {
         return acc + (t.type === 'INCOME' ? t.amount : -t.amount);
       }
       return acc;
     }, 0);
-  }, [effectiveTransactions, currentMonth, currentYear]);
+
+    return carryOverBalance + monthlySum;
+  }, [effectiveTransactions, carryOverBalance, currentMonth, currentYear]);
 
   const handleMonthChange = (delta: number) => {
     const d = new Date(currentYear, currentMonth + delta, 1);
@@ -164,7 +178,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Fix: added missing handleDeleteAccount function
   const handleDeleteAccount = (id: string) => {
     setState(prev => {
       const nextAccounts = prev.accounts.filter(a => a.id !== id);
@@ -218,7 +231,7 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto no-scrollbar max-w-2xl w-full mx-auto px-6 py-8 pb-40">
+      <main className="flex-1 overflow-hidden max-w-2xl w-full mx-auto px-6 py-4 pb-24">
         {activeView === 'DASHBOARD' && (
           <Dashboard 
             transactions={effectiveTransactions} 
@@ -229,44 +242,52 @@ const App: React.FC = () => {
             month={currentMonth}
             year={currentYear}
             onViewTransactions={() => setActiveView('TRANSACTIONS')}
+            carryOver={carryOverBalance}
           />
         )}
         {activeView === 'TRANSACTIONS' && (
-          <TransactionList 
-            transactions={effectiveTransactions} 
-            categories={state.categories}
-            month={currentMonth}
-            year={currentYear}
-            onDelete={handleDeleteTransaction}
-            onEdit={(t) => { setEditingTransaction(t); setShowAddModal(true); }}
-            onAddAtDate={(date) => { setModalInitialDate(date); setShowAddModal(true); }}
-            selectedDay={selectedDay}
-            onSelectDay={setSelectedDay}
-            totalBalance={currentMonthBalance}
-          />
+          <div className="h-full overflow-y-auto no-scrollbar">
+            <TransactionList 
+              transactions={effectiveTransactions} 
+              categories={state.categories}
+              month={currentMonth}
+              year={currentYear}
+              onDelete={handleDeleteTransaction}
+              onEdit={(t) => { setEditingTransaction(t); setShowAddModal(true); }}
+              onAddAtDate={(date) => { setModalInitialDate(date); setShowAddModal(true); }}
+              selectedDay={selectedDay}
+              onSelectDay={setSelectedDay}
+              totalBalance={currentMonthBalance}
+              carryOver={carryOverBalance}
+            />
+          </div>
         )}
         {activeView === 'RECURRING' && (
-          <RecurringManager 
-            recurringTemplates={activeAccount?.recurringTemplates || []} 
-            categories={state.categories}
-            onUpdate={(templates) => setState(prev => ({ 
-              ...prev, 
-              accounts: prev.accounts.map(a => a.id === activeAccount.id ? { ...a, recurringTemplates: templates } : a) 
-            }))}
-            totalBalance={currentMonthBalance}
-          />
+          <div className="h-full overflow-y-auto no-scrollbar">
+            <RecurringManager 
+              recurringTemplates={activeAccount?.recurringTemplates || []} 
+              categories={state.categories}
+              onUpdate={(templates) => setState(prev => ({ 
+                ...prev, 
+                accounts: prev.accounts.map(a => a.id === activeAccount.id ? { ...a, recurringTemplates: templates } : a) 
+              }))}
+              totalBalance={currentMonthBalance}
+            />
+          </div>
         )}
         {activeView === 'SETTINGS' && (
-          <Settings 
-            state={state}
-            onUpdateCategories={(cats) => setState(prev => ({ ...prev, categories: cats }))}
-            onUpdateBudget={() => {}}
-            onUpdateAccounts={(accounts) => setState(prev => ({ ...prev, accounts }))}
-            onSetActiveAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))}
-            onDeleteAccount={handleDeleteAccount}
-            onReset={handleHardReset}
-            onLogout={() => {}}
-          />
+          <div className="h-full overflow-y-auto no-scrollbar">
+            <Settings 
+              state={state}
+              onUpdateCategories={(cats) => setState(prev => ({ ...prev, categories: cats }))}
+              onUpdateBudget={() => {}}
+              onUpdateAccounts={(accounts) => setState(prev => ({ ...prev, accounts }))}
+              onSetActiveAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))}
+              onDeleteAccount={handleDeleteAccount}
+              onReset={handleHardReset}
+              onLogout={() => {}}
+            />
+          </div>
         )}
       </main>
 
