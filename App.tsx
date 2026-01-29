@@ -29,10 +29,11 @@ const App: React.FC = () => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
-  // SOLDE RÉEL (Aujourd'hui) : Somme brute de toutes les transactions passées et présentes
+  // SOLDE RÉEL (Aujourd'hui) : Somme de TOUTES les transactions passées et présentes du compte
   const balanceToday = useMemo(() => {
     if (!activeAccount) return 0;
     const now = new Date();
+    // On calcule sur l'intégralité du tableau des transactions réelles
     return activeAccount.transactions.reduce((acc, t) => {
       const tDate = new Date(t.date);
       if (tDate <= now) {
@@ -42,17 +43,20 @@ const App: React.FC = () => {
     }, 0);
   }, [activeAccount.transactions]);
 
-  // Transactions effectives du mois sélectionné (Réelles + Virtuelles/Prévues)
+  // Transactions du mois sélectionné (Mélange de Réelles + Virtuelles/Projections)
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
+    // 1. Les réelles du mois
     const manualOnes = activeAccount.transactions.filter(t => {
       const d = new Date(t.date);
       return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
     });
 
     const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    // On identifie les templates qui ont déjà été matérialisés par une transaction réelle ce mois-ci
     const materializedTplIds = new Set(manualOnes.map(t => t.templateId).filter(Boolean));
 
+    // 2. Les virtuelles (projections des charges fixes non encore payées)
     const virtuals: Transaction[] = (activeAccount.recurringTemplates || [])
       .filter(tpl => tpl.isActive && !materializedTplIds.has(tpl.id))
       .map(tpl => {
@@ -75,38 +79,29 @@ const App: React.FC = () => {
     );
   }, [activeAccount, currentMonth, currentYear]);
 
-  // SOLDE PROJETÉ (Fin du mois sélectionné)
+  // SOLDE PROJETÉ (Fin du mois affiché)
   const projectedBalance = useMemo(() => {
     if (!activeAccount) return 0;
     
-    // Performance historique totale jusqu'à la fin du mois affiché
-    const endOfCurrentViewMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
-    
-    // 1. Transactions réelles passées et futures (jusqu'à fin de mois sélectionné)
-    const realPerf = activeAccount.transactions.reduce((acc, t) => {
-      if (new Date(t.date) <= endOfCurrentViewMonth) {
-        return acc + (t.type === 'INCOME' ? t.amount : -t.amount);
-      }
-      return acc;
-    }, 0);
+    // Performance historique totale (réelle)
+    let total = activeAccount.transactions.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
 
-    // 2. Transactions prévues (virtuelles) restantes dans le mois sélectionné
+    // On ajoute les transactions virtuelles du mois en cours (si elles sont dans le futur)
     const now = new Date();
     const materializedTplIds = new Set(activeAccount.transactions.map(t => t.templateId).filter(Boolean));
-    const virtualPerf = (activeAccount.recurringTemplates || [])
-      .filter(tpl => tpl.isActive && !materializedTplIds.has(tpl.id))
-      .reduce((acc, tpl) => {
-        const day = Math.min(tpl.dayOfMonth, new Date(currentYear, currentMonth + 1, 0).getDate());
-        const tplDate = new Date(currentYear, currentMonth, day, 12, 0, 0);
-        // On n'ajoute la prévision que si elle est dans le futur par rapport à "maintenant" 
-        // ET qu'elle tombe dans le mois sélectionné (déjà garanti par la logique de tplDate)
-        if (tplDate > now && tplDate <= endOfCurrentViewMonth) {
-          return acc + (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
-        }
-        return acc;
-      }, 0);
+    
+    (activeAccount.recurringTemplates || []).forEach(tpl => {
+      if (!tpl.isActive || materializedTplIds.has(tpl.id)) return;
+      const day = Math.min(tpl.dayOfMonth, new Date(currentYear, currentMonth + 1, 0).getDate());
+      const tplDate = new Date(currentYear, currentMonth, day, 12, 0, 0);
+      
+      // On n'ajoute que si la date de projection est dans le futur
+      if (tplDate > now) {
+        total += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
+      }
+    });
 
-    return realPerf + virtualPerf;
+    return total;
   }, [activeAccount, currentMonth, currentYear]);
 
   const handleMonthChange = (delta: number) => {
@@ -120,32 +115,44 @@ const App: React.FC = () => {
     if (!t.amount || !t.categoryId) return;
 
     setState(prev => {
-      const acc = prev.accounts.find(a => a.id === prev.activeAccountId) || prev.accounts[0];
+      const accIndex = prev.accounts.findIndex(a => a.id === prev.activeAccountId);
+      if (accIndex === -1) return prev;
+
+      const acc = { ...prev.accounts[accIndex] };
       let nextTransactions = [...acc.transactions];
       
       const targetId = t.id || editingTransaction?.id;
-      // Vérifier si c'est une édition d'un item réel existant
-      const isExisting = targetId && !targetId.toString().startsWith('virtual-') && acc.transactions.some(item => item.id === targetId);
+      // On ne modifie une transaction réelle que si l'ID n'est pas "virtual-"
+      const isVirtual = targetId && targetId.toString().startsWith('virtual-');
+      const exists = targetId && !isVirtual && nextTransactions.some(item => item.id === targetId);
 
-      if (isExisting) {
+      if (exists) {
+        // Mise à jour d'une transaction réelle existante
         nextTransactions = nextTransactions.map(item => 
           item.id === targetId ? ({ ...t, id: targetId } as Transaction) : item
         );
       } else {
+        // Ajout d'une nouvelle transaction réelle (ou matérialisation d'une virtuelle)
         const newId = generateId();
         nextTransactions = [{ ...t, id: newId } as Transaction, ...nextTransactions];
       }
 
-      return {
-        ...prev,
-        accounts: prev.accounts.map(a => a.id === acc.id ? { ...a, transactions: nextTransactions } : a)
-      };
+      const nextAccounts = [...prev.accounts];
+      nextAccounts[accIndex] = { ...acc, transactions: nextTransactions };
+
+      return { ...prev, accounts: nextAccounts };
     });
+    
     setShowAddModal(false);
     setEditingTransaction(null);
   };
 
   const handleDeleteTransaction = (id: string) => {
+    if (id.startsWith('virtual-')) {
+      // Pour une virtuelle, on ne peut pas vraiment "supprimer" car elle est générée.
+      // Mais dans le flux utilisateur, on ignore simplement l'action ou on pourrait désactiver le template.
+      return;
+    }
     setState(prev => ({
       ...prev,
       accounts: prev.accounts.map(a => a.id === activeAccount.id ? {

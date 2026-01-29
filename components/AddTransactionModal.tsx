@@ -34,21 +34,23 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ categories, o
     [categories, type]
   );
 
-  // Si on change de type, on s'assure que la catégorie sélectionnée appartient bien au nouveau type
+  // Sécurité : changer de catégorie si on change de type et que la sélection actuelle est invalide
   useEffect(() => {
     if (categoryId) {
       const exists = filteredCategories.some(c => c.id === categoryId);
       if (!exists && filteredCategories.length > 0) {
-        setCategoryId(''); // Réinitialiser si invalide pour le type
+        setCategoryId('');
       }
     }
-  }, [type, filteredCategories]);
+  }, [type, filteredCategories, categoryId]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const parsedAmount = parseFloat(amount);
-    if (!parsedAmount || isNaN(parsedAmount) || !categoryId) {
-      // Animation visuelle de refus ou alerte discrète
+    // On remplace la virgule par un point pour le calcul JS
+    const sanitizedAmount = amount.replace(',', '.');
+    const parsedAmount = parseFloat(sanitizedAmount);
+    
+    if (isNaN(parsedAmount) || parsedAmount <= 0 || !categoryId) {
       return;
     }
     
@@ -57,7 +59,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ categories, o
     const secureDate = new Date(year, month - 1, day, 12, 0, 0).toISOString();
 
     onAdd({
-      id: editItem?.id,
+      id: editItem?.id, // Conservé pour l'édition d'une réelle
       amount: parsedAmount,
       type,
       categoryId,
@@ -68,14 +70,15 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ categories, o
   };
 
   const isFormValid = useMemo(() => {
-    return parseFloat(amount) > 0 && categoryId !== '';
+    const val = parseFloat(amount.replace(',', '.'));
+    return !isNaN(val) && val > 0 && categoryId !== '';
   }, [amount, categoryId]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm transition-all overflow-hidden">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/70 backdrop-blur-sm transition-all overflow-hidden">
       <div className="bg-white w-full max-w-md rounded-t-[40px] sm:rounded-[40px] shadow-2xl p-7 overflow-y-auto max-h-[95vh] animate-in slide-in-from-bottom duration-300">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-black text-gray-900 tracking-tight">{editItem ? 'Modifier' : 'Ajouter'} l'opération</h2>
+          <h2 className="text-xl font-black text-gray-900 tracking-tight">{editItem ? 'Mise à jour' : 'Nouvelle opération'}</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full transition text-gray-400 active:scale-90">
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
           </button>
@@ -99,17 +102,16 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ categories, o
             </button>
           </div>
 
-          <div className="text-center bg-gray-50/50 py-10 rounded-[40px] border border-gray-100/50">
-            <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.3em] mb-3 block">Montant en euros</label>
-            <div className="flex items-center justify-center gap-2">
+          <div className="text-center bg-gray-50/50 py-8 rounded-[40px] border border-gray-100/50">
+            <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.3em] mb-2 block">Somme en euros</label>
+            <div className="flex items-center justify-center px-4">
               <input 
-                type="number" 
+                type="text" 
                 inputMode="decimal"
-                step="0.01"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder="0.00"
-                className="w-full text-center text-6xl font-black focus:outline-none placeholder-gray-200 text-gray-900 bg-transparent border-none ring-0 outline-none"
+                className="w-full text-center text-6xl font-black focus:outline-none placeholder-gray-200 text-gray-900 bg-transparent border-none ring-0"
                 autoFocus={!editItem}
                 required
               />
@@ -117,14 +119,14 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ categories, o
           </div>
 
           <div>
-            <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.3em] mb-4 block ml-1">Choisir une catégorie</label>
+            <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.3em] mb-4 block ml-1">Catégorie</label>
             <div className="grid grid-cols-4 gap-3">
               {filteredCategories.map(cat => (
                 <button
                   key={cat.id}
                   type="button"
                   onClick={() => setCategoryId(cat.id)}
-                  className={`flex flex-col items-center gap-2 p-3.5 rounded-2xl transition-all border-2 ${
+                  className={`flex flex-col items-center gap-2 p-3 rounded-2xl transition-all border-2 ${
                     categoryId === cat.id 
                     ? 'border-indigo-600 bg-indigo-50/50 shadow-sm' 
                     : 'border-transparent bg-gray-50/80 hover:bg-gray-100'
@@ -139,12 +141,12 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ categories, o
 
           <div className="space-y-4">
             <div className="bg-gray-50/50 p-5 rounded-2xl border border-gray-100/50">
-              <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.3em] mb-2 block">Note facultative</label>
+              <label className="text-[10px] font-black uppercase text-gray-400 tracking-[0.3em] mb-2 block">Détails</label>
               <input 
                 type="text" 
                 value={comment}
                 onChange={(e) => setComment(e.target.value)}
-                placeholder="Détail de l'opération..."
+                placeholder="Ex: Courses, Virement..."
                 className="w-full bg-transparent border-none focus:ring-0 transition text-sm font-semibold text-gray-800 p-0"
               />
             </div>
@@ -163,11 +165,11 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ categories, o
                 <button 
                   type="button"
                   onClick={() => setIsRecurring(!isRecurring)}
-                  className={`flex items-center gap-2.5 px-5 py-3.5 rounded-2xl border-2 transition-all w-full justify-center ${
-                    isRecurring ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-gray-50 border-transparent text-gray-400 hover:text-gray-600'
+                  className={`flex items-center gap-2 px-5 py-3.5 rounded-2xl border-2 transition-all w-full justify-center ${
+                    isRecurring ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-gray-50 border-transparent text-gray-400'
                   }`}
                 >
-                  <div className={`w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center ${isRecurring ? 'border-emerald-600' : 'border-gray-300'}`}>
+                  <div className={`w-3 h-3 rounded-full border-2 flex items-center justify-center ${isRecurring ? 'border-emerald-600' : 'border-gray-300'}`}>
                     {isRecurring && <div className="w-1.5 h-1.5 bg-emerald-600 rounded-full" />}
                   </div>
                   <span className="text-[10px] font-black uppercase tracking-widest">Fixe</span>
