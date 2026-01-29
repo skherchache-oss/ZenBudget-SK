@@ -14,8 +14,8 @@ interface DashboardProps {
   month: number;
   year: number;
   onViewTransactions: () => void;
-  balanceToday: number;
-  availableToday: number;
+  checkingAccountBalance: number;
+  availableBalance: number;
   projectedBalance: number;
 }
 
@@ -29,7 +29,7 @@ const renderActiveShape = (props: any) => {
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ 
-  transactions, categories, activeAccount, allAccounts, onSwitchAccount, month, year, balanceToday, availableToday, projectedBalance 
+  transactions, categories, activeAccount, allAccounts, onSwitchAccount, month, year, checkingAccountBalance, availableBalance, projectedBalance 
 }) => {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [aiAdvice, setAiAdvice] = useState<string>("Analyse zen...");
@@ -51,20 +51,20 @@ const Dashboard: React.FC<DashboardProps> = ({
   useEffect(() => {
     const fetchAiAdvice = async () => {
       if (!process.env.API_KEY) {
-        setAiAdvice(projectedBalance < 0 ? "Solde projeté négatif. Surveillez vos charges fixes." : "Budget équilibré pour la fin de cycle.");
+        setAiAdvice(projectedBalance < 0 ? "Attention au solde projeté fin de mois." : "Gestion sereine ce mois-ci.");
         return;
       }
       setLoadingAdvice(true);
       try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const prompt = `ZenBudget: Cash ${balanceToday}€, Fin de mois ${projectedBalance}€, Dispo ${availableToday}€. Entrées ${stats.income}€, Fixes ${stats.fixed}€. Donne 1 conseil zen (60 car max, français).`;
+        const prompt = `ZenBudget: Compte courant ${checkingAccountBalance}€, Fin de mois ${projectedBalance}€, Disponible ${availableBalance}€. Fixes ${stats.fixed}€. Donne 1 conseil zen très court (50 car max, français).`;
         const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
         setAiAdvice(response.text || "La discipline offre la liberté.");
       } catch (err) { setAiAdvice("Observez vos flux sans jugement."); }
       finally { setLoadingAdvice(false); }
     };
     fetchAiAdvice();
-  }, [projectedBalance, balanceToday, availableToday, stats]);
+  }, [projectedBalance, checkingAccountBalance, availableBalance, stats]);
 
   const categorySummary = useMemo(() => {
     const map: Record<string, number> = {};
@@ -89,7 +89,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           <button onClick={() => setShowAccountMenu(!showAccountMenu)} className="flex items-center gap-2.5 bg-white px-4 py-2 rounded-2xl border border-slate-100 shadow-sm active:scale-95 transition-all">
             <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: activeAccount.color }} />
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-800">{activeAccount.name}</span>
-            <svg className={`w-3 h-3 text-slate-400 transition-transform ${showAccountMenu ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path d="M19 9l-7 7-7-7" strokeWidth={3} /></svg>
+            <svg className={`w-3 h-3 text-slate-400 transition-transform ${showAccountMenu ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M19 9l-7 7-7-7" /></svg>
           </button>
           {showAccountMenu && (
             <div className="absolute top-12 left-0 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-[70] animate-in zoom-in-95 duration-200">
@@ -103,26 +103,26 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* 1. LES 3 CHIFFRES CLÉS (HIÉRARCHIE CLAIRE) */}
+      {/* 1. LES 3 CHIFFRES CLÉS */}
       <div className="grid grid-cols-1 gap-4 shrink-0">
-        {/* Cash Aujourd'hui */}
+        {/* Compte courant (RÉEL) */}
         <div className="bg-slate-900 p-7 rounded-[40px] shadow-2xl relative overflow-hidden ring-1 ring-white/10">
           <div className="relative z-10">
-            <span className="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] block mb-1">Cash aujourd'hui</span>
+            <span className="text-indigo-400 text-[10px] font-black uppercase tracking-[0.2em] block mb-1">Compte courant</span>
             <div className="flex items-baseline gap-2">
-              <span className="text-5xl font-black tracking-tighter text-white leading-none">{Math.round(balanceToday).toLocaleString('fr-FR')}</span>
+              <span className="text-5xl font-black tracking-tighter text-white leading-none">{Math.round(checkingAccountBalance).toLocaleString('fr-FR')}</span>
               <span className="text-2xl font-black text-slate-600">€</span>
             </div>
           </div>
           <div className="absolute -right-6 -top-6 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
         </div>
 
-        {/* Projections */}
+        {/* Projections Secondaires */}
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm flex flex-col justify-between">
-            <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block mb-2">Dispo aujourd'hui</span>
+            <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block mb-2">Disponible réel</span>
             <div className="flex items-baseline gap-1">
-              <span className={`text-2xl font-black leading-none ${availableToday >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>{Math.round(availableToday).toLocaleString('fr-FR')}</span>
+              <span className={`text-2xl font-black leading-none ${availableBalance >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>{Math.round(availableBalance).toLocaleString('fr-FR')}</span>
               <span className="text-xs font-black text-slate-300">€</span>
             </div>
           </div>
@@ -136,27 +136,27 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* 2. BLOCS FLUX & CHARGES (MÊME TAILLE, UNIFORMES) */}
+      {/* 2. BLOCS FLUX & CHARGES (MÊME TAILLE) */}
       <div className="grid grid-cols-2 gap-4 shrink-0">
-        <div className="bg-emerald-50/30 p-5 rounded-[28px] border border-emerald-100/50">
-          <span className="text-[8px] font-black text-emerald-600/60 uppercase tracking-widest block mb-1">Entrées</span>
+        <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm">
+          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Entrées</span>
           <div className="text-lg font-black text-emerald-600">+{stats.income.toLocaleString('fr-FR')}€</div>
         </div>
-        <div className="bg-red-50/30 p-5 rounded-[28px] border border-red-100/50 text-right">
-          <span className="text-[8px] font-black text-red-600/60 uppercase tracking-widest block mb-1">Sorties</span>
+        <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm text-right">
+          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Sorties</span>
           <div className="text-lg font-black text-slate-900">-{stats.expenses.toLocaleString('fr-FR')}€</div>
         </div>
-        <div className="bg-indigo-50/30 p-5 rounded-[28px] border border-indigo-100/50">
-          <span className="text-[8px] font-black text-indigo-600/60 uppercase tracking-widest block mb-1">Fixes</span>
+        <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm">
+          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Fixes</span>
           <div className="text-lg font-black text-indigo-900">{stats.fixed.toLocaleString('fr-FR')}€</div>
         </div>
-        <div className="bg-slate-50 p-5 rounded-[28px] border border-slate-200 text-right">
+        <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm text-right">
           <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Variables</span>
-          <div className="text-lg font-black text-slate-700">{stats.variable.toLocaleString('fr-FR')}€</div>
+          <div className="text-lg font-black text-slate-600">{stats.variable.toLocaleString('fr-FR')}€</div>
         </div>
       </div>
 
-      {/* 3. ASSISTANT AI */}
+      {/* 3. CONSEIL AI */}
       <div className="bg-indigo-600 text-white p-6 rounded-[32px] shadow-xl relative overflow-hidden flex flex-col justify-center min-h-[90px]">
         <div className="flex items-center gap-2 mb-2">
           <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
@@ -183,33 +183,11 @@ const Dashboard: React.FC<DashboardProps> = ({
               </div>
             ) : (
               <div className="text-center">
-                <span className="text-[8px] font-black text-slate-300 uppercase block">Total</span>
+                <span className="text-[8px] font-black text-slate-300 uppercase block">Dépenses</span>
                 <span className="text-sm font-black text-slate-900">{Math.round(stats.expenses)}€</span>
               </div>
             )}
           </div>
-        </div>
-      </div>
-
-      {/* 5. LISTE CATÉGORIES */}
-      <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm shrink-0">
-        <div className="space-y-6">
-          {categorySummary.length > 0 ? categorySummary.map((cat, idx) => (
-            <div key={cat.id} onMouseEnter={() => setActiveIndex(idx)} onMouseLeave={() => setActiveIndex(null)}>
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-slate-50 flex items-center justify-center text-lg">{cat.icon}</div>
-                  <span className="text-[11px] font-bold text-slate-800 uppercase tracking-tight">{cat.name}</span>
-                </div>
-                <div className="text-right">
-                  <span className="text-[11px] font-black text-slate-900">{Math.round(cat.value)}€</span>
-                </div>
-              </div>
-              <div className="h-1.5 w-full bg-slate-50 rounded-full overflow-hidden">
-                <div className="h-full rounded-full transition-all duration-700" style={{ backgroundColor: cat.color, width: `${cat.percent}%` }} />
-              </div>
-            </div>
-          )) : <div className="py-8 text-center opacity-30 italic text-[10px] uppercase font-black">Aucune donnée</div>}
         </div>
       </div>
     </div>

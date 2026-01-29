@@ -65,9 +65,11 @@ const TransactionItem: React.FC<{
           {category?.icon || '❓'}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-[13px] font-black text-slate-800 truncate flex items-center gap-1.5 uppercase tracking-tight">
-            {category?.name}
-            {t.isRecurring && <span className="text-amber-500 text-[9px] shrink-0">⚡️</span>}
+          <div className="flex items-center gap-1.5">
+            <span className="text-[13px] font-black text-slate-800 truncate uppercase tracking-tight">
+              {category?.name}
+            </span>
+            {t.isRecurring && <span className="text-amber-500 text-[10px] shrink-0">⚡️</span>}
           </div>
           <div className="text-[10px] text-slate-400 font-medium truncate mt-0.5">{t.comment || 'Note vide'}</div>
         </div>
@@ -122,7 +124,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
       <div className="flex items-center justify-between px-1">
         <h2 className="text-2xl font-black tracking-tighter text-slate-800">Journal</h2>
         <div className="bg-slate-900 rounded-2xl px-4 py-2 flex items-center gap-3 shadow-xl ring-4 ring-slate-100">
-           <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">Solde fin de mois</span>
+           <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">Projection fin de mois</span>
            <span className={`text-sm font-black ${totalBalance >= 0 ? 'text-indigo-400' : 'text-red-400'}`}>
             {totalBalance.toLocaleString('fr-FR')}€
            </span>
@@ -179,15 +181,15 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
             <div className="bg-white rounded-[32px] shadow-xl border border-slate-50 overflow-hidden divide-y divide-slate-50">
               {dayTransactions.length > 0 ? dayTransactions.map((t, idx) => (
                 <TransactionItem key={t.id} t={t} category={categories.find(c => c.id === t.categoryId)} isLast={idx === dayTransactions.length - 1} isOpen={openItemId === t.id} onToggle={() => setOpenItemId(openItemId === t.id ? null : t.id)} onDelete={onDelete} onEdit={onEdit} />
-              )) : <div className="py-10 text-center opacity-40 italic text-[10px] font-black uppercase tracking-widest">Journée calme</div>}
+              )) : <div className="py-10 text-center opacity-40 italic text-[10px] font-black uppercase tracking-widest">Aucune opération</div>}
             </div>
           </div>
         </div>
       ) : (
-        <div className="space-y-4 animate-in fade-in duration-500">
+        <div className="space-y-4 animate-in fade-in duration-700">
            <div className="bg-indigo-600 p-5 rounded-[32px] text-white shadow-xl flex justify-between items-center relative overflow-hidden">
              <div><span className="text-[9px] font-black uppercase tracking-widest text-indigo-200 block mb-1">Report précédent</span><div className="text-2xl font-black tracking-tight">{carryOver.toLocaleString('fr-FR')}€</div></div>
-             <div className="text-right"><span className="text-[9px] font-black uppercase tracking-widest text-indigo-200 block mb-1">Flux {MONTHS_FR[month]}</span><div className="text-lg font-bold">{(totalBalance - carryOver).toLocaleString('fr-FR')}€</div></div>
+             <div className="text-right"><span className="text-[9px] font-black uppercase tracking-widest text-indigo-200 block mb-1">Mouvements {MONTHS_FR[month]}</span><div className="text-lg font-bold">{(totalBalance - carryOver).toLocaleString('fr-FR')}€</div></div>
            </div>
            <div className="bg-white rounded-[32px] shadow-xl border border-slate-50 overflow-hidden divide-y divide-slate-50">
             {filteredTransactions.length > 0 ? filteredTransactions.map((t, idx) => (
