@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { MONTHS_FR } from '../constants';
@@ -88,20 +87,20 @@ const Dashboard: React.FC<DashboardProps> = ({
     const s = ";"; 
     const f = (n: number) => n.toFixed(2).replace('.', ',');
     const rows: string[] = [
-      `ZENBUDGET - BILAN FINANCIER${s}${activeAccount.name.toUpperCase()}`,
+      `ZENBUDGET - BILAN COMPLET${s}${activeAccount.name.toUpperCase()}`,
       `Période${s}${MONTHS_FR[month]} ${year}`,
-      `Date de génération${s}${new Date().toLocaleString('fr-FR')}`,
+      `Généré le${s}${new Date().toLocaleString('fr-FR')}`,
       "",
-      "--- RÉSUMÉ GLOBAL ---",
+      "--- SYNTHÈSE DES FLUX ---",
       `Report mois précédent${s}${f(carryOver)} €`,
-      `Entrées (Revenus)${s}${f(stats.income)} €`,
-      `Sorties (Dépenses)${s}${f(stats.expenses)} €`,
+      `Total Entrées (Revenus)${s}${f(stats.income)} €`,
+      `Total Sorties (Dépenses)${s}${f(stats.expenses)} €`,
       `Balance Mensuelle${s}${f(stats.net)} €`,
       `Solde Bancaire Actuel${s}${f(checkingAccountBalance)} €`,
       `Disponible Réel (Après fixes)${s}${f(availableBalance)} €`,
       `Projection Fin de Mois${s}${f(projectedBalance)} €`,
       "",
-      "--- NATURE DES FRAIS ---",
+      "--- ANALYSE DE LA NATURE DES FRAIS ---",
       `Charges Fixes${s}${f(stats.fixed)} €${s}${stats.expenses > 0 ? Math.round((stats.fixed/stats.expenses)*100) : 0}%`,
       `Charges Variables${s}${f(stats.variable)} €${s}${stats.expenses > 0 ? Math.round((stats.variable/stats.expenses)*100) : 0}%`,
       "",
@@ -127,14 +126,14 @@ const Dashboard: React.FC<DashboardProps> = ({
     const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = url; link.download = `ZenBudget_${activeAccount.name}_Report.csv`; link.click();
+    link.href = url; link.download = `ZenBudget_${activeAccount.name}_Bilan.csv`; link.click();
   };
 
   const hoveredCategory = activeIndex !== null ? categorySummary[activeIndex] : null;
 
   return (
     <div className="flex flex-col h-full space-y-6 overflow-y-auto no-scrollbar pb-32 px-1">
-      {/* HEADER */}
+      {/* HEADER STATS */}
       <div className="flex items-center justify-between pt-4">
         <div className="flex flex-col">
           <h2 className="text-2xl font-black text-slate-800 tracking-tighter leading-none">Hello ✨</h2>
@@ -164,7 +163,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* HERO CARD */}
+      {/* HERO CARD - SOLDE BANCAIRE */}
       <div className="bg-slate-900 px-6 py-10 rounded-[48px] shadow-2xl relative overflow-visible flex flex-col justify-center min-h-[140px] group">
         <div className="relative z-10 flex flex-col gap-1">
           <span className="text-indigo-400 text-[10px] font-black uppercase tracking-[0.3em] opacity-80">Solde Bancaire</span>
@@ -190,21 +189,21 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* IN / OUT FLOWS */}
+      {/* SECTION: BILAN DES FLUX (ENTRÉES / SORTIES) */}
       <section className="bg-white p-6 rounded-[40px] border border-slate-100 shadow-sm space-y-4">
         <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
-          <span>🔄</span> Bilan des flux
+          <span>🔄</span> Bilan du mois
         </h3>
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
-            <span className="text-[9px] font-black text-emerald-500 uppercase tracking-tight">Entrées</span>
+            <span className="text-[9px] font-black text-emerald-500 uppercase tracking-tight">Entrées (Revenus)</span>
             <div className="text-lg font-black text-slate-800">+{Math.round(stats.income).toLocaleString('fr-FR')}€</div>
             <div className="h-1.5 w-full bg-slate-50 rounded-full overflow-hidden">
                <div className="h-full bg-emerald-500 rounded-full" style={{ width: stats.income > 0 ? '100%' : '0%' }} />
             </div>
           </div>
           <div className="space-y-1">
-            <span className="text-[9px] font-black text-red-400 uppercase tracking-tight">Sorties</span>
+            <span className="text-[9px] font-black text-red-400 uppercase tracking-tight">Sorties (Dépenses)</span>
             <div className="text-lg font-black text-slate-800">-{Math.round(stats.expenses).toLocaleString('fr-FR')}€</div>
             <div className="h-1.5 w-full bg-slate-50 rounded-full overflow-hidden">
                <div className="h-full bg-red-400 rounded-full" style={{ width: stats.expenses > 0 ? '100%' : '0%' }} />
@@ -213,18 +212,18 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </section>
 
-      {/* FIXED / VARIABLE ANALYSIS */}
+      {/* SECTION: ANALYSE NATURE DES FRAIS (FIXES / VARIABLES) */}
       <section className="bg-white p-6 rounded-[40px] border border-slate-100 shadow-sm space-y-4">
         <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2">
           <span>⚡️</span> Nature des frais
         </h3>
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between group">
             <div className="flex items-center gap-3">
-               <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-sm">⚓️</div>
+               <div className="w-9 h-9 rounded-xl bg-indigo-50 flex items-center justify-center text-sm group-hover:bg-indigo-100 transition-colors">⚓️</div>
                <div>
                  <p className="text-[10px] font-black text-slate-800 uppercase leading-none">Charges Fixes</p>
-                 <p className="text-[9px] text-slate-400 font-bold mt-0.5">Loyer, abonnements...</p>
+                 <p className="text-[9px] text-slate-400 font-bold mt-1">Loyer, abonnements...</p>
                </div>
             </div>
             <div className="text-right">
@@ -233,12 +232,12 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
           
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between group">
             <div className="flex items-center gap-3">
-               <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-sm">🪁</div>
+               <div className="w-9 h-9 rounded-xl bg-amber-50 flex items-center justify-center text-sm group-hover:bg-amber-100 transition-colors">🪁</div>
                <div>
                  <p className="text-[10px] font-black text-slate-800 uppercase leading-none">Charges Variables</p>
-                 <p className="text-[9px] text-slate-400 font-bold mt-0.5">Vie courante, imprévus...</p>
+                 <p className="text-[9px] text-slate-400 font-bold mt-1">Loisirs, imprévus...</p>
                </div>
             </div>
             <div className="text-right">
@@ -247,9 +246,9 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
           
-          <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden flex shadow-inner">
-             <div className="h-full bg-indigo-500" style={{ width: stats.expenses > 0 ? `${(stats.fixed/stats.expenses)*100}%` : '0%' }} />
-             <div className="h-full bg-amber-400" style={{ width: stats.expenses > 0 ? `${(stats.variable/stats.expenses)*100}%` : '0%' }} />
+          <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden flex shadow-inner">
+             <div className="h-full bg-indigo-500 transition-all duration-700" style={{ width: stats.expenses > 0 ? `${(stats.fixed/stats.expenses)*100}%` : '0%' }} />
+             <div className="h-full bg-amber-400 transition-all duration-700" style={{ width: stats.expenses > 0 ? `${(stats.variable/stats.expenses)*100}%` : '0%' }} />
           </div>
         </div>
       </section>
@@ -262,13 +261,10 @@ const Dashboard: React.FC<DashboardProps> = ({
         </p>
       </div>
 
-      {/* CATEGORY BREAKDOWN */}
+      {/* CHART & CATEGORY LIST */}
       <div className="bg-white p-6 rounded-[40px] border border-slate-100 shadow-sm space-y-6">
-        <div className="flex items-center justify-between">
-           <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Répartition Catégories</h3>
-           <span className="text-[9px] font-black text-slate-300 uppercase">Dépenses</span>
-        </div>
-
+        <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-widest">Répartition Catégories</h3>
+        
         <div className="w-full h-[180px] relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -300,7 +296,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               </div>
             ) : (
               <div className="text-center">
-                <span className="text-[9px] font-black text-slate-300 uppercase">Sorties</span>
+                <span className="text-[9px] font-black text-slate-300 uppercase">Total Dépenses</span>
                 <span className="text-lg font-black text-slate-900">{Math.round(stats.expenses).toLocaleString('fr-FR')}€</span>
               </div>
             )}

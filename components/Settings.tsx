@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { AppState, Category, BudgetAccount } from '../types';
 import { IconPlus } from './Icons';
@@ -75,9 +74,9 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
   };
 
   const handleFeedback = () => {
-    const subject = encodeURIComponent("Suggestion ZenBudget 🚀");
+    const subject = encodeURIComponent("Feedback ZenBudget 🚀");
     const body = encodeURIComponent(
-      `Bonjour !\n\nVoici mon retour sur l'application ZenBudget :\n\n[Écrivez votre message ici]\n\n---\nInfos techniques :\nVersion: 4.0\nCompte: ${activeAccount?.name}\nDate: ${new Date().toLocaleDateString()}`
+      `Bonjour !\n\nVoici mon retour sur l'application ZenBudget :\n\n[Écrivez votre message ici]\n\n---\nInfos techniques :\nVersion: 4.1\nPlateforme: Vercel\nCompte: ${activeAccount?.name}\nDate: ${new Date().toLocaleDateString()}`
     );
     window.location.href = `mailto:s.kherchache@gmail.com?subject=${subject}&body=${body}`;
   };
@@ -114,23 +113,19 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
 
         <div className={`transition-all duration-500 ease-in-out ${isHowItWorksOpen ? 'max-h-[1200px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
           <div className="px-6 pb-6 space-y-6">
-            <div className="space-y-4">
-              <div className="bg-indigo-50 p-5 rounded-[24px] border border-indigo-100">
-                <h3 className="text-[12px] font-black text-indigo-900 mb-2 uppercase tracking-tight">Visez la clarté</h3>
-                <p className="text-[11px] text-indigo-800/80 leading-relaxed font-medium">
-                  ZenBudget calcule votre <span className="font-bold underline">Disponible Réel</span> pour que vous sachiez toujours ce qu'il vous reste après vos factures fixes.
-                </p>
-              </div>
+            <div className="bg-indigo-50 p-5 rounded-[24px] border border-indigo-100">
+              <h3 className="text-[12px] font-black text-indigo-900 mb-2 uppercase tracking-tight">Visez la clarté</h3>
+              <p className="text-[11px] text-indigo-800/80 leading-relaxed font-medium">
+                ZenBudget calcule votre <span className="font-bold underline">Disponible Réel</span> pour que vous sachiez toujours ce qu'il vous reste après vos factures fixes à venir.
+              </p>
             </div>
 
             <div className="pt-6 border-t border-slate-100 space-y-4">
               <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Lexique Zen</h3>
-              <div className="grid gap-3">
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Disponible Réel</span>
-                  <p className="text-[11px] text-slate-600 leading-relaxed font-medium italic">"Ce que je peux dépenser aujourd'hui"</p>
-                  <p className="text-[10px] text-slate-400 mt-1">Solde banque actuel moins les factures fixes restant à payer ce mois-ci.</p>
-                </div>
+              <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Disponible Réel</span>
+                <p className="text-[11px] text-slate-600 leading-relaxed font-medium italic">"Ce que je peux dépenser aujourd'hui"</p>
+                <p className="text-[10px] text-slate-400 mt-1">Solde banque actuel moins les factures fixes restant à payer ce mois-ci.</p>
               </div>
             </div>
           </div>
@@ -262,7 +257,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
       </section>
 
       {/* Danger Zone */}
-      <section className="pt-4">
+      <section className="pt-4 px-1">
         <button 
           onClick={onReset}
           className="w-full py-4 bg-red-50 text-red-500 font-black rounded-2xl border border-red-100 active:scale-95 transition-all uppercase text-[10px] tracking-widest"
@@ -271,8 +266,8 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
         </button>
       </section>
 
-      <div className="pt-8 border-t border-gray-100">
-        <p className="text-center text-[8px] text-gray-300 font-black uppercase tracking-[0.3em]">Version 4.0 • Données Privées • Local First</p>
+      <div className="pt-8 border-t border-gray-100 px-4">
+        <p className="text-center text-[8px] text-gray-300 font-black uppercase tracking-[0.3em]">Version 4.1 • Private Data • Vercel Optimized</p>
       </div>
     </div>
   );
