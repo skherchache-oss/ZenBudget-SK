@@ -46,7 +46,7 @@ const RecurringItem: React.FC<{
   }, [isOpen]);
 
   return (
-    <div className="flex items-center mb-4 bg-white rounded-[32px] border border-gray-100 overflow-hidden relative h-24">
+    <div className="flex items-center mb-3 bg-white rounded-[28px] border border-slate-100 overflow-hidden relative h-20 shadow-sm transition-all">
       <div className={`absolute inset-y-0 right-0 flex transition-transform duration-300 ease-out z-50 pointer-events-auto ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <button 
           onClick={handleEditAction} 
@@ -67,27 +67,27 @@ const RecurringItem: React.FC<{
       </div>
 
       <div 
-        className={`relative bg-white flex items-center gap-4 p-5 transition-transform duration-300 ease-out z-10 select-none flex-1 cursor-pointer h-full ${!tpl.isActive ? 'opacity-50 grayscale' : ''}`}
+        className={`relative bg-white flex items-center gap-4 p-4 transition-transform duration-300 ease-out z-10 select-none flex-1 cursor-pointer h-full ${!tpl.isActive ? 'opacity-50 grayscale' : ''}`}
         style={{ transform: `translateX(${isOpen ? -threshold : 0}px)` }}
         onClick={() => onToggleReveal()}
       >
-        <div className="w-12 h-12 rounded-2xl bg-gray-50 flex items-center justify-center text-2xl shrink-0">
+        <div className="w-10 h-10 rounded-xl bg-slate-50 flex items-center justify-center text-xl shrink-0">
           {category?.icon || '📦'}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span className="font-black text-gray-900 truncate">{category?.name}</span>
-            <span className="text-[9px] font-black px-2 py-0.5 rounded bg-gray-100 text-gray-500 uppercase">Jour {tpl.dayOfMonth}</span>
+            <span className="font-black text-slate-800 text-[13px] truncate uppercase tracking-tight">{category?.name}</span>
+            <span className="text-[8px] font-black px-1.5 py-0.5 rounded bg-slate-100 text-slate-400 uppercase">J-{tpl.dayOfMonth}</span>
           </div>
-          <div className="text-[11px] text-gray-400 truncate mt-1">{tpl.comment || 'Charge fixe'}</div>
+          <div className="text-[10px] text-slate-400 truncate mt-0.5">{tpl.comment || 'Charge fixe'}</div>
         </div>
-        <div className="text-right flex flex-col items-end gap-2 shrink-0">
-          <div className={`font-black text-lg leading-none ${tpl.type === 'INCOME' ? 'text-emerald-600' : 'text-gray-900'}`}>
+        <div className="text-right flex flex-col items-end gap-1.5 shrink-0">
+          <div className={`font-black text-sm leading-none ${tpl.type === 'INCOME' ? 'text-emerald-600' : 'text-slate-900'}`}>
             {tpl.amount.toFixed(2)}€
           </div>
           <button 
             onClick={(e) => { e.stopPropagation(); onStatusToggle(tpl.id); }}
-            className={`text-[8px] font-black px-3 py-1.5 rounded-full uppercase transition-all active:scale-95 border-2 ${tpl.isActive ? 'bg-emerald-50 border-emerald-500 text-emerald-700' : 'bg-gray-100 border-gray-400 text-gray-500'}`}
+            className={`text-[7px] font-black px-2 py-1 rounded-full uppercase transition-all active:scale-95 border ${tpl.isActive ? 'bg-emerald-50 border-emerald-500/30 text-emerald-700' : 'bg-slate-100 border-slate-300 text-slate-500'}`}
           >
             {tpl.isActive ? 'Actif' : 'Pause'}
           </button>
@@ -156,126 +156,143 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
   const filteredCategories = categories.filter(c => c.type === type);
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-6 pb-24 h-full overflow-y-auto no-scrollbar">
       <div className="flex items-center justify-between px-1">
-        <h2 className="text-2xl font-black tracking-tighter text-slate-800">Charges Fixes</h2>
-        <div className="bg-white border border-slate-100 rounded-full px-4 py-2 flex items-center gap-2 shadow-sm">
-           <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">Solde total</span>
-           <span className={`text-sm font-black ${totalBalance >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>
-            {totalBalance.toLocaleString('fr-FR')}€
+        <h2 className="text-xl font-black tracking-tighter text-slate-800">Charges Fixes</h2>
+        <div className="bg-slate-900 rounded-xl px-2.5 py-1.5 flex items-center gap-2 shadow-lg">
+           <span className="text-[7px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">Solde projeté</span>
+           <span className={`text-[12px] font-black ${totalBalance >= 0 ? 'text-indigo-400' : 'text-red-400'} whitespace-nowrap`}>
+            {Math.round(totalBalance).toLocaleString('fr-FR')}€
            </span>
         </div>
       </div>
 
-      <div className="bg-gray-900 text-white p-8 rounded-[48px] shadow-2xl relative overflow-hidden">
+      <div className="bg-slate-900 text-white p-6 rounded-[40px] shadow-2xl relative overflow-hidden ring-1 ring-white/10">
         <div className="relative z-10">
-          <h2 className="text-xl font-logo font-extrabold mb-1 tracking-tight">Sérénité ⚡️</h2>
-          <p className="text-gray-400 text-[10px] font-black uppercase tracking-widest opacity-70 mb-6">Prélèvements mensuels programmés</p>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-lg font-black tracking-tight leading-none mb-1">Sérénité ⚡️</h2>
+              <p className="text-slate-400 text-[8px] font-black uppercase tracking-[0.2em] opacity-70">Abonnements & Loyers</p>
+            </div>
+            <div className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center backdrop-blur-sm">
+              <span className="text-lg">🧘</span>
+            </div>
+          </div>
           
-          <div className="pt-6 border-t border-white/10">
-            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-300 block mb-1">Total mensuel charges fixes</span>
-            <div className="text-3xl font-black">{totalFixedAmount.toLocaleString('fr-FR')}€</div>
+          <div className="pt-4 border-t border-white/5">
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-400 block mb-1">Total mensuel</span>
+            <div className="text-2xl font-black tracking-tighter">{totalFixedAmount.toLocaleString('fr-FR')}€</div>
           </div>
         </div>
-        <div className="absolute -right-8 -bottom-8 w-40 h-40 bg-indigo-500/10 rounded-full blur-3xl" />
+        <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
       </div>
 
       <div className="space-y-2">
-        {recurringTemplates.sort((a,b) => a.dayOfMonth - b.dayOfMonth).map(tpl => (
-          <RecurringItem 
-            key={tpl.id} 
-            tpl={tpl} 
-            category={categories.find(c => c.id === tpl.categoryId)} 
-            isOpen={openItemId === tpl.id} 
-            onToggleReveal={() => setOpenItemId(openItemId === tpl.id ? null : tpl.id)} 
-            onDelete={(id) => onUpdate(recurringTemplates.filter(t => t.id !== id))} 
-            onEdit={(t) => { 
-              setEditingTpl(t); 
-              setType(t.type); 
-              setAmount(t.amount.toString()); 
-              setCategoryId(t.categoryId); 
-              setComment(t.comment || ''); 
-              setDay(t.dayOfMonth.toString()); 
-              setShowAdd(true); 
-            }} 
-            onStatusToggle={(id) => onUpdate(recurringTemplates.map(t => t.id === id ? { ...t, isActive: !t.isActive } : t))} 
-          />
-        ))}
+        {recurringTemplates.length > 0 ? (
+          recurringTemplates
+            .sort((a, b) => a.dayOfMonth - b.dayOfMonth)
+            .map(tpl => (
+              <RecurringItem 
+                key={tpl.id} 
+                tpl={tpl} 
+                category={categories.find(c => c.id === tpl.categoryId)} 
+                isOpen={openItemId === tpl.id} 
+                onToggleReveal={() => setOpenItemId(openItemId === tpl.id ? null : tpl.id)} 
+                onDelete={(id) => onUpdate(recurringTemplates.filter(t => t.id !== id))} 
+                onEdit={(t) => { 
+                  setEditingTpl(t); 
+                  setType(t.type); 
+                  setAmount(t.amount.toString()); 
+                  setCategoryId(t.categoryId); 
+                  setComment(t.comment || ''); 
+                  setDay(t.dayOfMonth.toString()); 
+                  setShowAdd(true); 
+                }} 
+                onStatusToggle={(id) => onUpdate(recurringTemplates.map(t => t.id === id ? { ...t, isActive: !t.isActive } : t))} 
+              />
+            ))
+        ) : (
+          <div className="py-12 text-center">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Aucune charge programmée</p>
+          </div>
+        )}
 
         <div ref={formRef} className="pt-4">
           {showAdd ? (
-            <div className="bg-white p-6 rounded-[40px] border-2 border-indigo-100 shadow-xl shadow-indigo-100/20 animate-in slide-in-from-bottom duration-300">
-              <h3 className="text-xs font-black uppercase tracking-widest text-indigo-600 mb-6">
-                {editingTpl ? 'Modifier le prélèvement' : 'Nouveau prélèvement'}
-              </h3>
+            <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-2xl animate-in slide-in-from-bottom duration-300">
+              <div className="flex justify-between items-center mb-6">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.15em] text-indigo-600">
+                  {editingTpl ? 'Éditer prélèvement' : 'Nouveau prélèvement'}
+                </h3>
+                <button onClick={cancelEdit} className="text-slate-400"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M6 18L18 6M6 6l12 12" /></svg></button>
+              </div>
               
-              <form onSubmit={handleSave} className="space-y-6">
-                <div className="flex p-1 bg-gray-100 rounded-2xl">
+              <form onSubmit={handleSave} className="space-y-5">
+                <div className="flex p-1 bg-slate-100 rounded-xl">
                   <button 
                     type="button"
                     onClick={() => { setType('EXPENSE'); setCategoryId(''); }}
-                    className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${type === 'EXPENSE' ? 'bg-red-500 text-white shadow-md' : 'text-gray-500'}`}
+                    className={`flex-1 py-2 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all ${type === 'EXPENSE' ? 'bg-red-500 text-white shadow-md' : 'text-slate-400'}`}
                   >
                     Dépense
                   </button>
                   <button 
                     type="button"
                     onClick={() => { setType('INCOME'); setCategoryId(''); }}
-                    className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all ${type === 'INCOME' ? 'bg-emerald-500 text-white shadow-md' : 'text-gray-500'}`}
+                    className={`flex-1 py-2 rounded-lg font-black text-[9px] uppercase tracking-widest transition-all ${type === 'INCOME' ? 'bg-emerald-500 text-white shadow-md' : 'text-slate-400'}`}
                   >
                     Revenu
                   </button>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-gray-50 p-4 rounded-3xl">
-                    <label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Montant (€)</label>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <label className="text-[8px] font-black uppercase text-slate-400 block mb-1">Montant (€)</label>
                     <input 
                       type="number" step="0.01" value={amount} onChange={e => setAmount(e.target.value)}
-                      placeholder="0.00" className="bg-transparent text-xl font-black w-full outline-none" required
+                      placeholder="0.00" className="bg-transparent text-lg font-black w-full outline-none text-slate-800" required
                     />
                   </div>
-                  <div className="bg-gray-50 p-4 rounded-3xl">
-                    <label className="text-[9px] font-black uppercase text-gray-400 block mb-1">Jour du mois</label>
+                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <label className="text-[8px] font-black uppercase text-slate-400 block mb-1">Jour du mois</label>
                     <input 
                       type="number" min="1" max="31" value={day} onChange={e => setDay(e.target.value)}
-                      className="bg-transparent text-xl font-black w-full outline-none" required
+                      className="bg-transparent text-lg font-black w-full outline-none text-slate-800" required
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="text-[9px] font-black uppercase text-gray-400 block mb-3">Catégorie</label>
+                  <label className="text-[8px] font-black uppercase text-slate-400 block mb-3 ml-1">Catégorie</label>
                   <div className="grid grid-cols-4 gap-2">
                     {filteredCategories.map(cat => (
                       <button
                         key={cat.id} type="button" onClick={() => setCategoryId(cat.id)}
-                        className={`flex flex-col items-center gap-1 p-2 rounded-2xl transition-all border-2 ${categoryId === cat.id ? 'border-indigo-500 bg-indigo-50' : 'border-transparent bg-gray-50'}`}
+                        className={`flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all border-2 ${categoryId === cat.id ? 'border-indigo-600 bg-indigo-50' : 'border-transparent bg-slate-50'}`}
                       >
-                        <span className="text-xl">{cat.icon}</span>
-                        <span className="text-[8px] font-black text-gray-500 uppercase truncate w-full text-center">{cat.name}</span>
+                        <span className="text-lg">{cat.icon}</span>
+                        <span className="text-[8px] font-black text-slate-500 uppercase truncate w-full text-center leading-none">{cat.name}</span>
                       </button>
                     ))}
                   </div>
                 </div>
 
                 <input 
-                  type="text" placeholder="Note (ex: Netflix, Loyer...)" value={comment} onChange={e => setComment(e.target.value)}
-                  className="w-full bg-gray-50 p-4 rounded-2xl text-xs font-bold outline-none"
+                  type="text" placeholder="Note (ex: Loyer, Netflix...)" value={comment} onChange={e => setComment(e.target.value)}
+                  className="w-full bg-slate-50 p-4 rounded-xl text-[11px] font-bold outline-none border border-slate-100"
                 />
 
-                <div className="flex gap-3">
-                  <button type="button" onClick={cancelEdit} className="flex-1 py-4 text-[10px] font-black uppercase text-gray-400 bg-gray-50 rounded-2xl">Annuler</button>
-                  <button type="submit" className="flex-1 py-4 text-[10px] font-black uppercase text-white bg-indigo-600 rounded-2xl shadow-lg shadow-indigo-100">Enregistrer</button>
-                </div>
+                <button type="submit" className="w-full py-4 text-[10px] font-black uppercase tracking-widest text-white bg-slate-900 rounded-xl shadow-xl active:scale-95 transition-all">
+                  Confirmer prélèvement
+                </button>
               </form>
             </div>
           ) : (
             <button 
               onClick={() => { cancelEdit(); setShowAdd(true); }} 
-              className="w-full py-5 border-2 border-dashed border-gray-200 rounded-[32px] text-gray-400 font-black text-[10px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 bg-white/50"
+              className="w-full py-5 border-2 border-dashed border-slate-200 rounded-[28px] text-slate-400 font-black text-[9px] uppercase tracking-[0.2em] flex items-center justify-center gap-3 bg-white hover:bg-slate-50 transition-all active:scale-[0.98]"
             >
-              <IconPlus className="w-6 h-6" /> Ajouter un prélèvement
+              <IconPlus className="w-5 h-5" /> Ajouter un prélèvement
             </button>
           )}
         </div>
