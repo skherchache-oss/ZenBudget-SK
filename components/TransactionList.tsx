@@ -85,6 +85,11 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
     return days;
   }, [transactions, carryOver, month, year]);
 
+  const selectedDayTransactions = useMemo(() => {
+    if (selectedDay === null) return [];
+    return transactions.filter(t => new Date(t.date).getDate() === selectedDay);
+  }, [transactions, selectedDay]);
+
   const startOffset = (new Date(year, month, 1).getDay() + 6) % 7;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const isThisMonth = new Date().getMonth() === month && new Date().getFullYear() === year;
@@ -110,7 +115,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
 
       <div className={slideDirection === 'next' ? 'slide-next' : slideDirection === 'prev' ? 'slide-prev' : 'fade-in'}>
         {viewMode === 'CALENDAR' ? (
-          <div className="space-y-4">
+          <div className="space-y-4 animate-in fade-in duration-500">
             <div className="bg-white/70 backdrop-blur-xl rounded-[28px] p-3.5 shadow-xl border border-white">
               <div className="grid grid-cols-7 mb-2">
                 {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((d, i) => (
@@ -140,12 +145,62 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
                 })}
               </div>
             </div>
+
+            {/* Transactions du jour sélectionné sous le calendrier */}
+            <div className="space-y-2 animate-in slide-in-from-bottom duration-300">
+              <div className="flex items-center justify-between px-2 mt-4">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
+                  {selectedDay ? `Opérations du ${selectedDay} ${MONTHS_FR[month]}` : "Sélectionnez un jour"}
+                </h3>
+                {selectedDayTransactions.length > 0 && (
+                  <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">{selectedDayTransactions.length} opération(s)</span>
+                )}
+              </div>
+              
+              <div className="bg-white rounded-[24px] shadow-lg border border-slate-50 overflow-hidden divide-y divide-slate-50 min-h-[60px]">
+                {selectedDayTransactions.length > 0 ? (
+                  selectedDayTransactions.map((t, idx) => (
+                    <TransactionItem 
+                      key={t.id} 
+                      t={t} 
+                      category={categories.find(c => c.id === t.categoryId)} 
+                      isLast={idx === selectedDayTransactions.length - 1} 
+                      isOpen={openItemId === t.id} 
+                      onToggle={() => setOpenItemId(openItemId === t.id ? null : t.id)} 
+                      onDelete={onDelete} 
+                      onEdit={onEdit} 
+                    />
+                  ))
+                ) : (
+                  <div className="py-8 text-center px-4">
+                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic leading-relaxed">
+                      {selectedDay ? "Aucune opération ce jour là. Profitez de ce moment zen." : "Touchez un jour pour voir les détails"}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         ) : (
-          <div className="bg-white rounded-[24px] shadow-lg border border-slate-50 overflow-hidden divide-y divide-slate-50">
-            {transactions.map((t, idx) => (
-              <TransactionItem key={t.id} t={t} category={categories.find(c => c.id === t.categoryId)} isLast={idx === transactions.length - 1} isOpen={openItemId === t.id} onToggle={() => setOpenItemId(openItemId === t.id ? null : t.id)} onDelete={onDelete} onEdit={onEdit} />
-            ))}
+          <div className="bg-white rounded-[24px] shadow-lg border border-slate-50 overflow-hidden divide-y divide-slate-50 animate-in fade-in duration-500">
+            {transactions.length > 0 ? (
+              transactions.map((t, idx) => (
+                <TransactionItem 
+                  key={t.id} 
+                  t={t} 
+                  category={categories.find(c => c.id === t.categoryId)} 
+                  isLast={idx === transactions.length - 1} 
+                  isOpen={openItemId === t.id} 
+                  onToggle={() => setOpenItemId(openItemId === t.id ? null : t.id)} 
+                  onDelete={onDelete} 
+                  onEdit={onEdit} 
+                />
+              ))
+            ) : (
+              <div className="py-20 text-center">
+                <p className="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">Journal vide ce mois-ci</p>
+              </div>
+            )}
           </div>
         )}
       </div>

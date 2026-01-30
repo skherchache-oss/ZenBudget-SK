@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import { AppState, BudgetAccount } from '../types';
 import { IconPlus } from './Icons';
 import { createDefaultAccount } from '../store';
@@ -14,11 +15,115 @@ interface SettingsProps {
   onLogout: () => void;
 }
 
-const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiveAccount, onDeleteAccount, onReset }) => {
-  const [isHowItWorksOpen, setIsHowItWorksOpen] = useState(false);
-  const activeAccount = state.accounts.find(a => a.id === state.activeAccountId);
+const AccountItem: React.FC<{
+  acc: BudgetAccount;
+  isActive: boolean;
+  onDelete: (id: string) => void;
+  onRename: (acc: BudgetAccount) => void;
+  onSelect: (id: string) => void;
+  canDelete: boolean;
+}> = ({ acc, isActive, onDelete, onRename, onSelect, canDelete }) => {
+  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
-  const sectionTitleStyle = "text-[11px] font-black text-slate-900 uppercase tracking-[0.2em] mb-4 flex items-center gap-2";
+  const handleDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!isConfirmingDelete) {
+      setIsConfirmingDelete(true);
+      setTimeout(() => setIsConfirmingDelete(false), 3000);
+      return;
+    }
+    onDelete(acc.id);
+  };
+
+  const handleRename = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onRename(acc);
+  };
+
+  return (
+    <div 
+      className={`flex items-center justify-between bg-white rounded-[24px] p-4 mb-2 border transition-all cursor-pointer ${isActive ? 'border-indigo-100 shadow-sm ring-4 ring-indigo-50/20' : 'border-slate-50 hover:border-slate-200'}`}
+      onClick={() => onSelect(acc.id)}
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm shrink-0" style={{ backgroundColor: `${acc.color}20`, border: `1px solid ${acc.color}40` }}>
+          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: acc.color }} />
+        </div>
+        <div className="flex flex-col min-w-0">
+          <span className="text-[12px] font-black text-slate-800 truncate uppercase tracking-tight">{acc.name}</span>
+          {isActive && <span className="text-[7px] font-black text-indigo-500 uppercase tracking-widest">Actif</span>}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-1">
+        <button 
+          onClick={handleRename}
+          className="p-2 text-slate-300 hover:text-indigo-600 transition-all rounded-lg"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+        </button>
+        {canDelete && (
+          <button 
+            onClick={handleDelete} 
+            className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase transition-all min-w-[40px] ${isConfirmingDelete ? 'bg-red-600 text-white' : 'text-red-300 hover:bg-red-50'}`}
+          >
+            {isConfirmingDelete ? 'Sûr ?' : (
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+            )}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiveAccount, onDeleteAccount, onReset }) => {
+  const [isAddingAccount, setIsAddingAccount] = useState(false);
+  const [newAccName, setNewAccName] = useState('');
+  const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
+  const [isHowItWorksOpen, setIsHowItWorksOpen] = useState(false);
+  const [customDay, setCustomDay] = useState('');
+
+  const activeAccount = state.accounts.find(a => a.id === state.activeAccountId);
+  // mb-1 pour vraiment coller le titre au bloc
+  const sectionTitleStyle = "text-[9px] font-black text-slate-400 uppercase tracking-[0.25em] mb-1 flex items-center gap-2 px-2";
+
+  useEffect(() => {
+    const day = activeAccount?.cycleEndDay;
+    if (day && day > 0 && ![25, 26, 28].includes(day)) {
+      setCustomDay(day.toString());
+    } else {
+      setCustomDay('');
+    }
+  }, [activeAccount?.id, activeAccount?.cycleEndDay]);
+
+  const handleCreateAccount = () => {
+    if (!newAccName.trim()) return;
+    const newAcc = createDefaultAccount(state.user?.id || 'local-user');
+    newAcc.name = newAccName.trim();
+    onUpdateAccounts([...state.accounts, newAcc]);
+    onSetActiveAccount(newAcc.id);
+    setNewAccName('');
+    setIsAddingAccount(false);
+  };
+
+  const handleStartRename = (acc: BudgetAccount) => {
+    setEditingAccountId(acc.id);
+    setEditName(acc.name);
+  };
+
+  const handleSaveRename = () => {
+    if (!editingAccountId || !editName.trim()) {
+      setEditingAccountId(null);
+      return;
+    }
+    const nextAccounts = state.accounts.map(a => 
+      a.id === editingAccountId ? { ...a, name: editName.trim() } : a
+    );
+    onUpdateAccounts(nextAccounts);
+    setEditingAccountId(null);
+  };
 
   const updateCycleDay = (day: number) => {
     if (!activeAccount) return;
@@ -28,75 +133,79 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
     onUpdateAccounts(nextAccounts);
   };
 
+  const handleCustomDayChange = (val: string) => {
+    setCustomDay(val);
+    const day = parseInt(val);
+    if (!isNaN(day) && day >= 1 && day <= 31) {
+      updateCycleDay(day);
+    }
+  };
+
   const handleFeedback = () => {
-    window.location.href = `mailto:s.kherchache@gmail.com?subject=Feedback ZenBudget&body=Bonjour, j'ai une idée pour l'appli !`;
+    const subject = encodeURIComponent("Feedback ZenBudget 🚀");
+    const body = encodeURIComponent("Bonjour,\n\nJ'ai une idée pour ZenBudget : ");
+    window.location.href = `mailto:s.kherchache@gmail.com?subject=${subject}&body=${body}`;
   };
 
   return (
-    <div className="space-y-8 pb-32 overflow-y-auto no-scrollbar h-full px-1 fade-in">
+    <div className="space-y-5 pb-32 overflow-y-auto no-scrollbar h-full px-1 fade-in">
       {/* MON ESPACE */}
       <section className="mt-4">
         <h2 className={sectionTitleStyle}><span>✨</span> Mon Espace</h2>
-        <div className="bg-white p-6 rounded-[32px] border border-gray-100 flex items-center justify-between shadow-sm">
+        <div className="bg-white p-5 rounded-[28px] border border-slate-50 flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-indigo-50 border-2 border-indigo-100 flex items-center justify-center text-xl">🧘‍♂️</div>
+            <div className="w-10 h-10 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-lg">🧘‍♂️</div>
             <div>
-              <h3 className="font-black text-gray-900 text-[15px] leading-none mb-1">Utilisateur Zen</h3>
-              <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Stockage local & Sécurisé</p>
+              <h3 className="font-black text-slate-800 text-sm leading-none mb-0.5">Utilisateur Zen</h3>
+              <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Données locales sécurisées</p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* AIDE & LEXIQUE */}
+      {/* ZENBUDGET : GESTION INTUITIVE */}
       <section>
-        <h2 className={sectionTitleStyle}><span>📖</span> Aide & Lexique</h2>
-        <div className="bg-white rounded-[32px] border border-slate-100 overflow-hidden shadow-sm">
-          <button onClick={() => setIsHowItWorksOpen(!isHowItWorksOpen)} className="w-full flex items-center justify-between p-6 hover:bg-slate-50 transition-colors">
+        <h2 className={sectionTitleStyle}><span>🚀</span> ZenBudget : gestion intuitive</h2>
+        <div className="bg-white rounded-[28px] border border-slate-50 overflow-hidden shadow-sm">
+          <button onClick={() => setIsHowItWorksOpen(!isHowItWorksOpen)} className="w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-colors">
             <div className="flex items-center gap-3">
-              <span className="text-xl">✨</span>
-              <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-800">Comment ça marche ?</h3>
+              <span className="text-lg">📖</span>
+              <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-800">Comment ça marche ?</h3>
             </div>
-            <svg className={`w-4 h-4 text-slate-300 transition-transform ${isHowItWorksOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M19 9l-7 7-7-7" /></svg>
+            <svg className={`w-3.5 h-3.5 text-slate-300 transition-transform ${isHowItWorksOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M19 9l-7 7-7-7" /></svg>
           </button>
 
-          <div className={`transition-all duration-500 ${isHowItWorksOpen ? 'max-h-[1500px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
-            <div className="px-6 pb-6 space-y-6">
-              <div className="bg-indigo-50 p-5 rounded-[24px] border border-indigo-100">
-                <h4 className="text-[12px] font-black text-indigo-900 mb-3 uppercase">ZenBudget : Gestion intuitive</h4>
-                <p className="text-[11px] text-indigo-800/80 leading-relaxed font-medium mb-4">Simplifiez vos finances en 3 étapes :</p>
+          <div className={`transition-all duration-300 ${isHowItWorksOpen ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
+            <div className="px-5 pb-5 space-y-5">
+              <div className="bg-indigo-50/50 p-5 rounded-[22px] border border-indigo-100/30">
+                <h4 className="text-[11px] font-black text-indigo-900 mb-2 uppercase tracking-wider">Philosophie Zen</h4>
+                <p className="text-[10px] text-indigo-900/60 font-bold mb-4 leading-relaxed italic">
+                  Une application ultra-simple pour suivre vos finances, anticiper vos dépenses et gérer vos charges fixes en toute sérénité.
+                </p>
                 <ul className="space-y-3">
                   <li className="flex gap-3 text-[10px] font-bold text-indigo-900/70">
-                    <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[9px] shrink-0">1</span>
-                    Notez vos revenus et dépenses quotidiens dans le Journal.
+                    <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[8px] shrink-0 font-black">1</span>
+                    Notez vos revenus et dépenses dans le Journal.
                   </li>
                   <li className="flex gap-3 text-[10px] font-bold text-indigo-900/70">
-                    <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[9px] shrink-0">2</span>
-                    Gérez vos "Fixes" (loyer, netflix) pour qu'ils soient déduits automatiquement.
+                    <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[8px] shrink-0 font-black">2</span>
+                    Définissez vos "Fixes" une seule fois pour vos prévisions.
                   </li>
                   <li className="flex gap-3 text-[10px] font-bold text-indigo-900/70">
-                    <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[9px] shrink-0">3</span>
-                    Visez votre "Disponible Réel" pour dépenser sans stress.
+                    <span className="w-5 h-5 rounded-full bg-indigo-600 text-white flex items-center justify-center text-[8px] shrink-0 font-black">3</span>
+                    Suivez votre "Disponible Réel" pour rester serein.
                   </li>
                 </ul>
               </div>
 
-              <div className="space-y-4">
-                <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Lexique des Stats</h4>
-                <div className="space-y-3">
-                  <div className="bg-slate-50 p-4 rounded-2xl">
-                    <span className="text-[9px] font-black text-indigo-600 uppercase block mb-1">Disponible Réel</span>
-                    <p className="text-[10px] text-slate-500 italic">"L'indicateur de sérénité"</p>
-                    <p className="text-[10px] text-slate-400 mt-1">Solde bancaire moins les charges fixes à venir d'ici votre prochain salaire.</p>
-                  </div>
-                  <div className="bg-slate-50 p-4 rounded-2xl">
-                    <span className="text-[9px] font-black text-indigo-600 uppercase block mb-1">Solde Bancaire</span>
-                    <p className="text-[10px] text-slate-500">Calcul exact de toutes vos opérations saisies.</p>
-                  </div>
-                  <div className="bg-slate-50 p-4 rounded-2xl">
-                    <span className="text-[9px] font-black text-indigo-600 uppercase block mb-1">Fin de mois</span>
-                    <p className="text-[10px] text-slate-500">Projection de votre solde la veille du prochain cycle.</p>
-                  </div>
+              <div className="space-y-3">
+                <div className="bg-slate-50 p-4 rounded-xl">
+                  <span className="text-[8px] font-black text-indigo-600 uppercase block mb-1">Disponible Réel</span>
+                  <p className="text-[10px] text-slate-400 italic">C'est votre solde actuel moins les charges fixes prévues d'ici votre prochain cycle.</p>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-xl">
+                  <span className="text-[8px] font-black text-indigo-600 uppercase block mb-1">Solde Bancaire</span>
+                  <p className="text-[10px] text-slate-400 italic">Calcul exact de toutes les opérations saisies à ce jour.</p>
                 </div>
               </div>
             </div>
@@ -104,17 +213,91 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
         </div>
       </section>
 
+      {/* MES COMPTES */}
+      <section>
+        <h2 className={sectionTitleStyle}><span>💳</span> Mes Comptes</h2>
+        <div className="space-y-1">
+          {state.accounts.map(acc => (
+            <AccountItem 
+              key={acc.id} 
+              acc={acc} 
+              isActive={state.activeAccountId === acc.id}
+              onDelete={onDeleteAccount}
+              onRename={handleStartRename}
+              onSelect={onSetActiveAccount}
+              canDelete={state.accounts.length > 1}
+            />
+          ))}
+          
+          {editingAccountId && (
+            <div className="bg-white p-4 rounded-[22px] border-2 border-indigo-200 animate-in zoom-in-95 duration-200 mb-2">
+              <input 
+                autoFocus value={editName} onChange={e => setEditName(e.target.value)} 
+                placeholder="Nouveau nom..." 
+                className="w-full bg-slate-50 p-3 rounded-xl mb-3 text-sm font-bold border-none outline-none focus:ring-1 focus:ring-indigo-200"
+                onKeyDown={e => e.key === 'Enter' && handleSaveRename()}
+              />
+              <div className="flex gap-2">
+                <button onClick={() => setEditingAccountId(null)} className="flex-1 py-2 text-[10px] font-black uppercase text-slate-400">Annuler</button>
+                <button onClick={handleSaveRename} className="flex-1 py-2 text-[10px] font-black uppercase text-white bg-indigo-600 rounded-xl">Sauver</button>
+              </div>
+            </div>
+          )}
+
+          {isAddingAccount ? (
+            <div className="bg-white p-4 rounded-[22px] border-2 border-indigo-200 animate-in zoom-in-95 duration-200 mb-2">
+              <input 
+                autoFocus value={newAccName} onChange={e => setNewAccName(e.target.value)} 
+                placeholder="Nom du compte..." 
+                className="w-full bg-slate-50 p-3 rounded-xl mb-3 text-sm font-bold border-none outline-none focus:ring-1 focus:ring-indigo-200"
+                onKeyDown={e => e.key === 'Enter' && handleCreateAccount()}
+              />
+              <div className="flex gap-2">
+                <button onClick={() => setIsAddingAccount(false)} className="flex-1 py-2 text-[10px] font-black uppercase text-slate-400">Annuler</button>
+                <button onClick={handleCreateAccount} className="flex-1 py-2 text-[10px] font-black uppercase text-white bg-indigo-600 rounded-xl">Créer</button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => { setIsAddingAccount(true); setEditingAccountId(null); }} className="w-full py-4 border-2 border-dashed border-slate-100 text-slate-400 font-black text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 rounded-[24px] bg-white/40 hover:bg-white hover:text-indigo-600 transition-all">
+              <IconPlus className="w-4 h-4" /> Nouveau compte
+            </button>
+          )}
+        </div>
+      </section>
+
       {/* CYCLE BUDGÉTAIRE */}
       <section>
         <h2 className={sectionTitleStyle}><span>📅</span> Cycle Budgétaire</h2>
-        <div className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm">
-          <p className="text-[11px] text-gray-500 font-medium leading-relaxed mb-4">Définissez le jour où votre budget redémarre (jour du salaire).</p>
-          <div className="flex flex-wrap gap-2">
-            {[0, 24, 25, 26, 28].map(day => (
-              <button key={day} onClick={() => updateCycleDay(day)} className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border-2 ${activeAccount?.cycleEndDay === day ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-gray-50 border-transparent text-gray-400 hover:bg-gray-100'}`}>
-                {day === 0 ? 'Fin de mois' : `Le ${day}`}
+        <div className="bg-white p-5 rounded-[28px] border border-slate-50 shadow-sm space-y-4">
+          <p className="text-[10px] text-slate-400 font-medium leading-tight">Jour du salaire (redémarrage du budget).</p>
+          
+          <div className="flex flex-wrap items-center gap-2">
+            {[0, 25, 26, 28].map(day => (
+              <button 
+                key={day} 
+                onClick={() => updateCycleDay(day)} 
+                className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-tight transition-all border-2 ${activeAccount?.cycleEndDay === day ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm' : 'bg-slate-50 border-transparent text-slate-400 hover:bg-slate-100'}`}
+              >
+                {day === 0 ? 'Fin' : `${day}`}
               </button>
             ))}
+            
+            {/* Input manuel compact intégré à la liste */}
+            <div className="relative group">
+              <input 
+                type="number"
+                inputMode="numeric"
+                min="1"
+                max="31"
+                value={customDay}
+                onChange={(e) => handleCustomDayChange(e.target.value)}
+                placeholder="+"
+                className={`w-12 h-[38px] text-center rounded-xl text-[11px] font-black outline-none border-2 transition-all ${customDay && ![25, 26, 28].includes(parseInt(customDay)) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-slate-50 border-dashed border-slate-200 text-slate-500 focus:border-indigo-200'}`}
+              />
+            </div>
+            {customDay && ![25, 26, 28].includes(parseInt(customDay)) && (
+              <span className="text-[9px] font-black text-indigo-500 uppercase">Le {customDay}</span>
+            )}
           </div>
         </div>
       </section>
@@ -122,22 +305,22 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
       {/* FEEDBACK */}
       <section>
         <h2 className={sectionTitleStyle}><span>🚀</span> Partager une idée</h2>
-        <div className="bg-indigo-600 p-8 rounded-[40px] shadow-xl relative overflow-hidden text-center">
+        <div className="bg-slate-900 p-6 rounded-[32px] shadow-lg relative overflow-hidden text-center">
           <div className="relative z-10">
-            <h3 className="text-white font-black text-lg mb-2">ZenBudget évolue grâce à vous ! ✨</h3>
-            <p className="text-indigo-100 text-[11px] mb-6 font-medium leading-relaxed">Si vous avez envie d'aider à améliorer l'appli, envoyez-nous une suggestion ou signalez un bug.</p>
-            <button onClick={handleFeedback} className="w-full py-4 bg-white text-indigo-600 font-black rounded-2xl uppercase text-[10px] tracking-widest active:scale-95 transition-all">Envoyer un retour</button>
+            <h3 className="text-white font-black text-sm mb-1">ZenBudget évolue ! ✨</h3>
+            <p className="text-slate-400 text-[10px] mb-4 font-medium leading-tight">Une idée ? Votre retour est précieux.</p>
+            <button onClick={handleFeedback} className="w-full py-3 bg-white text-slate-900 font-black rounded-xl uppercase text-[9px] tracking-widest active:scale-95 transition-all shadow-sm">Envoyer un retour</button>
           </div>
-          <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-white/10 rounded-full blur-2xl" />
+          <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-indigo-500/10 rounded-full blur-2xl" />
         </div>
       </section>
 
-      <section className="pt-4">
-        <button onClick={onReset} className="w-full py-4 bg-red-50 text-red-500 font-black rounded-2xl border border-red-100 uppercase text-[10px] tracking-widest active:scale-95 transition-all">Effacer toutes les données</button>
+      <section className="pt-2">
+        <button onClick={onReset} className="w-full py-4 text-red-300 font-black rounded-[24px] uppercase text-[9px] tracking-[0.2em] active:scale-95 transition-all hover:bg-red-50">Réinitialiser l'application</button>
       </section>
 
-      <div className="pt-8 border-t border-gray-100">
-        <p className="text-center text-[8px] text-gray-300 font-black uppercase tracking-[0.3em]">Version 4.3 • Vercel Optimized</p>
+      <div className="pt-6 border-t border-slate-50">
+        <p className="text-center text-[8px] text-slate-200 font-black uppercase tracking-[0.4em]">ZenBudget V4.5 • Minimalist Design</p>
       </div>
     </div>
   );

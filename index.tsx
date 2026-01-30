@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppState, ViewType, Transaction, Category, BudgetAccount } from './types';
@@ -226,7 +227,17 @@ const App: React.FC = () => {
           <Settings 
             state={state} onUpdateCategories={(cats) => setState(prev => ({ ...prev, categories: cats }))} onUpdateBudget={() => {}}
             onUpdateAccounts={(accounts) => setState(prev => ({ ...prev, accounts }))} onSetActiveAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))}
-            onDeleteAccount={(id) => setState(prev => ({ ...prev, accounts: prev.accounts.filter(a => a.id !== id) }))}
+            onDeleteAccount={(id) => {
+              setState(prev => {
+                const nextAccounts = prev.accounts.filter(a => a.id !== id);
+                if (nextAccounts.length === 0) return prev;
+                let nextActiveId = prev.activeAccountId;
+                if (id === prev.activeAccountId) {
+                  nextActiveId = nextAccounts[0].id;
+                }
+                return { ...prev, accounts: nextAccounts, activeAccountId: nextActiveId };
+              });
+            }}
             onReset={() => { if (window.confirm("Tout effacer définitivement ?")) { localStorage.clear(); window.location.reload(); } }} onLogout={() => {}}
           />
         )}
