@@ -1,5 +1,4 @@
-
-import { AppState, BudgetAccount, User, Category } from './types';
+import { AppState, BudgetAccount, Category, User } from './types';
 import { DEFAULT_CATEGORIES } from './constants';
 
 const STORAGE_KEY = 'zenbudget_state_v3';
@@ -24,8 +23,9 @@ export const createDefaultAccount = (ownerId: string = 'local-user'): BudgetAcco
   transactions: [],
   recurringTemplates: [],
   recurringSyncLog: [],
+  deletedVirtualIds: [],
   monthlyBudget: 0,
-  cycleEndDay: 0,
+  cycleEndDay: 28, // Fixé à 28 par défaut pour éviter le 0
 });
 
 export const getInitialState = (): AppState => {
@@ -47,24 +47,23 @@ export const getInitialState = (): AppState => {
     if (!saved) return defaultState;
     const parsed = JSON.parse(saved);
 
-    // SYNCHRONISATION DES CATÉGORIES
+    // Fusion propre des catégories
     const savedCategories: Category[] = parsed.categories || [];
     const mergedCategories = [...DEFAULT_CATEGORIES];
-    
     savedCategories.forEach(sc => {
       if (!mergedCategories.find(dc => dc.id === sc.id)) {
         mergedCategories.push(sc);
       }
     });
 
+    // Nettoyage des comptes
     const accounts = (parsed.accounts || [defaultAcc]).map((acc: any) => ({
       ...acc,
-      cycleEndDay: acc.cycleEndDay ?? 0
+      transactions: acc.transactions || [],
+      recurringTemplates: acc.recurringTemplates || [],
+      deletedVirtualIds: acc.deletedVirtualIds || [],
+      cycleEndDay: acc.cycleEndDay ?? 28
     }));
-
-    const activeAccountId = accounts.find((a: any) => a.id === parsed.activeAccountId) 
-      ? parsed.activeAccountId 
-      : accounts[0].id;
 
     return { 
       ...defaultState, 
@@ -72,9 +71,10 @@ export const getInitialState = (): AppState => {
       user: defaultUser,
       accounts: accounts,
       categories: mergedCategories,
-      activeAccountId: activeAccountId 
+      activeAccountId: accounts.find((a: any) => a.id === parsed.activeAccountId) ? parsed.activeAccountId : accounts[0].id
     };
   } catch (e) {
+    console.error("Erreur de chargement du Store", e);
     return defaultState;
   }
 };

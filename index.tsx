@@ -11,7 +11,6 @@ import AddTransactionModal from './components/AddTransactionModal';
 import Settings from './components/Settings';
 
 const App: React.FC = () => {
-  // --- ÉTAT INITIAL ---
   const [state, setState] = useState<AppState>(() => getInitialState());
   const [activeView, setActiveView] = useState<ViewType>('DASHBOARD');
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
@@ -22,51 +21,40 @@ const App: React.FC = () => {
   const [modalInitialDate, setModalInitialDate] = useState<string>(new Date().toISOString());
   const [selectedDay, setSelectedDay] = useState<number | null>(new Date().getDate());
 
-  // --- SAUVEGARDE SÉCURISÉE ---
-  // On utilise un useRef pour éviter de sauvegarder au tout premier chargement
   const isInitialMount = useRef(true);
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
     }
-    // Debounce : on attend 1 seconde de calme avant d'écrire dans le localStorage
     const timer = setTimeout(() => {
       saveState(state);
     }, 1000);
     return () => clearTimeout(timer);
   }, [state]);
 
-  // --- RÉFÉRENCES DE CALCUL ---
   const activeAccount = useMemo(() => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
-  // On stabilise "maintenant" pour éviter les changements à la milliseconde
   const now = useMemo(() => {
     const d = new Date();
-    d.setHours(12, 0, 0, 0); // On fixe l'heure pour éviter les bugs de calcul
+    d.setHours(12, 0, 0, 0);
     return d;
-  }, [currentMonth, currentYear]);
+  }, []);
 
-  // --- FONCTION DE CALCUL DE SOLDE (COEUR DU MOTEUR) ---
   const getBalanceAtDate = (targetDate: Date, includeProjections: boolean) => {
     if (!activeAccount) return 0;
     
-    // 1. Solde des transactions réelles déjà saisies
     let balance = activeAccount.transactions.reduce((acc, t) => {
       const tDate = new Date(t.date);
       return tDate <= targetDate ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
     }, 0);
 
-    // 2. Ajout des projections (Charges fixes non encore pointées)
     if (includeProjections && targetDate > now) {
       const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
       const templates = activeAccount.recurringTemplates || [];
-      
-      // On calcule sur une plage de mois limitée pour éviter les boucles infinies
       let cursor = new Date(now.getFullYear(), now.getMonth(), 1);
-      // On ne projette jamais au-delà de 24 mois par sécurité
       const limit = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 1);
 
       while (cursor < limit && cursor < new Date(now.getFullYear() + 2, now.getMonth(), 1)) {
@@ -84,11 +72,9 @@ const App: React.FC = () => {
 
         templates.forEach(tpl => {
           if (!tpl.isActive || materializedIds.has(tpl.id)) return;
-          
           const day = Math.min(tpl.dayOfMonth, new Date(cYear, cMonth + 1, 0).getDate());
           const tplDate = new Date(cYear, cMonth, day, 12, 0, 0);
           const vId = `virtual-${tpl.id}-${cMonth}-${cYear}`;
-
           if (tplDate > now && tplDate <= targetDate && !deletedVirtuals.has(vId)) {
             balance += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
           }
@@ -99,25 +85,28 @@ const App: React.FC = () => {
     return balance;
   };
 
-  // --- MÉMOISATION DES VALEURS DU DASHBOARD ---
-  const checkingAccountBalance = useMemo(() => getBalanceAtDate(now, false), [activeAccount, now]);
+  // --- CALCULS STABILISÉS ---
+  const checkingAccountBalance = useMemo(() => 
+    getBalanceAtDate(now, false) || 0, 
+  [activeAccount?.transactions, now]);
 
   const availableBalance = useMemo(() => {
-    const cycleDay = activeAccount?.cycleEndDay || 0;
-    let target = new Date(now.getFullYear(), now.getMonth(), cycleDay || 28, 23, 59, 59);
+    if (!activeAccount) return 0;
+    const cycleDay = activeAccount.cycleEndDay || 28;
+    const target = new Date(now.getFullYear(), now.getMonth(), cycleDay, 23, 59, 59);
     if (now > target) target.setMonth(target.getMonth() + 1);
-    return getBalanceAtDate(target, true);
-  }, [activeAccount, now]);
+    return getBalanceAtDate(target, true) || 0;
+  }, [activeAccount?.transactions, activeAccount?.recurringTemplates, activeAccount?.cycleEndDay, now]);
 
   const projectedBalance = useMemo(() => {
     const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
-    return getBalanceAtDate(lastDayOfMonth, true);
-  }, [activeAccount, currentMonth, currentYear, now]);
+    return getBalanceAtDate(lastDayOfMonth, true) || 0;
+  }, [activeAccount?.transactions, activeAccount?.recurringTemplates, currentMonth, currentYear, now]);
 
   const carryOver = useMemo(() => {
     const lastDayOfPrevMonth = new Date(currentYear, currentMonth, 0, 23, 59, 59);
-    return getBalanceAtDate(lastDayOfPrevMonth, true);
-  }, [activeAccount, currentMonth, currentYear, now]);
+    return getBalanceAtDate(lastDayOfPrevMonth, true) || 0;
+  }, [activeAccount?.transactions, activeAccount?.recurringTemplates, currentMonth, currentYear, now]);
 
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
@@ -148,9 +137,8 @@ const App: React.FC = () => {
       .filter(v => new Date(v.date) > now && !deletedVirtuals.has(v.id));
 
     return [...manuals, ...virtuals].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [activeAccount, currentMonth, currentYear, now]);
+  }, [activeAccount?.transactions, activeAccount?.recurringTemplates, currentMonth, currentYear, now]);
 
-  // --- HANDLERS ---
   const handleMonthChange = (offset: number) => {
     setSlideDirection(offset > 0 ? 'next' : 'prev');
     let nextMonth = currentMonth + offset;
@@ -166,12 +154,10 @@ const App: React.FC = () => {
     setState(prev => {
       const accIndex = prev.accounts.findIndex(a => a.id === prev.activeAccountId);
       if (accIndex === -1) return prev;
-      
       const acc = { ...prev.accounts[accIndex] };
       let nextTransactions = [...acc.transactions];
       let nextTemplates = [...(acc.recurringTemplates || [])];
       let nextDeletedVirtuals = [...(acc.deletedVirtualIds || [])];
-      
       const targetId = t.id || editingTransaction?.id;
       const isVirtual = targetId?.toString().startsWith('virtual-');
       const templateId = t.templateId || (isVirtual ? targetId?.toString().split('-')[1] : undefined);
@@ -218,7 +204,6 @@ const App: React.FC = () => {
             <IconLogo className="w-8 h-8 text-indigo-600" />
             <h1 className="hidden xs:block text-lg font-black tracking-tight text-slate-800">ZenBudget</h1>
           </div>
-          
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-sm flex-1 max-w-[200px] justify-between">
              <button onClick={() => handleMonthChange(-1)} className="p-2 hover:bg-white rounded-xl transition-all text-slate-400 active:scale-90"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15 19l-7-7 7-7" /></svg></button>
              <div className="flex items-baseline gap-1 whitespace-nowrap overflow-hidden px-1">
@@ -235,7 +220,8 @@ const App: React.FC = () => {
           <Dashboard 
             transactions={effectiveTransactions} categories={state.categories} activeAccount={activeAccount} allAccounts={state.accounts}
             onSwitchAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))} month={currentMonth} year={currentYear}
-            onViewTransactions={() => setActiveView('TRANSACTIONS')} checkingAccountBalance={checkingAccountBalance} availableBalance={availableBalance} projectedBalance={projectedBalance}
+            onViewTransactions={() => setActiveView('TRANSACTIONS')} 
+            checkingAccountBalance={checkingAccountBalance} availableBalance={availableBalance} projectedBalance={projectedBalance}
             carryOver={carryOver}
           />
         )}
