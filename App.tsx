@@ -200,10 +200,13 @@ const App: React.FC = () => {
             <IconLogo className="w-8 h-8" />
             <h1 className="text-lg font-black tracking-tight text-slate-800 font-logo">ZenBudget</h1>
           </div>
-          <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-full border border-slate-200 scale-90 origin-right transition-all">
-             <button onClick={() => handleMonthChange(-1)} className="p-1.5 hover:bg-white rounded-full transition-all text-slate-400"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15 19l-7-7 7-7" /></svg></button>
-             <span className="text-[9px] font-black uppercase tracking-widest px-2 min-w-[90px] text-center text-slate-600">{MONTHS_FR[currentMonth]} {currentYear}</span>
-             <button onClick={() => handleMonthChange(1)} className="p-1.5 hover:bg-white rounded-full transition-all text-slate-400"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M9 5l7 7-7 7" /></svg></button>
+          <div className="flex items-center gap-1 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-sm transition-all">
+             <button onClick={() => handleMonthChange(-1)} className="p-1.5 hover:bg-white rounded-xl transition-all text-slate-400 active:scale-90"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15 19l-7-7 7-7" /></svg></button>
+             <div className="flex flex-col items-center px-3 min-w-[110px]">
+                <span className="text-[12px] font-black uppercase tracking-widest text-indigo-700 leading-none">{MONTHS_FR[currentMonth]}</span>
+                <span className="text-[9px] font-black text-slate-400 mt-1">{currentYear}</span>
+             </div>
+             <button onClick={() => handleMonthChange(1)} className="p-1.5 hover:bg-white rounded-xl transition-all text-slate-400 active:scale-90"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M9 5l7 7-7 7" /></svg></button>
           </div>
         </div>
       </header>
@@ -257,7 +260,7 @@ const App: React.FC = () => {
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-100 flex justify-around items-center pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] px-6 z-40 shadow-[0_-8px_30px_rgba(0,0,0,0.02)]">
         <NavBtn active={activeView === 'DASHBOARD'} onClick={() => setActiveView('DASHBOARD')} icon={<IconHome />} label="Stats" />
         <NavBtn active={activeView === 'TRANSACTIONS'} onClick={() => setActiveView('TRANSACTIONS')} icon={<IconCalendar />} label="Journal" />
-        <NavBtn active={activeView === 'RECURRING'} onClick={() => setActiveView('RECURRING')} icon={<IconPlus className="rotate-45" />} label="Fixes" />
+        <NavBtn active={activeView === 'RECURRING'} onClick={() => setActiveView('RECURRING'} icon={<IconPlus className="rotate-45" />} label="Fixes" />
         <NavBtn active={activeView === 'SETTINGS'} onClick={() => setActiveView('SETTINGS')} icon={<IconSettings />} label="Réglages" />
       </nav>
 

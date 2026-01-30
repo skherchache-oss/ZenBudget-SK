@@ -148,35 +148,35 @@ const TransactionList: React.FC<TransactionListProps> = ({
 
   return (
     <div 
-      className="space-y-3 pb-24 h-full"
+      className="space-y-2 pb-24 h-full"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      <div className="flex items-center justify-between px-1 mb-1">
+      <div className="flex items-center justify-between px-1 mb-0.5">
         <h2 className="text-xl font-black tracking-tighter text-slate-800">Journal</h2>
         <div className="bg-slate-900 rounded-xl px-3 py-1.5 flex items-center gap-2.5 shadow-lg ring-2 ring-slate-100">
            <span className="text-[7px] font-black uppercase tracking-[0.2em] text-slate-400">{projectionLabel}</span>
            <span className={`text-[12px] font-black ${totalBalance >= 0 ? 'text-indigo-400' : 'text-red-400'}`}>
-            {totalBalance.toLocaleString('fr-FR')}€
+            {Math.round(totalBalance).toLocaleString('fr-FR')}€
            </span>
         </div>
       </div>
 
-      <div className="flex bg-slate-100 p-1 rounded-xl shadow-inner shrink-0">
-        <button onClick={() => setViewMode('CALENDAR')} className={`flex-1 py-1.5 text-[8px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 ${viewMode === 'CALENDAR' ? 'bg-white text-slate-900 shadow-md scale-[1.01]' : 'text-slate-400 hover:text-slate-600'}`}>Calendrier</button>
-        <button onClick={() => setViewMode('LIST')} className={`flex-1 py-1.5 text-[8px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 ${viewMode === 'LIST' ? 'bg-white text-slate-900 shadow-md scale-[1.01]' : 'text-slate-400 hover:text-slate-600'}`}>Liste</button>
+      <div className="flex bg-slate-100 p-1 rounded-xl shadow-inner shrink-0 mb-1">
+        <button onClick={() => setViewMode('CALENDAR')} className={`flex-1 py-1 text-[8px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 ${viewMode === 'CALENDAR' ? 'bg-white text-slate-900 shadow-md scale-[1.01]' : 'text-slate-400 hover:text-slate-600'}`}>Calendrier</button>
+        <button onClick={() => setViewMode('LIST')} className={`flex-1 py-1 text-[8px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 ${viewMode === 'LIST' ? 'bg-white text-slate-900 shadow-md scale-[1.01]' : 'text-slate-400 hover:text-slate-600'}`}>Liste</button>
       </div>
 
       <div key={`${month}-${year}`} className={animationClass}>
         {viewMode === 'CALENDAR' ? (
-          <div className="space-y-4">
-            <div className="bg-white/60 backdrop-blur-xl rounded-[32px] p-3 shadow-xl border border-white">
-              <div className="grid grid-cols-7 mb-2">
+          <div className="space-y-3">
+            <div className="bg-white/60 backdrop-blur-xl rounded-[28px] p-2.5 shadow-xl border border-white">
+              <div className="grid grid-cols-7 mb-1.5">
                 {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((d, i) => (
                   <div key={i} className="text-center text-[7px] font-black uppercase text-slate-300 py-0.5 tracking-widest">{d}</div>
                 ))}
               </div>
-              <div className="grid grid-cols-7 gap-1.5">
+              <div className="grid grid-cols-7 gap-1">
                 {Array.from({ length: startOffset }).map((_, i) => <div key={`empty-${i}`} />)}
                 {Array.from({ length: daysInMonth }).map((_, i) => {
                   const day = i + 1;
@@ -186,12 +186,14 @@ const TransactionList: React.FC<TransactionListProps> = ({
                   const isToday = isThisMonth && today.getDate() === day;
                   return (
                     <button key={day} onClick={() => onSelectDay(day)}
-                      className={`h-12 rounded-[16px] flex flex-col items-center justify-between py-1.5 transition-all duration-300 border relative ${isSelected ? 'bg-slate-900 border-slate-900 text-white shadow-2xl z-10 scale-105' : (isToday ? 'bg-indigo-50 border-indigo-200 text-indigo-900' : 'bg-white border-slate-50 hover:bg-slate-50 active:scale-95')}`}
+                      className={`h-11 rounded-[14px] flex flex-col items-center justify-between py-1 transition-all duration-300 border relative ${isSelected ? 'bg-slate-900 border-slate-900 text-white shadow-2xl z-10 scale-105' : (isToday ? 'bg-indigo-50 border-indigo-200 text-indigo-900' : 'bg-white border-slate-50 hover:bg-slate-50 active:scale-95')}`}
                     >
-                      <span className={`text-[10px] font-black ${isSelected ? 'text-white' : 'text-slate-800'}`}>{day}</span>
-                      <div className="flex flex-col items-center gap-0.5">
-                        <span className={`text-[6px] font-black tracking-tighter leading-none ${isSelected ? 'text-indigo-300' : (balance >= 0 ? 'text-indigo-600' : 'text-red-500')}`}>{Math.round(balance)}€</span>
-                        <div className="flex gap-0.5">
+                      <span className={`text-[12px] font-black leading-tight ${isSelected ? 'text-white' : 'text-slate-800'}`}>{day}</span>
+                      <div className="flex flex-col items-center gap-0 overflow-hidden">
+                        <span className={`text-[8.5px] font-black tracking-tighter leading-none ${isSelected ? 'text-indigo-300' : (balance >= 0 ? 'text-indigo-600' : 'text-red-500')}`}>
+                          {Math.round(balance).toLocaleString('fr-FR', { notation: 'compact' })}
+                        </span>
+                        <div className="flex gap-0.5 mt-0.5">
                           {dayT.some(t => t.type === 'INCOME') && <div className="w-0.5 h-0.5 rounded-full bg-emerald-400" />}
                           {dayT.some(t => t.type === 'EXPENSE') && <div className="w-0.5 h-0.5 rounded-full bg-red-400" />}
                         </div>
@@ -202,26 +204,26 @@ const TransactionList: React.FC<TransactionListProps> = ({
               </div>
             </div>
             
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <div className="flex items-center justify-between px-2">
                 <h3 className="text-[9px] font-black uppercase tracking-[0.15em] text-slate-400">Opérations du {selectedDay} {MONTHS_FR[month]}</h3>
                 <div className="flex items-center gap-2">
                   <span className="text-[8px] font-black text-slate-300 uppercase">Solde :</span>
-                  <span className={`text-[11px] font-black ${dailyBalances[selectedDay || 1] >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>{Math.round(dailyBalances[selectedDay || 1])}€</span>
+                  <span className={`text-[11px] font-black ${dailyBalances[selectedDay || 1] >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>{Math.round(dailyBalances[selectedDay || 1]).toLocaleString('fr-FR')}€</span>
                 </div>
               </div>
-              <div className="bg-white rounded-[24px] shadow-lg border border-slate-50 overflow-hidden divide-y divide-slate-50">
+              <div className="bg-white rounded-[22px] shadow-lg border border-slate-50 overflow-hidden divide-y divide-slate-50">
                 {dayTransactions.length > 0 ? dayTransactions.map((t, idx) => (
                   <TransactionItem key={t.id} t={t} category={categories.find(c => c.id === t.categoryId)} isLast={idx === dayTransactions.length - 1} isOpen={openItemId === t.id} onToggle={() => setOpenItemId(openItemId === t.id ? null : t.id)} onDelete={onDelete} onEdit={onEdit} />
-                )) : <div className="py-8 text-center opacity-40 italic text-[9px] font-black uppercase tracking-widest">Aucune opération</div>}
+                )) : <div className="py-6 text-center opacity-40 italic text-[9px] font-black uppercase tracking-widest">Aucune opération</div>}
               </div>
             </div>
           </div>
         ) : (
           <div className="space-y-3">
              <div className="bg-indigo-600 p-4 rounded-[24px] text-white shadow-xl flex justify-between items-center relative overflow-hidden">
-               <div><span className="text-[8px] font-black uppercase tracking-widest text-indigo-200 block mb-0.5">Report précédent</span><div className="text-xl font-black tracking-tight">{carryOver.toLocaleString('fr-FR')}€</div></div>
-               <div className="text-right"><span className="text-[8px] font-black uppercase tracking-widest text-indigo-200 block mb-0.5">Mouvements {MONTHS_FR[month]}</span><div className="text-md font-bold">{(totalBalance - carryOver).toLocaleString('fr-FR')}€</div></div>
+               <div><span className="text-[8px] font-black uppercase tracking-widest text-indigo-200 block mb-0.5">Report précédent</span><div className="text-xl font-black tracking-tight">{Math.round(carryOver).toLocaleString('fr-FR')}€</div></div>
+               <div className="text-right"><span className="text-[8px] font-black uppercase tracking-widest text-indigo-200 block mb-0.5">Mouvements {MONTHS_FR[month]}</span><div className="text-md font-bold">{Math.round(totalBalance - carryOver).toLocaleString('fr-FR')}€</div></div>
              </div>
              <div className="bg-white rounded-[24px] shadow-lg border border-slate-50 overflow-hidden divide-y divide-slate-50">
               {filteredTransactions.length > 0 ? filteredTransactions.map((t, idx) => (
