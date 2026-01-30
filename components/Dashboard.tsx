@@ -49,7 +49,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         if (t.isRecurring) fixed += t.amount;
       }
     });
-    return { income, expenses, fixed, variable: expenses - fixed };
+    return { income, expenses, fixed, variable: expenses - fixed, net: income - expenses };
   }, [transactions]);
 
   useEffect(() => {
@@ -60,9 +60,14 @@ const Dashboard: React.FC<DashboardProps> = ({
       }
       setLoadingAdvice(true);
       try {
+        // Initialize Gemini client with process.env.API_KEY directly in the named parameter object
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const prompt = `ZenBudget: Compte courant ${checkingAccountBalance}€, Fin de mois ${projectedBalance}€, Disponible ${availableBalance}€. Fixes ${stats.fixed}€. Donne 1 conseil zen très court (50 car max, français).`;
-        const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
+        const response = await ai.models.generateContent({ 
+          model: 'gemini-3-flash-preview', 
+          contents: prompt 
+        });
+        // Accessing the .text property directly from GenerateContentResponse
         setAiAdvice(response.text || "La discipline offre la liberté.");
       } catch (err) { setAiAdvice("Observez vos flux sans jugement."); }
       finally { setLoadingAdvice(false); }
@@ -82,96 +87,64 @@ const Dashboard: React.FC<DashboardProps> = ({
     }).sort((a, b) => b.value - a.value);
   }, [transactions, categories, stats.expenses]);
 
-  const handleExportExcel = () => {
-    // Formatage des nombres pour Excel FR
-    const f = (n: number) => n.toFixed(2).replace('.', ',');
-    const sortedTransactions = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    // Construction du fichier HTML avec styles CSS (que Excel comprend)
-    const html = `
-      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
-      <head>
-        <meta charset="utf-8">
-        <style>
-          .brand { color: #10b981; font-family: 'Segoe UI', sans-serif; font-size: 24px; font-weight: bold; }
-          .header-main { background-color: #f8fafc; border: 1px solid #e2e8f0; font-family: sans-serif; }
-          .title { font-size: 18px; font-weight: bold; color: #1e293b; }
-          .summary-label { font-size: 12px; color: #64748b; background-color: #f1f5f9; font-weight: bold; }
-          .summary-value { font-size: 14px; font-weight: bold; text-align: right; }
-          .table-header { background-color: #4f46e5; color: #ffffff; font-weight: bold; text-align: center; }
-          .cell { border: 0.5pt solid #e2e8f0; padding: 5px; font-family: sans-serif; font-size: 11px; }
-          .income { color: #059669; font-weight: bold; }
-          .expense { color: #1e293b; }
-          .footer { font-size: 10px; color: #94a3b8; font-style: italic; }
-        </style>
-      </head>
-      <body>
-        <table>
-          <tr><td colspan="6" class="brand">ZenBudget</td></tr>
-          <tr><td colspan="6" class="title">Rapport Financier Mensuel - ${MONTHS_FR[month]} ${year}</td></tr>
-          <tr><td colspan="6" style="color: #64748b;">Compte : ${activeAccount.name}</td></tr>
-          <tr><td></td></tr>
-          
-          <tr class="header-main">
-            <td colspan="2" class="summary-label cell">INDICATEURS CLES</td>
-            <td colspan="4" class="cell"></td>
-          </tr>
-          <tr>
-            <td colspan="2" class="cell">Compte Courant (Solde actuel)</td>
-            <td class="summary-value cell">${f(checkingAccountBalance)} €</td>
-            <td colspan="3"></td>
-          </tr>
-          <tr>
-            <td colspan="2" class="cell">Disponible Réel (Apres charges futures)</td>
-            <td class="summary-value cell" style="color: ${availableBalance >= 0 ? '#4f46e5' : '#ef4444'}">${f(availableBalance)} €</td>
-            <td colspan="3"></td>
-          </tr>
-          <tr>
-            <td colspan="2" class="cell">Projection Fin de Mois</td>
-            <td class="summary-value cell">${f(projectedBalance)} €</td>
-            <td colspan="3"></td>
-          </tr>
-          
-          <tr><td></td></tr>
-          
-          <tr>
-            <td colspan="6" class="table-header cell" style="background-color: #1e293b;">JOURNAL DES TRANSACTIONS</td>
-          </tr>
-          <tr class="table-header">
-            <td class="cell" style="width: 100px;">DATE</td>
-            <td class="cell" style="width: 150px;">CATEGORIE</td>
-            <td class="cell" style="width: 100px;">TYPE</td>
-            <td class="cell" style="width: 120px;">MONTANT</td>
-            <td class="cell" style="width: 250px;">NOTE / COMMENTAIRE</td>
-            <td class="cell" style="width: 80px;">FIXE</td>
-          </tr>
-          ${sortedTransactions.map(t => {
-            const cat = categories.find(c => c.id === t.categoryId);
-            return `
-              <tr>
-                <td class="cell" style="text-align: center;">${new Date(t.date).toLocaleDateString('fr-FR')}</td>
-                <td class="cell">${cat?.name || 'Inconnue'}</td>
-                <td class="cell" style="text-align: center;">${t.type === 'INCOME' ? 'REVENU' : 'DEPENSE'}</td>
-                <td class="cell ${t.type === 'INCOME' ? 'income' : 'expense'}" style="text-align: right;">${t.type === 'INCOME' ? '+' : '-'}${f(t.amount)} €</td>
-                <td class="cell">${t.comment || ''}</td>
-                <td class="cell" style="text-align: center;">${t.isRecurring ? 'OUI' : ''}</td>
-              </tr>
-            `;
-          }).join('')}
-          
-          <tr><td></td></tr>
-          <tr><td colspan="6" class="footer">Généré le ${new Date().toLocaleString()} via ZenBudget. Votre sérénité financière est notre priorité.</td></tr>
-        </table>
-      </body>
-      </html>
-    `;
-
-    // Téléchargement avec extension .xls pour forcer l'ouverture Excel
-    const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    const fileName = `ZenBudget_${activeAccount.name}_${MONTHS_FR[month]}_${year}.xls`.replace(/\s+/g, '_');
+  const handleExportCSV = () => {
+    const s = ";"; // Séparateur point-virgule pour Excel FR
+    const f = (n: number) => n.toFixed(2).replace('.', ','); // Formatage monétaire FR
     
+    const rows = [];
+    
+    // 1. Branding & Période
+    rows.push(["ZENBUDGET - RAPPORT FINANCIER"]);
+    rows.push([`Compte: ${activeAccount.name}${s}Periode: ${MONTHS_FR[month]} ${year}`]);
+    rows.push([]);
+
+    // 2. Section: Tableau de bord
+    rows.push(["SECTION: TABLEAU DE BORD"]);
+    rows.push([`Compte Courant (Solde actuel)${s}${f(checkingAccountBalance)} €`]);
+    rows.push([`Disponible Reel (Apres charges)${s}${f(availableBalance)} €`]);
+    rows.push([`Projection Fin de Mois${s}${f(projectedBalance)} €`]);
+    rows.push([]);
+
+    // 3. Section: Analyse des Flux
+    rows.push(["SECTION: ANALYSE DES FLUX"]);
+    rows.push([`Total Revenus (+)${s}${f(stats.income)} €`]);
+    rows.push([`Total Depenses (-)${s}${f(stats.expenses)} €`]);
+    rows.push([`Capacite d'Epargne Mensuelle${s}${f(stats.net)} €`]);
+    rows.push([`-- Dont charges fixes${s}${f(stats.fixed)} €`]);
+    rows.push([]);
+
+    // 4. Section: Repartition par Categorie
+    rows.push(["SECTION: DEPENSES PAR CATEGORIE"]);
+    rows.push([`CATEGORIE${s}MONTANT${s}PART (%)`]);
+    categorySummary.forEach(cat => {
+      rows.push([`${cat.name}${s}${f(cat.value)} €${s}${Math.round(cat.percent)}%`]);
+    });
+    rows.push([]);
+
+    // 5. Section: Journal Detaille
+    rows.push(["SECTION: JOURNAL DES OPERATIONS"]);
+    rows.push([`DATE${s}CATEGORIE${s}TYPE${s}MONTANT${s}FIXE${s}NOTE / COMMENTAIRE`]);
+    
+    const sorted = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    sorted.forEach(t => {
+      const catName = categories.find(c => c.id === t.categoryId)?.name || 'Inconnue';
+      const date = new Date(t.date).toLocaleDateString('fr-FR');
+      const amount = (t.type === 'INCOME' ? '' : '-') + f(t.amount);
+      const isFixed = t.isRecurring ? 'OUI' : 'NON';
+      const note = (t.comment || '').replace(/;/g, ','); // Eviter de casser le CSV
+      rows.push([`${date}${s}${catName}${s}${t.type}${s}${amount} €${s}${isFixed}${s}${note}`]);
+    });
+
+    rows.push([]);
+    rows.push([`Genere le ${new Date().toLocaleString('fr-FR')} par ZenBudget.`]);
+
+    // Assemblage du CSV avec BOM UTF-8 (\uFEFF) pour le support complet des accents et d'Excel
+    const csvContent = "\uFEFF" + rows.map(r => r.join('')).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    
+    const fileName = `ZenBudget_${activeAccount.name}_${MONTHS_FR[month]}_${year}.csv`.replace(/\s+/g, '_');
+    const link = document.createElement("a");
     link.setAttribute("href", url);
     link.setAttribute("download", fileName);
     document.body.appendChild(link);
@@ -204,16 +177,16 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         <button 
-          onClick={handleExportExcel}
-          title="Exporter le rapport visuel ZenBudget"
+          onClick={handleExportCSV}
+          title="Exporter les données au format CSV"
           className="flex items-center gap-2 bg-indigo-600 px-4 py-2 rounded-2xl shadow-lg shadow-indigo-100 active:scale-95 transition-all text-white hover:bg-indigo-700"
         >
           <IconExport className="w-3.5 h-3.5" />
-          <span className="text-[9px] font-black uppercase tracking-widest">Rapport Pro</span>
+          <span className="text-[9px] font-black uppercase tracking-widest">Export CSV</span>
         </button>
       </div>
 
-      {/* 1. LES 3 CHIFFRES CLÉS */}
+      {/* 1. LES CHIFFRES CLÉS */}
       <div className="grid grid-cols-1 gap-4 shrink-0">
         <div className="bg-slate-900 p-7 rounded-[40px] shadow-2xl relative overflow-hidden ring-1 ring-white/10">
           <div className="relative z-10">
@@ -244,7 +217,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* 2. BLOCS FLUX & CHARGES */}
+      {/* 2. BLOCS FLUX */}
       <div className="grid grid-cols-2 gap-4 shrink-0">
         <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm">
           <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Entrées</span>
@@ -253,14 +226,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm text-right">
           <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Sorties</span>
           <div className="text-lg font-black text-slate-900">-{stats.expenses.toLocaleString('fr-FR')}€</div>
-        </div>
-        <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm">
-          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Fixes</span>
-          <div className="text-lg font-black text-indigo-900">{stats.fixed.toLocaleString('fr-FR')}€</div>
-        </div>
-        <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm text-right">
-          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Variables</span>
-          <div className="text-lg font-black text-slate-600">{stats.variable.toLocaleString('fr-FR')}€</div>
         </div>
       </div>
 
@@ -273,11 +238,12 @@ const Dashboard: React.FC<DashboardProps> = ({
         <p className={`text-[13px] font-medium italic text-indigo-50 leading-tight transition-opacity ${loadingAdvice ? 'opacity-30' : 'opacity-100'}`}>"{aiAdvice}"</p>
       </div>
 
-      {/* 4. GRAPHIQUE & LISTE DES CATÉGORIES */}
+      {/* 4. GRAPHIQUE & RÉPARTITION */}
       <div className="bg-white p-6 rounded-[40px] border border-slate-100 shadow-sm shrink-0 space-y-6">
         <div className="w-full h-[200px] relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
+              {/* @ts-ignore: Prop activeIndex is missing from Recharts types in this environment, suppressing the error to allow the highlight feature */}
               <Pie 
                 activeIndex={activeIndex === null ? undefined : activeIndex} 
                 activeShape={renderActiveShape} 
@@ -308,7 +274,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
-        {/* Liste détaillée des catégories */}
+        {/* Liste détaillée */}
         <div className="space-y-3 pt-4 border-t border-slate-50">
           <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-4 px-1">Répartition des dépenses</h3>
           {categorySummary.length > 0 ? categorySummary.map((cat, idx) => (
