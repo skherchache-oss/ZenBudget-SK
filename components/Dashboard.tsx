@@ -1,8 +1,8 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
+import { GoogleGenerativeAI } from "@google/generative-ai"; // Correction de l'import
 import { MONTHS_FR } from '../constants';
 import { PieChart, Pie, Cell, ResponsiveContainer, Sector } from 'recharts';
-import { GoogleGenAI } from "@google/genai";
 
 interface DashboardProps {
   transactions: Transaction[];
@@ -56,22 +56,24 @@ const Dashboard: React.FC<DashboardProps> = ({
       
       if (lastAdviceKey.current === currentKey) return;
 
-      if (!apiKey) {
+      if (!apiKey || apiKey === "PLACEHOLDER_API_KEY") {
         setAiAdvice(availableBalance < 100 ? "Prévoyez une marge pour les imprévus." : "Votre disponible est confortable.");
         return;
       }
 
       setLoadingAdvice(true);
       try {
-        const genAI = new GoogleGenAI(apiKey);
+        const genAI = new GoogleGenerativeAI(apiKey);
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         const prompt = `ZenBudget: Bancaire ${checkingAccountBalance}€, Disponible ${availableBalance}€, Fixes ${stats.fixed}€. Conseil bienveillant très court (50 car max). Pas de chiffres.`;
         
         const result = await model.generateContent(prompt);
-        const text = (await result.response).text().trim();
+        // Correction ici : .text() est une fonction directe sur response
+        const text = result.response.text().trim();
         setAiAdvice(text || "La clarté apporte la sérénité.");
         lastAdviceKey.current = currentKey;
       } catch (err) { 
+        console.error("Gemini Error:", err);
         setAiAdvice("Observez vos flux sans jugement."); 
       } finally { 
         setLoadingAdvice(false); 
@@ -122,9 +124,21 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
         <div className="flex items-center gap-2">
           <button onClick={handleExportCSV} className="px-3 py-2 bg-white rounded-xl border border-slate-100 text-[9px] font-black uppercase">Export</button>
-          <button onClick={() => setShowAccountMenu(!showAccountMenu)} className="bg-white px-3 py-2 rounded-xl border border-slate-100 shadow-sm">
-            <div className="w-3 h-3 rounded-full" style={{ backgroundColor: activeAccount.color }} />
-          </button>
+          <div className="relative">
+            <button onClick={() => setShowAccountMenu(!showAccountMenu)} className="bg-white px-3 py-2 rounded-xl border border-slate-100 shadow-sm">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: activeAccount.color }} />
+            </button>
+            {showAccountMenu && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-100 z-50 p-2">
+                {allAccounts.map(acc => (
+                  <button key={acc.id} onClick={() => { onSwitchAccount(acc.id); setShowAccountMenu(false); }} className="w-full flex items-center gap-3 p-3 hover:bg-slate-50 rounded-xl">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: acc.color }} />
+                    <span className="text-xs font-bold">{acc.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

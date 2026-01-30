@@ -11,27 +11,10 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="/ZB-logo-192.png">
 
-    <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&family=Outfit:wght@700;800&display=swap" rel="stylesheet">
     
-    <script async src="https://ga.jspm.io/npm:es-module-shims@1.10.1/dist/es-module-shims.js"></script>
-
-    <script type="importmap">
-    {
-      "imports": {
-        "react": "https://esm.sh/react@18.3.1",
-        "react/": "https://esm.sh/react@18.3.1/",
-        "react-dom": "https://esm.sh/react-dom@18.3.1",
-        "react-dom/client": "https://esm.sh/react-dom@18.3.1/client",
-        "react-dom/": "https://esm.sh/react-dom@18.3.1/",
-        "recharts": "https://esm.sh/recharts@2.12.7?external=react,react-dom",
-        "@google/genai": "https://esm.sh/@google/genai@^1.38.0"
-      }
-    }
-    </script>
-
     <style>
         body { 
           font-family: 'Inter', sans-serif; 
@@ -48,30 +31,13 @@
           overflow-y: auto;
           -webkit-overflow-scrolling: touch;
         }
-        .safe-top { padding-top: env(safe-area-inset-top); }
-        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
-        
         .spin { animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        
         ::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 
-        /* Tes nouvelles animations AI Studio */
-        @keyframes slideInFromRight {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-        @keyframes slideInFromLeft {
-          from { transform: translateX(-100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-        .slide-next {
-          animation: slideInFromRight 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-        .slide-prev {
-          animation: slideInFromLeft 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .fade-in { animation: fadeIn 0.3s ease-out forwards; }
     </style>
 </head>
 <body>
@@ -82,14 +48,6 @@
         </div>
     </div>
 
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW error:', err));
-        });
-      }
-    </script>
-
-    <script type="module" src="/index.tsx"></script>
+    <script type="module" src="/src/index.tsx"></script>
 </body>
 </html>
