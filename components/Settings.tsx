@@ -83,8 +83,8 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
   const activeAccount = state.accounts.find(a => a.id === state.activeAccountId);
   
   const SectionTitle: React.FC<{ icon: string, title: string }> = ({ icon, title }) => (
-    <div className="flex items-center gap-3 px-2 mb-2">
-      <div className="w-7 h-7 rounded-full bg-white shadow-sm flex items-center justify-center text-sm border border-slate-50">
+    <div className="flex items-center gap-3 px-2 mb-3">
+      <div className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-base border border-slate-50 shrink-0">
         {icon}
       </div>
       <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{title}</h2>
@@ -147,7 +147,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
   };
 
   return (
-    <div className="space-y-6 pb-32 overflow-y-auto no-scrollbar h-full px-1 fade-in">
+    <div className="space-y-7 pb-32 overflow-y-auto no-scrollbar h-full px-1 fade-in">
       {/* MON ESPACE */}
       <section className="mt-4">
         <SectionTitle icon="✨" title="Mon Espace" />
@@ -164,7 +164,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
 
       {/* ZENBUDGET : GESTION INTUITIVE */}
       <section>
-        <SectionTitle icon="📖" title="Gestion de budget intuitive" />
+        <SectionTitle icon="📖" title="Gestion intuitive" />
         <div className="bg-white rounded-[28px] border border-slate-50 overflow-hidden shadow-sm">
           <button onClick={() => setIsHowItWorksOpen(!isHowItWorksOpen)} className="w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-colors">
             <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-800">Comment ça marche ?</h3>
@@ -178,20 +178,11 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
                 </p>
 
                 <div className="space-y-3">
-                  <h4 className="text-[11px] font-black uppercase text-indigo-600 tracking-wider">Fonctionnement en 3 étapes</h4>
+                  <h4 className="text-[11px] font-black uppercase text-indigo-600 tracking-wider">Le cycle Zen</h4>
                   <div className="space-y-3 text-[11px] text-slate-500 font-medium leading-relaxed">
-                    <p><b>1. Vos Revenus :</b> Enregistrez vos rentrées d'argent (Salaires, aides...).</p>
-                    <p><b>2. Vos Fixes :</b> Définissez vos charges récurrentes (Loyer, abonnements). ZenBudget les déduit automatiquement de votre disponible dès le début du mois.</p>
-                    <p><b>3. Vos Variables :</b> Notez vos d'épenses quotidiennes. ZenBudget ajuste votre solde projeté en temps réel.</p>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-slate-200 space-y-4">
-                  <div className="space-y-3 text-[11px] text-slate-500 font-medium leading-relaxed">
-                    <p><span className="text-slate-900 font-bold uppercase text-[9px] tracking-wider block mb-0.5">• Disponible Réel</span> Argent restant après déduction de toutes les charges fixes prévues, même si elles ne sont pas encore débitées.</p>
-                    <p><span className="text-slate-900 font-bold uppercase text-[9px] tracking-wider block mb-0.5">• Solde Bancaire</span> Reflet exact de votre compte à cet instant précis.</p>
-                    <p><span className="text-slate-900 font-bold uppercase text-[9px] tracking-wider block mb-0.5">• Projection</span> Ce qu'il vous restera au dernier jour du mois si vous ne dépensez plus rien d'imprévu.</p>
-                    <p><span className="text-slate-900 font-bold uppercase text-[9px] tracking-wider block mb-0.5">• Charges Fixes</span> Dépenses obligatoires programmées chaque mois.</p>
+                    <p><b>1. Revenus :</b> Enregistrez vos rentrées (Salaires, aides...).</p>
+                    <p><b>2. Fixes :</b> ZenBudget déduit vos charges programmées dès le début du cycle, même si elles n'ont pas encore été payées.</p>
+                    <p><b>3. Variables :</b> Vos dépenses quotidiennes ajustent votre solde projeté en temps réel.</p>
                   </div>
                 </div>
               </div>
@@ -209,7 +200,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
           ))}
           {editingAccountId && (
             <div className="bg-white p-4 rounded-[22px] border-2 border-indigo-200 mb-2 animate-in zoom-in-95">
-              <input autoFocus value={editName} onChange={e => setEditName(e.target.value)} placeholder="Nom..." className="w-full bg-slate-50 p-3 rounded-xl mb-3 text-sm font-bold border-none outline-none focus:ring-1 focus:ring-indigo-200" onKeyDown={e => e.key === 'Enter' && handleSaveRename()} />
+              <input autoFocus value={editName} onChange={e => setEditName(e.target.value)} placeholder="Nom..." className="w-full bg-slate-50 p-3 rounded-xl mb-3 text-sm font-bold border-none outline-none focus:ring-1 focus:ring-indigo-200" />
               <div className="flex gap-2">
                 <button onClick={() => setEditingAccountId(null)} className="flex-1 py-2 text-[10px] font-black uppercase text-slate-400">Annuler</button>
                 <button onClick={handleSaveRename} className="flex-1 py-2 text-[10px] font-black uppercase text-white bg-indigo-600 rounded-xl shadow-lg shadow-indigo-100">Sauver</button>
@@ -218,7 +209,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
           )}
           {isAddingAccount ? (
             <div className="bg-white p-4 rounded-[22px] border-2 border-indigo-200 mb-2 animate-in zoom-in-95">
-              <input autoFocus value={newAccName} onChange={e => setNewAccName(e.target.value)} placeholder="Nom..." className="w-full bg-slate-50 p-3 rounded-xl mb-3 text-sm font-bold border-none outline-none focus:ring-1 focus:ring-indigo-200" onKeyDown={e => e.key === 'Enter' && handleCreateAccount()} />
+              <input autoFocus value={newAccName} onChange={e => setNewAccName(e.target.value)} placeholder="Nom..." className="w-full bg-slate-50 p-3 rounded-xl mb-3 text-sm font-bold border-none outline-none focus:ring-1 focus:ring-indigo-200" />
               <div className="flex gap-2">
                 <button onClick={() => setIsAddingAccount(false)} className="flex-1 py-2 text-[10px] font-black uppercase text-slate-400">Annuler</button>
                 <button onClick={handleCreateAccount} className="flex-1 py-2 text-[10px] font-black uppercase text-white bg-indigo-600 rounded-xl shadow-lg shadow-indigo-100">Créer</button>
@@ -232,11 +223,11 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
         </div>
       </section>
 
-      {/* CYCLE BUDGÉTAIRE COMPACT */}
+      {/* CYCLE BUDGÉTAIRE */}
       <section>
         <SectionTitle icon="📅" title="Cycle Budgétaire" />
         <div className="bg-white p-5 rounded-[28px] border border-slate-50 shadow-sm space-y-4">
-          <p className="text-[10px] text-slate-400 font-medium leading-tight px-1">Jour du salaire (redémarrage du budget).</p>
+          <p className="text-[10px] text-slate-400 font-medium leading-tight px-1">Jour du salaire (le budget redémarre à cette date).</p>
           <div className="flex flex-wrap items-center gap-2">
             {[0, 25, 26, 28].map(day => (
               <button key={day} onClick={() => updateCycleDay(day)} className={`w-11 h-11 rounded-xl text-[10px] font-black uppercase tracking-tight transition-all border-2 ${activeAccount?.cycleEndDay === day ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-slate-50 border-transparent text-slate-400 hover:border-slate-200'}`}>
@@ -258,16 +249,17 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
 
       {/* ACTIONS FINALES & FEEDBACK */}
       <section className="space-y-4">
-        <div className="bg-indigo-50/40 border border-indigo-100 p-6 rounded-[32px] text-center space-y-4 shadow-sm relative overflow-hidden group">
+        <div className="bg-indigo-50/40 border border-indigo-100 p-7 rounded-[36px] text-center space-y-5 shadow-sm relative overflow-hidden group">
           <div className="absolute -right-6 -top-6 w-20 h-20 bg-indigo-100/30 rounded-full blur-2xl group-hover:scale-125 transition-transform" />
           <p className="text-[12px] font-medium text-slate-600 leading-relaxed italic relative z-10">
             "ZenBudget évolue grâce à vous ! Si vous avez envie d'aider à améliorer l'appli, envoyez-nous une suggestion ou signalez un bug."
           </p>
           <button 
             onClick={handleFeedback} 
-            className="w-full py-4 bg-slate-900 text-white font-black rounded-[24px] uppercase text-[9px] tracking-[0.2em] active:scale-95 transition-all shadow-lg flex items-center justify-center gap-2 relative z-10"
+            className="w-full py-4.5 bg-slate-900 text-white font-black rounded-[24px] uppercase text-[10px] tracking-[0.2em] active:scale-95 transition-all shadow-xl flex items-center justify-center gap-2 relative z-10 hover:bg-slate-800"
           >
-            Envoyez un retour ✨
+            <span>Envoyez un retour</span>
+            <span className="text-sm">✨</span>
           </button>
         </div>
 
@@ -280,7 +272,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
       </section>
 
       <div className="pt-4 border-t border-slate-50 text-center">
-        <p className="text-[8px] text-slate-200 font-black uppercase tracking-[0.4em]">ZenBudget V4.6 • Minimalist UI</p>
+        <p className="text-[8px] text-slate-200 font-black uppercase tracking-[0.4em]">ZenBudget V4.7 • Premium Design</p>
       </div>
     </div>
   );
