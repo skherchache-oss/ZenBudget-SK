@@ -255,10 +255,16 @@ const NavBtn: React.FC<{ active: boolean; onClick: () => void; icon: React.React
 );
 
 // Actual initialization to prevent "running in vacuum"
+// Initialisation réelle
 const container = document.getElementById('root');
 if (container) {
   const root = createRoot(container);
   root.render(<App />);
+  
+  // Masquer le loader après un très court délai pour un affichage propre
+  setTimeout(() => {
+    const loader = document.getElementById('initial-loader');
+    if (loader) loader.style.display = 'none';
+  }, 100);
 }
-
 export default App;
