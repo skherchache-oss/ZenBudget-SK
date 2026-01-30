@@ -1,23 +1,19 @@
-import path from 'path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
-// https://vitejs.dev/config/
 export default defineConfig({
+  // Port standard pour le développement
   server: {
     port: 3000,
-    host: '0.0.0.0',
   },
   plugins: [react()],
-  resolve: {
-    alias: {
-      // Utilisation de @ pour pointer vers la racine du projet
-      '@': path.resolve(__dirname, './src'), 
-    }
-  },
+  // On indique que la racine est le dossier actuel
+  root: './',
   build: {
-    // Optimisation pour la production
-    sourcemap: false,
-    chunkSizeWarningLimit: 1600,
-  }
+    outDir: 'dist',
+    // On s'assure que l'index.html est bien le point d'entrée
+    rollupOptions: {
+      input: './index.html',
+    },
+  },
 });
