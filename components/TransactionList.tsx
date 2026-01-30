@@ -91,7 +91,7 @@ const TransactionList: React.FC<TransactionListProps> = ({
   const [openItemId, setOpenItemId] = useState<string | null>(null);
   const [touchStart, setTouchStart] = useState<number | null>(null);
 
-  const projectionLabel = cycleEndDay > 0 ? `Projection au ${cycleEndDay}` : `Fin de mois`;
+  const projectionLabel = cycleEndDay > 0 ? `Proj au ${cycleEndDay}` : `Fin de mois`;
 
   const filteredTransactions = useMemo(() => {
     return (transactions || []).filter(t => {
@@ -152,31 +152,31 @@ const TransactionList: React.FC<TransactionListProps> = ({
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      <div className="flex items-center justify-between px-1 mb-0.5">
-        <h2 className="text-xl font-black tracking-tighter text-slate-800">Journal</h2>
-        <div className="bg-slate-900 rounded-xl px-3 py-1.5 flex items-center gap-2.5 shadow-lg ring-2 ring-slate-100">
-           <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">{projectionLabel}</span>
-           <span className={`text-[13px] font-black ${totalBalance >= 0 ? 'text-indigo-400' : 'text-red-400'}`}>
+      <div className="flex items-center justify-between px-1">
+        <h2 className="text-xl font-black tracking-tighter text-slate-800 shrink-0">Journal</h2>
+        <div className="bg-slate-900 rounded-xl px-2.5 py-1.5 flex items-center gap-2 shadow-lg ring-1 ring-white/10 overflow-hidden">
+           <span className="text-[7px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">{projectionLabel}</span>
+           <span className={`text-[12px] font-black ${totalBalance >= 0 ? 'text-indigo-400' : 'text-red-400'} whitespace-nowrap`}>
             {Math.round(totalBalance).toLocaleString('fr-FR')}€
            </span>
         </div>
       </div>
 
-      <div className="flex bg-slate-100 p-1.5 rounded-xl shadow-inner shrink-0 mb-1">
-        <button onClick={() => setViewMode('CALENDAR')} className={`flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 ${viewMode === 'CALENDAR' ? 'bg-white text-slate-900 shadow-md scale-[1.01]' : 'text-slate-400 hover:text-slate-600'}`}>Calendrier</button>
-        <button onClick={() => setViewMode('LIST')} className={`flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 ${viewMode === 'LIST' ? 'bg-white text-slate-900 shadow-md scale-[1.01]' : 'text-slate-400 hover:text-slate-600'}`}>Liste</button>
+      <div className="flex bg-slate-100 p-1 rounded-xl shadow-inner shrink-0 mb-1">
+        <button onClick={() => setViewMode('CALENDAR')} className={`flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 ${viewMode === 'CALENDAR' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>Calendrier</button>
+        <button onClick={() => setViewMode('LIST')} className={`flex-1 py-1.5 text-[9px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 ${viewMode === 'LIST' ? 'bg-white text-slate-900 shadow-md' : 'text-slate-400 hover:text-slate-600'}`}>Liste</button>
       </div>
 
       <div key={`${month}-${year}`} className={animationClass}>
         {viewMode === 'CALENDAR' ? (
           <div className="space-y-4">
-            <div className="bg-white/70 backdrop-blur-xl rounded-[32px] p-4 shadow-xl border border-white">
-              <div className="grid grid-cols-7 mb-3">
+            <div className="bg-white/70 backdrop-blur-xl rounded-[28px] p-3.5 shadow-xl border border-white">
+              <div className="grid grid-cols-7 mb-2">
                 {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((d, i) => (
-                  <div key={i} className="text-center text-[8px] font-black uppercase text-slate-300 py-1 tracking-widest">{d}</div>
+                  <div key={i} className="text-center text-[8px] font-black uppercase text-slate-800 py-1 tracking-widest">{d}</div>
                 ))}
               </div>
-              <div className="grid grid-cols-7 gap-2">
+              <div className="grid grid-cols-7 gap-1.5">
                 {Array.from({ length: startOffset }).map((_, i) => <div key={`empty-${i}`} />)}
                 {Array.from({ length: daysInMonth }).map((_, i) => {
                   const day = i + 1;
@@ -186,14 +186,14 @@ const TransactionList: React.FC<TransactionListProps> = ({
                   const isToday = isThisMonth && today.getDate() === day;
                   return (
                     <button key={day} onClick={() => onSelectDay(day)}
-                      className={`h-16 rounded-[18px] flex flex-col items-center justify-between py-2.5 transition-all duration-300 border relative ${isSelected ? 'bg-slate-900 border-slate-900 text-white shadow-2xl z-10 scale-105' : (isToday ? 'bg-indigo-50 border-indigo-200 text-indigo-900' : 'bg-white border-slate-50 hover:bg-slate-50 active:scale-95')}`}
+                      className={`h-15 rounded-[16px] flex flex-col items-center justify-between py-2 transition-all duration-300 border relative ${isSelected ? 'bg-slate-900 border-slate-900 text-white shadow-2xl z-10 scale-105' : (isToday ? 'bg-indigo-50 border-indigo-200 text-indigo-900' : 'bg-white border-slate-50 hover:bg-slate-50 active:scale-95')}`}
                     >
-                      <span className={`text-[16px] font-black leading-tight ${isSelected ? 'text-white' : 'text-slate-800'}`}>{day}</span>
-                      <div className="flex flex-col items-center gap-0 overflow-hidden w-full px-1">
-                        <span className={`text-[10px] font-black tracking-tighter leading-none ${isSelected ? 'text-indigo-300' : (balance >= 0 ? 'text-indigo-600' : 'text-red-500')}`}>
+                      <span className={`text-[12px] font-semibold leading-tight ${isSelected ? 'text-white' : 'text-slate-600'}`}>{day}</span>
+                      <div className="flex flex-col items-center gap-0 overflow-hidden w-full px-0.5">
+                        <span className={`text-[11px] font-black tracking-tighter leading-none ${isSelected ? 'text-indigo-300' : (balance >= 0 ? 'text-indigo-600' : 'text-red-500')}`}>
                           {Math.round(balance).toLocaleString('fr-FR', { notation: 'compact' })}
                         </span>
-                        <div className="flex gap-0.5 mt-1.5">
+                        <div className="flex gap-0.5 mt-1">
                           {dayT.some(t => t.type === 'INCOME') && <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
                           {dayT.some(t => t.type === 'EXPENSE') && <div className="w-1.5 h-1.5 rounded-full bg-red-400" />}
                         </div>
@@ -206,10 +206,10 @@ const TransactionList: React.FC<TransactionListProps> = ({
             
             <div className="space-y-2.5">
               <div className="flex items-center justify-between px-2">
-                <h3 className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">Opérations du {selectedDay} {MONTHS_FR[month]}</h3>
-                <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-black text-slate-300 uppercase">Solde :</span>
-                  <span className={`text-[13px] font-black ${dailyBalances[selectedDay || 1] >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>{Math.round(dailyBalances[selectedDay || 1]).toLocaleString('fr-FR')}€</span>
+                <h3 className="text-[9px] font-black uppercase tracking-[0.15em] text-slate-400 shrink-0">{selectedDay} {MONTHS_FR[month]}</h3>
+                <div className="flex items-center gap-1.5 overflow-hidden">
+                  <span className="text-[8px] font-black text-slate-300 uppercase whitespace-nowrap">Solde :</span>
+                  <span className={`text-[12px] font-black whitespace-nowrap ${dailyBalances[selectedDay || 1] >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>{Math.round(dailyBalances[selectedDay || 1]).toLocaleString('fr-FR')}€</span>
                 </div>
               </div>
               <div className="bg-white rounded-[24px] shadow-lg border border-slate-50 overflow-hidden divide-y divide-slate-50">
@@ -221,9 +221,9 @@ const TransactionList: React.FC<TransactionListProps> = ({
           </div>
         ) : (
           <div className="space-y-4">
-             <div className="bg-indigo-600 p-6 rounded-[32px] text-white shadow-xl flex justify-between items-center relative overflow-hidden">
-               <div><span className="text-[9px] font-black uppercase tracking-widest text-indigo-200 block mb-0.5">Report précédent</span><div className="text-2xl font-black tracking-tight">{Math.round(carryOver).toLocaleString('fr-FR')}€</div></div>
-               <div className="text-right"><span className="text-[9px] font-black uppercase tracking-widest text-indigo-200 block mb-0.5">Mouvements {MONTHS_FR[month]}</span><div className="text-lg font-bold">{Math.round(totalBalance - carryOver).toLocaleString('fr-FR')}€</div></div>
+             <div className="bg-indigo-600 p-6 rounded-[28px] text-white shadow-xl flex justify-between items-center relative overflow-hidden">
+               <div className="flex flex-col"><span className="text-[8px] font-black uppercase tracking-widest text-indigo-200 block mb-0.5">Report précédent</span><div className="text-xl font-black tracking-tight">{Math.round(carryOver).toLocaleString('fr-FR')}€</div></div>
+               <div className="text-right flex flex-col"><span className="text-[8px] font-black uppercase tracking-widest text-indigo-200 block mb-0.5">Mouvements</span><div className="text-md font-bold">{Math.round(totalBalance - carryOver).toLocaleString('fr-FR')}€</div></div>
              </div>
              <div className="bg-white rounded-[24px] shadow-lg border border-slate-50 overflow-hidden divide-y divide-slate-50">
               {filteredTransactions.length > 0 ? filteredTransactions.map((t, idx) => (
