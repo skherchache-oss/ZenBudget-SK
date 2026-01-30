@@ -1,8 +1,8 @@
-/* Version 1.0.2 - Force Update Service Worker */
+/* Version 1.0.3 - Fix Build Error & Export CSV */
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { MONTHS_FR } from '../constants';
-import { PieChart, Pie, Cell, ResponsiveContainer, Sector } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { GoogleGenAI } from "@google/genai";
 
 interface DashboardProps {
@@ -19,15 +19,6 @@ interface DashboardProps {
   projectedBalance: number;
   carryOver: number;
 }
-
-const renderActiveShape = (props: any) => {
-  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
-  return (
-    <g>
-      <Sector cx={cx} cy={cy} innerRadius={innerRadius - 2} outerRadius={outerRadius + 4} startAngle={startAngle} endAngle={endAngle} fill={fill} />
-    </g>
-  );
-};
 
 const Dashboard: React.FC<DashboardProps> = ({ 
   transactions, categories, activeAccount, allAccounts, onSwitchAccount, month, year, checkingAccountBalance, availableBalance, projectedBalance, carryOver 
@@ -46,26 +37,38 @@ const Dashboard: React.FC<DashboardProps> = ({
         if (t.isRecurring) fixed += t.amount;
       }
     });
-    return { income, expenses, fixed, variable: expenses - fixed };
+    return { 
+      income, 
+      expenses, 
+      fixed, 
+      variable: expenses - fixed 
+    };
   }, [transactions]);
 
   useEffect(() => {
     const fetchAiAdvice = async () => {
-      if (!process.env.API_KEY) {
+      const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || (process as any).env?.API_KEY;
+      
+      if (!apiKey) {
         setAiAdvice(availableBalance < 100 ? "Prévoyez une marge pour les imprévus." : "Votre disponible est confortable, savourez l'instant.");
         return;
       }
       setLoadingAdvice(true);
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const prompt = `ZenBudget: Bancaire ${checkingAccountBalance}€, Disponible ${availableBalance}€, Fixes ${stats.fixed}€, Variables ${stats.variable}€. Donne 1 conseil bienveillant et zen très court (50 car max, français).`;
-        const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
-        setAiAdvice(response.text || "La clarté apporte la sérénité.");
-      } catch (err) { setAiAdvice("Observez vos flux sans jugement."); }
-      finally { setLoadingAdvice(false); }
+        const ai = new GoogleGenAI(apiKey);
+        const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const prompt = `ZenBudget: Bancaire ${checkingAccountBalance}€, Disponible ${availableBalance}€, Fixes ${stats.fixed}€. Donne 1 conseil bienveillant et zen très court (50 car max, français).`;
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        setAiAdvice(response.text() || "La clarté apporte la sérénité.");
+      } catch (err) { 
+        setAiAdvice("Observez vos flux sans jugement."); 
+      } finally { 
+        setLoadingAdvice(false); 
+      }
     };
     fetchAiAdvice();
-  }, [availableBalance, checkingAccountBalance, stats]);
+  }, [availableBalance, checkingAccountBalance, stats.fixed]);
 
   const categorySummary = useMemo(() => {
     const map: Record<string, number> = {};
@@ -82,21 +85,18 @@ const Dashboard: React.FC<DashboardProps> = ({
   const handleExportCSV = () => {
     const s = ";"; 
     const f = (n: number) => n.toFixed(2).replace('.', ','); 
-    const rows = [];
-    rows.push(["ZENBUDGET - EXPORT CSV"]);
-    rows.push([`Compte: ${activeAccount.name}${s}Periode: ${MONTHS_FR[month]} ${year}`]);
-    rows.push([]);
-    rows.push(["SECTION: SYNTHESE DES SOLDES"]);
-    rows.push([`Report mois precedent${s}${f(carryOver)} €`]);
-    rows.push([`Solde Bancaire (Actuel)${s}${f(checkingAccountBalance)} €`]);
-    rows.push([`Disponible Reel (Apres charges)${s}${f(availableBalance)} €`]);
-    rows.push([`Projection Fin de Mois${s}${f(projectedBalance)} €`]);
-    rows.push([]);
-    rows.push(["SECTION: ANALYSE DES CHARGES"]);
-    rows.push([`Charges Fixes${s}${f(stats.fixed)} €`]);
-    rows.push([`Depenses Variables${s}${f(stats.variable)} €`]);
-    rows.push([]);
-    rows.push(["DATE${s}CATEGORIE${s}TYPE${s}MONTANT${s}SOLDE CUMULE${s}FIXE${s}NOTES"]);
+    const rows: string[] = [];
+    
+    rows.push("ZENBUDGET - EXPORT CSV");
+    rows.push(`Compte: ${activeAccount.name}${s}Periode: ${MONTHS_FR[month]} ${year}`);
+    rows.push("");
+    rows.push("SECTION: SYNTHESE DES SOLDES");
+    rows.push(`Report mois precedent${s}${f(carryOver)} €`);
+    rows.push(`Solde Bancaire (Actuel)${s}${f(checkingAccountBalance)} €`);
+    rows.push(`Disponible Reel (Apres charges)${s}${f(availableBalance)} €`);
+    rows.push(`Projection Fin de Mois${s}${f(projectedBalance)} €`);
+    rows.push("");
+    rows.push("DATE${s}CATEGORIE${s}TYPE${s}MONTANT${s}SOLDE CUMULE${s}FIXE${s}NOTES");
     
     const sorted = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     let running = carryOver;
@@ -108,13 +108,14 @@ const Dashboard: React.FC<DashboardProps> = ({
       rows.push(`${new Date(t.date).toLocaleDateString('fr-FR')}${s}${catName}${s}${t.type}${s}${f(t.amount)} €${s}${f(running)} €${s}${t.isRecurring?'OUI':'NON'}${s}"${note}"`);
     });
     
-    const csvString = "\uFEFF" + rows.map(r => Array.isArray(r) ? r.join('') : r).join("\n");
+    const csvString = "\uFEFF" + rows.join("\n");
     const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
     link.download = `ZenBudget_${activeAccount.name}_${MONTHS_FR[month]}.csv`;
     link.click();
+    URL.revokeObjectURL(url);
   };
 
   const hoveredCategory = activeIndex !== null ? categorySummary[activeIndex] : null;
@@ -122,16 +123,13 @@ const Dashboard: React.FC<DashboardProps> = ({
   return (
     <div className="flex flex-col h-full space-y-6 overflow-y-auto no-scrollbar pb-24 px-1 animate-in fade-in duration-700">
       
-      {/* Header Zen */}
+      {/* 1. Header & Actions */}
       <div className="flex items-center justify-between pt-2">
-        <div>
-          <h2 className="text-2xl font-black text-slate-800 tracking-tighter">Hello ✨</h2>
-          <p className="hidden sm:block text-[10px] font-black uppercase tracking-widest text-slate-400">Votre horizon financier</p>
-        </div>
+        <h2 className="text-2xl font-black text-slate-800 tracking-tighter">Hello ✨</h2>
         <div className="flex items-center gap-2">
           <button 
             onClick={handleExportCSV} 
-            className="px-4 py-3 bg-white rounded-2xl border border-slate-100 shadow-sm text-[10px] font-black uppercase tracking-widest text-slate-500 active:scale-95 transition-all hover:text-indigo-600"
+            className="px-4 py-3 bg-white rounded-2xl border border-slate-100 shadow-sm text-[10px] font-black uppercase tracking-widest text-slate-500 active:scale-95 transition-all"
           >
             Export CSV
           </button>
@@ -141,7 +139,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               <span className="text-[10px] font-black uppercase tracking-widest text-slate-600 truncate max-w-[80px]">{activeAccount.name}</span>
             </button>
             {showAccountMenu && (
-              <div className="absolute top-14 right-0 w-48 bg-white rounded-[24px] shadow-2xl border border-slate-100 py-2 z-[70] animate-in zoom-in-95 duration-200">
+              <div className="absolute top-14 right-0 w-48 bg-white rounded-[24px] shadow-2xl border border-slate-100 py-2 z-[70]">
                 {allAccounts.map(acc => (
                   <button key={acc.id} onClick={() => { onSwitchAccount(acc.id); setShowAccountMenu(false); }} className="w-full flex items-center gap-3 px-5 py-3 hover:bg-slate-50 text-[10px] font-black uppercase text-slate-600 text-left">
                     <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: acc.color }} /> {acc.name}
@@ -153,17 +151,12 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* Solde Card */}
-      <div className="bg-slate-900 px-8 py-10 rounded-[48px] shadow-2xl relative overflow-visible min-h-[160px] flex flex-col justify-center">
+      {/* 2. Solde Card */}
+      <div className="bg-slate-900 px-8 py-10 rounded-[48px] shadow-2xl relative overflow-hidden min-h-[160px] flex flex-col justify-center">
         <div className="relative z-10 flex flex-col gap-2">
-          <div className="flex justify-between items-center mb-1">
-            <span className="text-indigo-400 text-[11px] font-black uppercase tracking-[0.3em] opacity-80">Solde Bancaire</span>
-            <div className="bg-white/10 px-3 py-1.5 rounded-full backdrop-blur-md">
-              <span className="text-[9px] font-black text-white/60 uppercase tracking-widest">Actuel</span>
-            </div>
-          </div>
+          <span className="text-indigo-400 text-[11px] font-black uppercase tracking-[0.3em] opacity-80">Solde Bancaire</span>
           <div className="flex items-baseline gap-2 w-full">
-            <span className="text-5xl xs:text-6xl sm:text-7xl font-black tracking-tighter text-white leading-tight">
+            <span className="text-5xl font-black tracking-tighter text-white leading-tight">
               {Math.round(checkingAccountBalance).toLocaleString('fr-FR')}
             </span>
             <span className="text-2xl font-black text-slate-500 mb-1">€</span>
@@ -172,7 +165,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="absolute -right-10 -top-10 w-56 h-56 bg-indigo-500/20 rounded-full blur-[70px] pointer-events-none" />
       </div>
 
-      {/* Disponible & Fin de mois */}
+      {/* 3. Disponible & Fin de mois */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-indigo-600 p-6 rounded-[36px] shadow-xl flex flex-col gap-3 relative overflow-hidden">
           <span className="text-indigo-200 text-[9px] font-black uppercase tracking-widest block relative z-10">Disponible Réel</span>
@@ -190,7 +183,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* Conseil AI */}
+      {/* 4. Conseil AI */}
       <div className="bg-slate-100 p-6 rounded-[32px] flex items-center gap-4 border border-white">
         <div className="w-11 h-11 rounded-xl bg-white shadow-sm flex items-center justify-center text-2xl shrink-0">🧘</div>
         <div className="flex-1 min-w-0">
@@ -200,22 +193,17 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* Graphique */}
+      {/* 5. Graphique */}
       <div className="bg-white p-8 rounded-[44px] border border-slate-100 shadow-sm space-y-6">
-        <div className="flex items-center justify-between px-1">
-          <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Postes de dépenses</h3>
-        </div>
         <div className="w-full h-[200px] relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie 
-                activeIndex={activeIndex === null ? undefined : activeIndex} 
-                activeShape={renderActiveShape} 
                 data={categorySummary} 
                 cx="50%" cy="50%" 
                 innerRadius={65} outerRadius={85} 
                 paddingAngle={5} dataKey="value" 
-                stroke="none" 
+                stroke="none"
                 onMouseEnter={(_: any, idx: number) => setActiveIndex(idx)} 
                 onMouseLeave={() => setActiveIndex(null)}
               >
@@ -223,10 +211,26 @@ const Dashboard: React.FC<DashboardProps> = ({
               </Pie>
             </PieChart>
           </ResponsiveContainer>
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            <div className="text-center">
+              {hoveredCategory ? (
+                <>
+                  <span className="text-4xl">{hoveredCategory.icon}</span>
+                  <div className="text-[12px] font-black text-slate-900 uppercase mt-1">{Math.round(hoveredCategory.percent)}%</div>
+                </>
+              ) : (
+                <>
+                  <span className="text-[10px] font-black text-slate-300 uppercase block tracking-tighter">Sorties</span>
+                  <span className="text-xl font-black text-slate-900">{Math.round(stats.expenses).toLocaleString('fr-FR')}€</span>
+                </>
+              )}
+            </div>
+          </div>
         </div>
+
         <div className="space-y-3 pt-4 border-t border-slate-50">
           {categorySummary.map((cat, idx) => (
-            <div key={cat.id} className="flex items-center gap-4 p-4 rounded-[28px] hover:bg-slate-50/50 transition-all">
+            <div key={cat.id} className={`flex items-center gap-4 p-4 rounded-[28px] transition-all ${activeIndex === idx ? 'bg-slate-50' : ''}`}>
               <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0" style={{ backgroundColor: `${cat.color}15`, color: cat.color }}>{cat.icon}</div>
               <div className="flex-1">
                 <div className="flex justify-between mb-2">
