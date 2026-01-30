@@ -16,6 +16,7 @@ const App: React.FC = () => {
   const [activeView, setActiveView] = useState<ViewType>('DASHBOARD');
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [slideDirection, setSlideDirection] = useState<'next' | 'prev' | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [modalInitialDate, setModalInitialDate] = useState<string>(new Date().toISOString());
@@ -31,14 +32,16 @@ const App: React.FC = () => {
 
   const now = new Date();
 
-  /**
-   * FONCTION DE CALCUL UNIQUE (Source de vérité)
-   * Calcule le solde à une date précise en incluant ou non les projections virtuelles.
-   */
+  const getCycleEndDate = (year: number, month: number, daySetting: number = 0) => {
+    if (daySetting <= 0 || daySetting > 28) {
+      return new Date(year, month + 1, 0, 23, 59, 59);
+    }
+    return new Date(year, month, daySetting, 23, 59, 59);
+  };
+
   const getBalanceAtDate = (targetDate: Date, includeProjections: boolean) => {
     if (!activeAccount) return 0;
     
-    // 1. Somme des transactions réelles (Journal) JUSQU'À la date cible
     let balance = activeAccount.transactions.reduce((acc, t) => {
       const tDate = new Date(t.date);
       if (tDate <= targetDate) {
@@ -47,17 +50,12 @@ const App: React.FC = () => {
       return acc;
     }, 0);
 
-    // 2. Si projections activées, on ajoute les charges virtuelles entre MAINTENANT et la DATE CIBLE
     if (includeProjections && targetDate > now) {
       const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
-      
-      // On itère mois par mois entre maintenant et la date cible
       let cursor = new Date(now.getFullYear(), now.getMonth(), 1);
       while (cursor <= targetDate) {
         const cMonth = cursor.getMonth();
         const cYear = cursor.getFullYear();
-        
-        // On récupère les IDs déjà matérialisés pour ce mois spécifique
         const manualsInMonth = activeAccount.transactions.filter(t => {
           const d = new Date(t.date);
           return d.getMonth() === cMonth && d.getFullYear() === cYear;
@@ -66,50 +64,42 @@ const App: React.FC = () => {
 
         (activeAccount.recurringTemplates || []).forEach(tpl => {
           if (!tpl.isActive || materializedIds.has(tpl.id)) return;
-          
           const day = Math.min(tpl.dayOfMonth, new Date(cYear, cMonth + 1, 0).getDate());
           const tplDate = new Date(cYear, cMonth, day, 12, 0, 0);
           const vId = `virtual-${tpl.id}-${cMonth}-${cYear}`;
-
-          // On n'ajoute que si la date de la charge est comprise entre MAINTENANT et la DATE CIBLE
           if (tplDate > now && tplDate <= targetDate && !deletedVirtuals.has(vId)) {
             balance += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
           }
         });
-
-        // Mois suivant
         cursor.setMonth(cursor.getMonth() + 1);
       }
     }
     return balance;
   };
 
-  // --- VARIABLES CALCULÉES ---
-
-  // Solde Bancaire Réel (Opérations passées uniquement)
   const checkingAccountBalance = useMemo(() => getBalanceAtDate(now, false), [activeAccount, now]);
 
-  // Disponible Réel (Solde actuel - Charges prévues fin du mois en cours)
   const availableBalance = useMemo(() => {
-    const endOfCurrentMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-    return getBalanceAtDate(endOfCurrentMonth, true);
+    const cycleDay = activeAccount?.cycleEndDay || 0;
+    let target = getCycleEndDate(now.getFullYear(), now.getMonth(), cycleDay);
+    if (now > target) {
+      target = getCycleEndDate(now.getFullYear(), now.getMonth() + 1, cycleDay);
+    }
+    return getBalanceAtDate(target, true);
   }, [activeAccount, now]);
 
-  // Solde Projeté (Atterrissage fin du mois affiché)
   const projectedBalance = useMemo(() => {
-    const endOfViewMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
-    return getBalanceAtDate(endOfViewMonth, true);
+    const cycleDay = activeAccount?.cycleEndDay || 0;
+    const target = getCycleEndDate(currentYear, currentMonth, cycleDay);
+    return getBalanceAtDate(target, true);
   }, [activeAccount, currentMonth, currentYear, now]);
 
-  // Report (Solde au début du mois affiché pour le Journal)
   const carryOver = useMemo(() => {
     const startOfViewMonth = new Date(currentYear, currentMonth, 1, 0, 0, 0);
-    // On enlève 1 milliseconde pour avoir le solde à la veille
     const dayBefore = new Date(startOfViewMonth.getTime() - 1);
     return getBalanceAtDate(dayBefore, true);
   }, [activeAccount, currentMonth, currentYear, now]);
 
-  // Préparation des transactions du mois (Journal)
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
     const manuals = activeAccount.transactions.filter(t => {
@@ -138,16 +128,14 @@ const App: React.FC = () => {
       })
       .filter(v => {
         const vDate = new Date(v.date);
-        // On n'affiche les virtuelles QUE si elles sont dans le futur
         return vDate > now && !deletedVirtuals.has(v.id);
       });
 
     return [...manuals, ...virtuals].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [activeAccount, currentMonth, currentYear, now]);
 
-  // --- ACTIONS ---
-
   const handleMonthChange = (offset: number) => {
+    setSlideDirection(offset > 0 ? 'next' : 'prev');
     let nextMonth = currentMonth + offset;
     let nextYear = currentYear;
     if (nextMonth < 0) { nextMonth = 11; nextYear -= 1; }
@@ -235,7 +223,9 @@ const App: React.FC = () => {
               onDelete={handleDeleteTransaction} onEdit={(t) => { setEditingTransaction(t); setShowAddModal(true); }}
               onAddAtDate={(date) => { setModalInitialDate(date); setShowAddModal(true); }}
               selectedDay={selectedDay} onSelectDay={setSelectedDay} totalBalance={projectedBalance}
-              carryOver={carryOver}
+              carryOver={carryOver} cycleEndDay={activeAccount?.cycleEndDay || 0}
+              onMonthChange={handleMonthChange}
+              slideDirection={slideDirection}
             />
           </div>
         )}

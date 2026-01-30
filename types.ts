@@ -63,6 +63,7 @@ export interface BudgetAccount {
   recurringSyncLog: string[];
   deletedVirtualIds?: string[]; // IDs des transactions virtuelles supprimées par l'utilisateur
   monthlyBudget: number;
+  cycleEndDay?: number; // 0 ou undefined = fin du mois réel, sinon 1-31
 }
 
 export interface AppState {

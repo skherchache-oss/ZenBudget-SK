@@ -36,6 +36,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [loadingAdvice, setLoadingAdvice] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
 
+  const cycleDay = activeAccount?.cycleEndDay || 0;
+  const projectionLabel = cycleDay > 0 ? `Solde au ${cycleDay}` : `Fin de mois (${MONTHS_FR[month]})`;
+
   const stats = useMemo(() => {
     let income = 0, expenses = 0, fixed = 0;
     transactions.forEach(t => {
@@ -51,7 +54,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   useEffect(() => {
     const fetchAiAdvice = async () => {
       if (!process.env.API_KEY) {
-        setAiAdvice(projectedBalance < 0 ? "Attention au solde projeté fin de mois." : "Gestion sereine ce mois-ci.");
+        setAiAdvice(projectedBalance < 0 ? "Attention au solde projeté fin de cycle." : "Gestion sereine ce mois-ci.");
         return;
       }
       setLoadingAdvice(true);
@@ -125,7 +128,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
           </div>
           <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm flex flex-col justify-between">
-            <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block mb-2">Fin de mois ({MONTHS_FR[month]})</span>
+            <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block mb-2">{projectionLabel}</span>
             <div className="flex items-baseline gap-1">
               <span className={`text-2xl font-black leading-none ${projectedBalance >= 0 ? 'text-slate-900' : 'text-red-500'}`}>{Math.round(projectedBalance).toLocaleString('fr-FR')}</span>
               <span className="text-xs font-black text-slate-300">€</span>

@@ -21,6 +21,8 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
 
+  const activeAccount = state.accounts.find(a => a.id === state.activeAccountId);
+
   const createAccount = () => {
     if (!newAccName.trim() || !state.user) return;
     const newAcc = createDefaultAccount(state.user.id);
@@ -48,6 +50,14 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
     setEditingAccountId(null);
   };
 
+  const updateCycleDay = (day: number) => {
+    if (!activeAccount) return;
+    const nextAccounts = state.accounts.map(a => 
+      a.id === activeAccount.id ? { ...a, cycleEndDay: day } : a
+    );
+    onUpdateAccounts(nextAccounts);
+  };
+
   const handleDelete = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation(); 
@@ -66,7 +76,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
   const handleFeedback = () => {
     const subject = encodeURIComponent("Feedback ZenBudget-SK");
     const body = encodeURIComponent(
-      `Bonjour !\n\nVoici mon retour sur l'application ZenBudget :\n\n[Écrivez votre message ici]\n\n---\nInfos techniques :\nDate: ${new Date().toLocaleDateString()}\nVersion: 3.7`
+      `Bonjour !\n\nVoici mon retour sur l'application ZenBudget :\n\n[Écrivez votre message ici]\n\n---\nInfos techniques :\nDate: ${new Date().toLocaleDateString()}\nVersion: 3.8`
     );
     window.location.href = `mailto:s.kherchache@gmail.com?subject=${subject}&body=${body}`;
   };
@@ -82,6 +92,42 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
           <div>
             <h3 className="font-black text-gray-900 leading-none mb-1">Espace Zen</h3>
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Stockage local & Sécurisé</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Configuration Cycle Budgétaire */}
+      <section className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm space-y-4">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-lg">📅</span>
+          <h2 className="text-[11px] font-black text-gray-900 uppercase tracking-widest">Cycle Budgétaire</h2>
+        </div>
+        <p className="text-[12px] text-gray-500 font-medium leading-relaxed">
+          Définissez le jour où votre budget "redémarre" (souvent la veille du salaire).
+        </p>
+        <div className="flex flex-wrap gap-2 pt-2">
+          {[0, 24, 25, 26, 28].map((day) => (
+            <button
+              key={day}
+              onClick={() => updateCycleDay(day)}
+              className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border-2 ${
+                (activeAccount?.cycleEndDay || 0) === day 
+                ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100' 
+                : 'bg-gray-50 border-transparent text-gray-400 hover:bg-gray-100'
+              }`}
+            >
+              {day === 0 ? 'Fin de mois' : `Le ${day}`}
+            </button>
+          ))}
+          <div className="flex items-center gap-2 ml-1 mt-1">
+             <span className="text-[9px] font-bold text-slate-300">Perso :</span>
+             <input 
+              type="number" min="1" max="28" 
+              placeholder="Ex: 25"
+              value={activeAccount?.cycleEndDay || ''}
+              onChange={(e) => updateCycleDay(parseInt(e.target.value) || 0)}
+              className="w-12 bg-slate-50 border-none rounded-lg p-1 text-center text-[10px] font-black focus:ring-1 focus:ring-indigo-200"
+             />
           </div>
         </div>
       </section>
@@ -108,10 +154,6 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
             <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center text-[10px] shadow-sm shrink-0 mt-0.5 font-bold">3</div>
             <p className="text-[11px] text-indigo-800/70"><span className="font-bold text-indigo-900">Visualisez</span> votre projection de fin de mois sur les Stats pour anticiper sereinement.</p>
           </div>
-        </div>
-        <div className="pt-2 flex items-center gap-2 border-t border-indigo-200/40 mt-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
-          <p className="text-[9px] font-black text-indigo-900/50 uppercase tracking-widest">Vos données sont 100% privées et stockées localement.</p>
         </div>
       </section>
 
@@ -223,7 +265,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
       </section>
 
       <div className="pt-8 border-t border-gray-100">
-        <p className="text-center text-[8px] text-gray-300 font-black uppercase tracking-[0.3em]">Version 3.7 • Données Privées • Local First</p>
+        <p className="text-center text-[8px] text-gray-300 font-black uppercase tracking-[0.3em]">Version 3.8 • Données Privées • Local First</p>
       </div>
     </div>
   );

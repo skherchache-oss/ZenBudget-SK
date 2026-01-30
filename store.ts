@@ -25,6 +25,7 @@ export const createDefaultAccount = (ownerId: string = 'local-user'): BudgetAcco
   recurringTemplates: [],
   recurringSyncLog: [],
   monthlyBudget: 0,
+  cycleEndDay: 0,
 });
 
 export const getInitialState = (): AppState => {
@@ -47,8 +48,6 @@ export const getInitialState = (): AppState => {
     const parsed = JSON.parse(saved);
 
     // SYNCHRONISATION DES CATÉGORIES
-    // On s'assure que les catégories par défaut (Impôts, Épargne) sont présentes 
-    // même si l'utilisateur a déjà une sauvegarde locale.
     const savedCategories: Category[] = parsed.categories || [];
     const mergedCategories = [...DEFAULT_CATEGORIES];
     
@@ -58,8 +57,11 @@ export const getInitialState = (): AppState => {
       }
     });
 
-    // Validation de l'ID de compte actif
-    const accounts = parsed.accounts || [defaultAcc];
+    const accounts = (parsed.accounts || [defaultAcc]).map((acc: any) => ({
+      ...acc,
+      cycleEndDay: acc.cycleEndDay ?? 0
+    }));
+
     const activeAccountId = accounts.find((a: any) => a.id === parsed.activeAccountId) 
       ? parsed.activeAccountId 
       : accounts[0].id;
