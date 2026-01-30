@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { MONTHS_FR } from '../constants';
 import { PieChart, Pie, Cell, ResponsiveContainer, Sector } from 'recharts';
@@ -35,7 +35,11 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [aiAdvice, setAiAdvice] = useState<string>("Analyse en cours...");
   const [loadingAdvice, setLoadingAdvice] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
+  
+  // Réf pour éviter les appels API Gemini en boucle
+  const lastAdviceKey = useRef<string>("");
 
+  // 1. Calcul des statistiques de base
   const stats = useMemo(() => {
     let income = 0, expenses = 0, fixed = 0;
     transactions.forEach(t => {
@@ -54,11 +58,17 @@ const Dashboard: React.FC<DashboardProps> = ({
     };
   }, [transactions]);
 
+  // 2. Gestion de l'IA Gemini avec protection anti-boucle
   useEffect(() => {
     const fetchAiAdvice = async () => {
-      // Lecture de la clé sur Vercel (VITE_ prefix obligatoire)
       const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
       
+      // On crée une clé basée sur le mois et le solde (arrondi à 10€ près)
+      const currentKey = `${month}-${year}-${Math.round(availableBalance / 10)}`;
+      
+      // Si la clé n'a pas changé, on ne relance pas l'IA
+      if (lastAdviceKey.current === currentKey) return;
+
       if (!apiKey) {
         setAiAdvice(availableBalance < 100 ? "Prévoyez une marge pour les imprévus." : "Votre disponible est confortable, savourez l'instant.");
         return;
@@ -72,7 +82,10 @@ const Dashboard: React.FC<DashboardProps> = ({
         
         const result = await model.generateContent(prompt);
         const response = await result.response;
-        setAiAdvice(response.text().trim() || "La clarté apporte la sérénité.");
+        const text = response.text().trim();
+        
+        setAiAdvice(text || "La clarté apporte la sérénité.");
+        lastAdviceKey.current = currentKey; // Mémorisation du succès
       } catch (err) { 
         console.error("Erreur Gemini:", err);
         setAiAdvice("Observez vos flux sans jugement."); 
@@ -80,9 +93,13 @@ const Dashboard: React.FC<DashboardProps> = ({
         setLoadingAdvice(false); 
       }
     };
-    fetchAiAdvice();
-  }, [availableBalance, checkingAccountBalance, stats.fixed, stats.variable]);
 
+    // Délai de courtoisie pour laisser le state se stabiliser au montage
+    const timer = setTimeout(fetchAiAdvice, 1500);
+    return () => clearTimeout(timer);
+  }, [month, year, availableBalance, checkingAccountBalance, stats.fixed, stats.variable]);
+
+  // 3. Résumé par catégorie pour le graphique
   const categorySummary = useMemo(() => {
     const map: Record<string, number> = {};
     transactions.filter(t => t.type === 'EXPENSE').forEach(t => {
@@ -91,7 +108,14 @@ const Dashboard: React.FC<DashboardProps> = ({
     const total = stats.expenses || 1;
     return Object.entries(map).map(([id, value]) => {
       const cat = categories.find(c => c.id === id);
-      return { id, name: cat?.name || 'Autres', value, color: cat?.color || '#94a3b8', icon: cat?.icon || '📦', percent: (value / total) * 100 };
+      return { 
+        id, 
+        name: cat?.name || 'Autres', 
+        value, 
+        color: cat?.color || '#94a3b8', 
+        icon: cat?.icon || '📦', 
+        percent: (value / total) * 100 
+      };
     }).sort((a, b) => b.value - a.value);
   }, [transactions, categories, stats.expenses]);
 
@@ -134,13 +158,14 @@ const Dashboard: React.FC<DashboardProps> = ({
   const hoveredCategory = activeIndex !== null ? categorySummary[activeIndex] : null;
 
   return (
-    <div className="flex flex-col h-full space-y-6 overflow-y-auto no-scrollbar pb-24 px-1 animate-in fade-in duration-700">
+    <div className="flex flex-col h-full space-y-6 overflow-y-auto no-scrollbar pb-24 px-1">
       
-      <div className="flex items-center justify-between pt-2">
+      {/* HEADER SECTION */}
+      <div className="flex items-center justify-between pt-4">
         <div className="flex flex-col">
           <h2 className="text-2xl font-black text-slate-800 tracking-tighter leading-none">Hello ✨</h2>
-          <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mt-1 truncate max-w-[120px]">
-            Compte {activeAccount.name}
+          <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mt-1 truncate max-w-[150px]">
+            {activeAccount.name}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -148,8 +173,8 @@ const Dashboard: React.FC<DashboardProps> = ({
             Export CSV
           </button>
           <div className="relative">
-            <button onClick={() => setShowAccountMenu(!showAccountMenu)} className="flex items-center gap-2 bg-white px-3 py-2.5 rounded-2xl border border-slate-100 shadow-sm active:scale-95 transition-all">
-              <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: activeAccount.color }} />
+            <button onClick={() => setShowAccountMenu(!showAccountMenu)} className="flex items-center gap-2 bg-white px-3 py-2.5 rounded-2xl border border-slate-100 shadow-sm active:scale-95">
+              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: activeAccount.color }} />
             </button>
             {showAccountMenu && (
               <div className="absolute top-14 right-0 w-48 bg-white rounded-[24px] shadow-2xl border border-slate-100 py-2 z-[70]">
@@ -164,7 +189,8 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      <div className="bg-slate-900 px-6 py-8 rounded-[40px] shadow-2xl relative overflow-hidden min-h-[140px] flex flex-col justify-center">
+      {/* MAIN BALANCE CARD */}
+      <div className="bg-slate-900 px-6 py-8 rounded-[40px] shadow-2xl relative overflow-hidden flex flex-col justify-center">
         <div className="relative z-10 flex flex-col gap-1">
           <span className="text-indigo-400 text-[10px] font-black uppercase tracking-[0.2em] opacity-80">Solde Bancaire</span>
           <div className="flex items-baseline gap-1.5">
@@ -177,10 +203,11 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="absolute -right-10 -top-10 w-48 h-48 bg-indigo-500/15 rounded-full blur-[60px] pointer-events-none" />
       </div>
 
+      {/* SUB-BALANCES */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-indigo-600 p-5 rounded-[32px] shadow-xl flex flex-col gap-2 relative overflow-hidden">
-          <span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest z-10">Disponible Réel</span>
-          <div className="text-2xl font-black text-white z-10">{Math.round(availableBalance).toLocaleString('fr-FR')}€</div>
+        <div className="bg-indigo-600 p-5 rounded-[32px] shadow-xl flex flex-col gap-2">
+          <span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest">Disponible Réel</span>
+          <div className="text-2xl font-black text-white">{Math.round(availableBalance).toLocaleString('fr-FR')}€</div>
         </div>
         <div className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm flex flex-col gap-2">
           <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest">Fin de mois</span>
@@ -188,6 +215,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
+      {/* AI ADVICE */}
       <div className="bg-slate-100 p-5 rounded-[28px] flex items-center gap-4 border border-white">
         <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-xl shrink-0">🧘</div>
         <p className={`text-[11px] font-medium leading-tight text-slate-600 italic transition-opacity ${loadingAdvice ? 'opacity-30' : 'opacity-100'}`}>
@@ -195,6 +223,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </p>
       </div>
 
+      {/* CHARTS SECTION */}
       <div className="bg-white p-6 rounded-[40px] border border-slate-100 shadow-sm space-y-6">
         <div className="w-full h-[180px] relative">
           <ResponsiveContainer width="100%" height="100%">
@@ -205,12 +234,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                 innerRadius={60} outerRadius={80} 
                 paddingAngle={4} dataKey="value" 
                 stroke="none"
-                activeIndex={activeIndex === null ? undefined : activeIndex}
+                activeIndex={activeIndex === null ? -1 : activeIndex}
                 activeShape={renderActiveShape}
                 onMouseEnter={(_: any, idx: number) => setActiveIndex(idx)} 
                 onMouseLeave={() => setActiveIndex(null)}
               >
-                {categorySummary.map((entry, idx) => <Cell key={`cell-${idx}`} fill={entry.color} style={{ outline: 'none' }} />)}
+                {categorySummary.map((entry, idx) => <Cell key={`cell-${idx}`} fill={entry.color} />)}
               </Pie>
             </PieChart>
           </ResponsiveContainer>
@@ -229,17 +258,18 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
+        {/* TOP CATEGORIES LIST */}
         <div className="space-y-2 pt-4 border-t border-slate-50">
-          {categorySummary.slice(0, 5).map((cat, idx) => (
-            <div key={cat.id} className="flex items-center gap-3 p-3 rounded-[24px]">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl" style={{ backgroundColor: `${cat.color}15`, color: cat.color }}>{cat.icon}</div>
+          {categorySummary.slice(0, 5).map((cat) => (
+            <div key={cat.id} className="flex items-center gap-3 p-2">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0" style={{ backgroundColor: `${cat.color}15`, color: cat.color }}>{cat.icon}</div>
               <div className="flex-1">
                 <div className="flex justify-between mb-1">
-                  <span className="text-[12px] font-black text-slate-700 uppercase">{cat.name}</span>
+                  <span className="text-[12px] font-black text-slate-700 uppercase tracking-tight">{cat.name}</span>
                   <span className="text-[12px] font-black text-slate-900">{Math.round(cat.value).toLocaleString('fr-FR')}€</span>
                 </div>
                 <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${cat.percent}%`, backgroundColor: cat.color }} />
+                  <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${cat.percent}%`, backgroundColor: cat.color }} />
                 </div>
               </div>
             </div>
