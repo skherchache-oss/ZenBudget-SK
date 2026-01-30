@@ -1,4 +1,4 @@
-
+/* Version 1.0.2 - Force Update Service Worker */
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { MONTHS_FR } from '../constants';
@@ -46,13 +46,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         if (t.isRecurring) fixed += t.amount;
       }
     });
-    return { 
-      income, 
-      expenses, 
-      fixed, 
-      variable: expenses - fixed, 
-      net: income - expenses 
-    };
+    return { income, expenses, fixed, variable: expenses - fixed };
   }, [transactions]);
 
   useEffect(() => {
@@ -99,11 +93,10 @@ const Dashboard: React.FC<DashboardProps> = ({
     rows.push([`Projection Fin de Mois${s}${f(projectedBalance)} €`]);
     rows.push([]);
     rows.push(["SECTION: ANALYSE DES CHARGES"]);
-    rows.push([`Charges Fixes (Abonnements...)${s}${f(stats.fixed)} €`]);
-    rows.push([`Depenses Variables (Courses...)${s}${f(stats.variable)} €`]);
+    rows.push([`Charges Fixes${s}${f(stats.fixed)} €`]);
+    rows.push([`Depenses Variables${s}${f(stats.variable)} €`]);
     rows.push([]);
-    rows.push(["SECTION: JOURNAL DES OPERATIONS"]);
-    rows.push([`DATE${s}CATEGORIE${s}TYPE${s}MONTANT${s}SOLDE CUMULE${s}FIXE${s}NOTES`]);
+    rows.push(["DATE${s}CATEGORIE${s}TYPE${s}MONTANT${s}SOLDE CUMULE${s}FIXE${s}NOTES"]);
     
     const sorted = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     let running = carryOver;
@@ -112,10 +105,11 @@ const Dashboard: React.FC<DashboardProps> = ({
       const amt = t.type === 'INCOME' ? t.amount : -t.amount;
       running += amt;
       const note = (t.comment || '').replace(/;/g, ',').replace(/"/g, "'");
-      rows.push([`${new Date(t.date).toLocaleDateString('fr-FR')}${s}${catName}${s}${t.type}${s}${f(t.amount)} €${s}${f(running)} €${s}${t.isRecurring?'OUI':'NON'}${s}"${note}"`]);
+      rows.push(`${new Date(t.date).toLocaleDateString('fr-FR')}${s}${catName}${s}${t.type}${s}${f(t.amount)} €${s}${f(running)} €${s}${t.isRecurring?'OUI':'NON'}${s}"${note}"`);
     });
     
-    const blob = new Blob(["\uFEFF" + rows.map(r => r.join('')).join("\n")], { type: 'text/csv;charset=utf-8;' });
+    const csvString = "\uFEFF" + rows.map(r => Array.isArray(r) ? r.join('') : r).join("\n");
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -128,7 +122,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   return (
     <div className="flex flex-col h-full space-y-6 overflow-y-auto no-scrollbar pb-24 px-1 animate-in fade-in duration-700">
       
-      {/* 1. Header Zen & Actions */}
+      {/* Header Zen */}
       <div className="flex items-center justify-between pt-2">
         <div>
           <h2 className="text-2xl font-black text-slate-800 tracking-tighter">Hello ✨</h2>
@@ -137,7 +131,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="flex items-center gap-2">
           <button 
             onClick={handleExportCSV} 
-            className="px-4 py-3 bg-white rounded-2xl border border-slate-100 shadow-sm text-[10px] font-black uppercase tracking-widest text-slate-500 active:scale-95 transition-all hover:text-indigo-600 hover:border-indigo-100"
+            className="px-4 py-3 bg-white rounded-2xl border border-slate-100 shadow-sm text-[10px] font-black uppercase tracking-widest text-slate-500 active:scale-95 transition-all hover:text-indigo-600"
           >
             Export CSV
           </button>
@@ -159,8 +153,8 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* 2. Solde Bancaire Card - Correction Persistante du Rognage */}
-      <div className="bg-slate-900 px-8 py-10 rounded-[48px] shadow-2xl relative overflow-visible ring-1 ring-white/10 group min-h-[160px] flex flex-col justify-center">
+      {/* Solde Card */}
+      <div className="bg-slate-900 px-8 py-10 rounded-[48px] shadow-2xl relative overflow-visible min-h-[160px] flex flex-col justify-center">
         <div className="relative z-10 flex flex-col gap-2">
           <div className="flex justify-between items-center mb-1">
             <span className="text-indigo-400 text-[11px] font-black uppercase tracking-[0.3em] opacity-80">Solde Bancaire</span>
@@ -178,17 +172,15 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="absolute -right-10 -top-10 w-56 h-56 bg-indigo-500/20 rounded-full blur-[70px] pointer-events-none" />
       </div>
 
-      {/* 3. Disponible Réel & Fin de mois */}
+      {/* Disponible & Fin de mois */}
       <div className="grid grid-cols-2 gap-4">
-        <div className="bg-indigo-600 p-6 rounded-[36px] shadow-xl shadow-indigo-100 flex flex-col gap-3 relative overflow-hidden">
+        <div className="bg-indigo-600 p-6 rounded-[36px] shadow-xl flex flex-col gap-3 relative overflow-hidden">
           <span className="text-indigo-200 text-[9px] font-black uppercase tracking-widest block relative z-10">Disponible Réel</span>
           <div className="relative z-10">
             <div className="text-3xl font-black text-white leading-none mb-1">{Math.round(availableBalance).toLocaleString('fr-FR')}€</div>
             <p className="text-[8px] font-black text-indigo-200 uppercase tracking-tighter opacity-70">Après charges fixes</p>
           </div>
-          <div className="absolute -right-4 -bottom-4 w-20 h-20 bg-white/10 rounded-full blur-xl" />
         </div>
-
         <div className="bg-white p-6 rounded-[36px] border border-slate-100 shadow-sm flex flex-col gap-3">
           <span className="text-slate-400 text-[9px] font-black uppercase tracking-widest block">Fin de mois</span>
           <div>
@@ -198,25 +190,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* 4. Répartition Fixes vs Variables */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center text-2xl shrink-0">⚡️</div>
-          <div className="min-w-0">
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Fixes</span>
-            <div className="text-base font-black text-slate-800 truncate">{Math.round(stats.fixed).toLocaleString('fr-FR')}€</div>
-          </div>
-        </div>
-        <div className="bg-white p-6 rounded-[32px] border border-slate-50 shadow-sm flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-indigo-50 flex items-center justify-center text-2xl shrink-0">🌊</div>
-          <div className="min-w-0">
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest block">Variables</span>
-            <div className="text-base font-black text-slate-800 truncate">{Math.round(stats.variable).toLocaleString('fr-FR')}€</div>
-          </div>
-        </div>
-      </div>
-
-      {/* 5. Conseil AI Banner */}
+      {/* Conseil AI */}
       <div className="bg-slate-100 p-6 rounded-[32px] flex items-center gap-4 border border-white">
         <div className="w-11 h-11 rounded-xl bg-white shadow-sm flex items-center justify-center text-2xl shrink-0">🧘</div>
         <div className="flex-1 min-w-0">
@@ -226,72 +200,45 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* 6. Graphique & Catégories */}
+      {/* Graphique */}
       <div className="bg-white p-8 rounded-[44px] border border-slate-100 shadow-sm space-y-6">
         <div className="flex items-center justify-between px-1">
           <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Postes de dépenses</h3>
-          <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-xl">Analyses</span>
         </div>
-        
         <div className="w-full h-[200px] relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie 
-                {...({
-                  activeIndex: activeIndex === null ? undefined : activeIndex, 
-                  activeShape: renderActiveShape, 
-                  data: categorySummary, 
-                  cx: "50%", cy: "50%", 
-                  innerRadius: 65, outerRadius: 85, 
-                  paddingAngle: 5, dataKey: "value", 
-                  stroke: "none", 
-                  onMouseEnter: (_: any, idx: number) => setActiveIndex(idx), 
-                  onMouseLeave: () => setActiveIndex(null)
-                } as any)}
+                activeIndex={activeIndex === null ? undefined : activeIndex} 
+                activeShape={renderActiveShape} 
+                data={categorySummary} 
+                cx="50%" cy="50%" 
+                innerRadius={65} outerRadius={85} 
+                paddingAngle={5} dataKey="value" 
+                stroke="none" 
+                onMouseEnter={(_: any, idx: number) => setActiveIndex(idx)} 
+                onMouseLeave={() => setActiveIndex(null)}
               >
                 {categorySummary.map((entry, idx) => <Cell key={`cell-${idx}`} fill={entry.color} style={{ outline: 'none' }} />)}
               </Pie>
             </PieChart>
           </ResponsiveContainer>
-          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            {hoveredCategory ? (
-              <div className="text-center animate-in zoom-in duration-300">
-                <span className="text-4xl">{hoveredCategory.icon}</span>
-                <div className="text-[12px] font-black text-slate-900 uppercase mt-1">{Math.round(hoveredCategory.percent)}%</div>
-              </div>
-            ) : (
-              <div className="text-center">
-                <span className="text-[10px] font-black text-slate-300 uppercase block tracking-tighter">Sorties</span>
-                <span className="text-xl font-black text-slate-900">{Math.round(stats.expenses).toLocaleString('fr-FR')}€</span>
-              </div>
-            )}
-          </div>
         </div>
-
         <div className="space-y-3 pt-4 border-t border-slate-50">
-          {categorySummary.length > 0 ? categorySummary.map((cat, idx) => (
-            <div 
-              key={cat.id} 
-              className={`flex items-center gap-4 p-4 rounded-[28px] transition-all ${activeIndex === idx ? 'bg-slate-50 scale-[1.02]' : 'hover:bg-slate-50/50'}`}
-              onMouseEnter={() => setActiveIndex(idx)}
-              onMouseLeave={() => setActiveIndex(null)}
-            >
-              <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0" style={{ backgroundColor: `${cat.color}15`, color: cat.color }}>
-                {cat.icon}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[13px] font-black text-slate-700 uppercase tracking-tight truncate">{cat.name}</span>
+          {categorySummary.map((cat, idx) => (
+            <div key={cat.id} className="flex items-center gap-4 p-4 rounded-[28px] hover:bg-slate-50/50 transition-all">
+              <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0" style={{ backgroundColor: `${cat.color}15`, color: cat.color }}>{cat.icon}</div>
+              <div className="flex-1">
+                <div className="flex justify-between mb-2">
+                  <span className="text-[13px] font-black text-slate-700 uppercase">{cat.name}</span>
                   <span className="text-[13px] font-black text-slate-900">{Math.round(cat.value).toLocaleString('fr-FR')}€</span>
                 </div>
                 <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${cat.percent}%`, backgroundColor: cat.color }} />
+                  <div className="h-full rounded-full" style={{ width: `${cat.percent}%`, backgroundColor: cat.color }} />
                 </div>
               </div>
             </div>
-          )) : (
-            <div className="py-12 text-center text-[11px] font-black text-slate-300 uppercase tracking-widest italic text-slate-400">Aucune dépense ce mois-ci</div>
-          )}
+          ))}
         </div>
       </div>
     </div>
