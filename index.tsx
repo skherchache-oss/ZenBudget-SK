@@ -80,6 +80,7 @@ const App: React.FC = () => {
           }
         });
         cursor.setMonth(cursor.getMonth() + 1);
+        if (cursor.getFullYear() > now.getFullYear() + 2) break;
       }
     }
     return balance;
@@ -183,7 +184,7 @@ const App: React.FC = () => {
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
             <IconLogo className="w-8 h-8 text-indigo-600" />
-            <h1 className="hidden xs:block text-lg font-black tracking-tight text-slate-800">ZenBudget</h1>
+            <h1 className="text-lg font-black tracking-tight text-slate-900">ZenBudget</h1>
           </div>
           
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-sm flex-1 max-w-[200px] justify-between">
@@ -254,17 +255,18 @@ const NavBtn: React.FC<{ active: boolean; onClick: () => void; icon: React.React
   </button>
 );
 
-// Actual initialization to prevent "running in vacuum"
-// Initialisation réelle
 const container = document.getElementById('root');
 if (container) {
   const root = createRoot(container);
   root.render(<App />);
   
-  // Masquer le loader après un très court délai pour un affichage propre
   setTimeout(() => {
     const loader = document.getElementById('initial-loader');
-    if (loader) loader.style.display = 'none';
+    if (loader) {
+      loader.style.opacity = '0';
+      setTimeout(() => loader.remove(), 300);
+    }
   }, 100);
 }
+
 export default App;

@@ -156,8 +156,8 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
   const filteredCategories = categories.filter(c => c.type === type);
 
   return (
-    <div className="space-y-6 pb-24 h-full overflow-y-auto no-scrollbar">
-      <div className="flex items-center justify-between px-1">
+    <div className="space-y-6 pb-32 h-full overflow-y-auto no-scrollbar px-1">
+      <div className="flex items-center justify-between px-1 mt-4">
         <h2 className="text-xl font-black tracking-tighter text-slate-800">Charges Fixes</h2>
         <div className="bg-slate-900 rounded-xl px-2.5 py-1.5 flex items-center gap-2 shadow-lg">
            <span className="text-[7px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">Solde projeté</span>
@@ -167,21 +167,20 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
         </div>
       </div>
 
-      <div className="bg-slate-900 text-white p-6 rounded-[40px] shadow-2xl relative overflow-hidden ring-1 ring-white/10">
-        <div className="relative z-10">
-          <div className="flex items-center justify-between mb-4">
+      <div className="bg-slate-900 text-white p-5 rounded-[36px] shadow-2xl relative overflow-hidden ring-1 ring-white/10">
+        <div className="relative z-10 flex items-center justify-between">
+          <div className="space-y-3 flex-1">
             <div>
-              <h2 className="text-lg font-black tracking-tight leading-none mb-1">Sérénité ⚡️</h2>
+              <h2 className="text-sm font-black tracking-tight leading-none mb-1">Sérénité ⚡️</h2>
               <p className="text-slate-400 text-[8px] font-black uppercase tracking-[0.2em] opacity-70">Abonnements & Loyers</p>
             </div>
-            <div className="w-10 h-10 rounded-2xl bg-white/5 flex items-center justify-center backdrop-blur-sm">
-              <span className="text-lg">🧘</span>
+            <div className="pt-2 border-t border-white/5">
+              <span className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-400 block mb-0.5">Total mensuel</span>
+              <div className="text-xl font-black tracking-tighter">{totalFixedAmount.toLocaleString('fr-FR')}€</div>
             </div>
           </div>
-          
-          <div className="pt-4 border-t border-white/5">
-            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-indigo-400 block mb-1">Total mensuel</span>
-            <div className="text-2xl font-black tracking-tighter">{totalFixedAmount.toLocaleString('fr-FR')}€</div>
+          <div className="w-12 h-12 rounded-2xl bg-white/5 flex items-center justify-center backdrop-blur-sm shrink-0 ml-4">
+            <span className="text-xl">🧘</span>
           </div>
         </div>
         <div className="absolute -right-8 -bottom-8 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />

@@ -68,24 +68,26 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
       return;
     }
     
-    const confirmMessage = "🗑 SUPPRIMER CE COMPTE ?\n\nAttention : toutes les transactions et charges fixes associées à ce compte seront définitivement effacées.";
+    const confirmMessage = "🗑 SUPPRIMER CE COMPTE ?\n\nAttention : toutes les données associées à ce compte seront définitivement effacées.";
     if (window.confirm(confirmMessage)) {
       onDeleteAccount(id);
     }
   };
 
   const handleFeedback = () => {
-    const subject = encodeURIComponent("Feedback ZenBudget-SK");
+    const subject = encodeURIComponent("Suggestion ZenBudget 🚀");
     const body = encodeURIComponent(
-      `Bonjour !\n\nVoici mon retour sur l'application ZenBudget :\n\n[Écrivez votre message ici]\n\n---\nInfos techniques :\nDate: ${new Date().toLocaleDateString()}\nVersion: 3.9`
+      `Bonjour !\n\nVoici mon retour sur l'application ZenBudget :\n\n[Écrivez votre message ici]\n\n---\nInfos techniques :\nVersion: 4.0\nCompte: ${activeAccount?.name}\nDate: ${new Date().toLocaleDateString()}`
     );
     window.location.href = `mailto:s.kherchache@gmail.com?subject=${subject}&body=${body}`;
   };
 
+  const sectionTitleStyle = "text-[11px] font-black text-slate-900 uppercase tracking-[0.2em] mb-4 flex items-center gap-2";
+
   return (
-    <div className="space-y-8 pb-10">
+    <div className="space-y-8 pb-32 overflow-y-auto no-scrollbar h-full px-1">
       {/* Header Statut */}
-      <section className="bg-white p-6 rounded-[32px] border border-gray-100 flex items-center justify-between shadow-sm">
+      <section className="bg-white p-6 rounded-[32px] border border-gray-100 flex items-center justify-between shadow-sm mt-4">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-full bg-indigo-50 border-2 border-indigo-100 flex items-center justify-center text-xl">
             🧘‍♂️
@@ -103,9 +105,9 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
           onClick={() => setIsHowItWorksOpen(!isHowItWorksOpen)}
           className="w-full flex items-center justify-between p-6 hover:bg-slate-50 transition-colors"
         >
-          <div className="flex items-center gap-3 text-slate-800">
+          <div className="flex items-center gap-3">
             <span className="text-xl">✨</span>
-            <h2 className="text-[11px] font-black uppercase tracking-[0.15em]">Comment ça marche ?</h2>
+            <h2 className="text-[11px] font-black uppercase tracking-widest text-slate-900">Comment ça marche ?</h2>
           </div>
           <svg className={`w-4 h-4 text-slate-300 transition-transform duration-300 ${isHowItWorksOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M19 9l-7 7-7-7" /></svg>
         </button>
@@ -114,49 +116,20 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
           <div className="px-6 pb-6 space-y-6">
             <div className="space-y-4">
               <div className="bg-indigo-50 p-5 rounded-[24px] border border-indigo-100">
-                <h3 className="text-[12px] font-black text-indigo-900 mb-2">Gestion de budget intuitive</h3>
+                <h3 className="text-[12px] font-black text-indigo-900 mb-2 uppercase tracking-tight">Visez la clarté</h3>
                 <p className="text-[11px] text-indigo-800/80 leading-relaxed font-medium">
-                  ZenBudget est conçu pour vous offrir une vision claire de vos finances <span className="font-bold">sans la complexité des tableaux Excel</span>. Tout est pensé pour être rapide, mobile et visuel.
+                  ZenBudget calcule votre <span className="font-bold underline">Disponible Réel</span> pour que vous sachiez toujours ce qu'il vous reste après vos factures fixes.
                 </p>
-              </div>
-              
-              <div className="space-y-4 pt-2">
-                <div className="flex items-start gap-4">
-                  <div className="w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center text-[10px] shadow-sm shrink-0 mt-0.5 font-black text-white">1</div>
-                  <div>
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-800 mb-1">Journal</h4>
-                    <p className="text-[11px] text-slate-500 leading-relaxed">Notez vos revenus et dépenses quotidiennes. ZenBudget calcule instantanément l'impact sur votre mois.</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-4">
-                  <div className="w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center text-[10px] shadow-sm shrink-0 mt-0.5 font-black text-white">2</div>
-                  <div>
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-800 mb-1">Charges Fixes</h4>
-                    <p className="text-[11px] text-slate-500 leading-relaxed">Automatisez vos abonnements et loyers. Ils sont projetés chaque mois pour anticiper vos dépenses.</p>
-                  </div>
-                </div>
               </div>
             </div>
 
             <div className="pt-6 border-t border-slate-100 space-y-4">
-              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                Lexique des Indicateurs
-              </h3>
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Lexique Zen</h3>
               <div className="grid gap-3">
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Solde Bancaire</span>
-                  <p className="text-[11px] text-slate-600 leading-relaxed font-medium italic">"Ce que j'ai en banque aujourd'hui"</p>
-                  <p className="text-[10px] text-slate-400 mt-1">Somme de toutes vos opérations déjà passées. C'est votre photo à l'instant T.</p>
-                </div>
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
                   <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Disponible Réel</span>
-                  <p className="text-[11px] text-slate-600 leading-relaxed font-medium italic">"Ce que je peux vraiment dépenser"</p>
-                  <p className="text-[10px] text-slate-400 mt-1">C'est votre Solde Bancaire moins les charges fixes (loyer, netflix...) qui ne sont pas encore tombées. Le chiffre le plus fiable.</p>
-                </div>
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Fin de Mois</span>
-                  <p className="text-[11px] text-slate-600 leading-relaxed font-medium italic">"Mon solde final prévu"</p>
-                  <p className="text-[10px] text-slate-400 mt-1">Projection incluant tout ce qui est prévu jusqu'à votre prochain cycle de salaire.</p>
+                  <p className="text-[11px] text-slate-600 leading-relaxed font-medium italic">"Ce que je peux dépenser aujourd'hui"</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Solde banque actuel moins les factures fixes restant à payer ce mois-ci.</p>
                 </div>
               </div>
             </div>
@@ -165,44 +138,35 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
       </section>
 
       {/* Configuration Cycle Budgétaire */}
-      <section className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm space-y-4">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-lg">📅</span>
-          <h2 className="text-[11px] font-black text-gray-900 uppercase tracking-widest">Cycle Budgétaire</h2>
-        </div>
-        <p className="text-[12px] text-gray-500 font-medium leading-relaxed">
-          Définissez le jour où votre budget "redémarre" (souvent le jour du salaire).
+      <section className="bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm">
+        <h2 className={sectionTitleStyle}>
+           <span>📅</span> Cycle Budgétaire
+        </h2>
+        <p className="text-[11px] text-gray-500 font-medium leading-relaxed mb-4">
+          Définissez le jour où votre budget redémarre (jour du salaire).
         </p>
-        <div className="flex flex-wrap gap-2 pt-2">
+        <div className="flex flex-wrap gap-2">
           {[0, 24, 25, 26, 28].map((day) => (
             <button
               key={day}
               onClick={() => updateCycleDay(day)}
               className={`px-4 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border-2 ${
                 (activeAccount?.cycleEndDay || 0) === day 
-                ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100' 
+                ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' 
                 : 'bg-gray-50 border-transparent text-gray-400 hover:bg-gray-100'
               }`}
             >
               {day === 0 ? 'Fin de mois' : `Le ${day}`}
             </button>
           ))}
-          <div className="flex items-center gap-2 ml-1 mt-1">
-             <span className="text-[9px] font-bold text-slate-300">Perso :</span>
-             <input 
-              type="number" min="1" max="28" 
-              placeholder="Ex: 25"
-              value={activeAccount?.cycleEndDay || ''}
-              onChange={(e) => updateCycleDay(parseInt(e.target.value) || 0)}
-              className="w-12 bg-slate-50 border-none rounded-lg p-1 text-center text-[10px] font-black focus:ring-1 focus:ring-indigo-200"
-             />
-          </div>
         </div>
       </section>
 
       {/* Section Comptes */}
       <section>
-        <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-4 ml-1">Mes Comptes</h2>
+        <h2 className={sectionTitleStyle}>
+           <span>💳</span> Mes Comptes
+        </h2>
         <div className="space-y-3">
           {state.accounts.map(acc => (
             <div 
@@ -260,7 +224,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
           ))}
           
           {isAddingAccount ? (
-            <div className="bg-white p-4 rounded-3xl border-2 border-indigo-200 animate-in zoom-in duration-200">
+            <div className="bg-white p-4 rounded-3xl border-2 border-indigo-200 animate-in zoom-in-95 duration-200">
               <input 
                 autoFocus value={newAccName} onChange={e => setNewAccName(e.target.value)} 
                 placeholder="Nom du compte..." 
@@ -269,7 +233,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
               />
               <div className="flex gap-2">
                 <button onClick={() => setIsAddingAccount(false)} className="flex-1 py-2 text-[10px] font-black uppercase text-gray-400">Annuler</button>
-                <button onClick={createAccount} className="flex-1 py-2 text-[10px] font-black uppercase text-white bg-indigo-600 rounded-xl shadow-lg shadow-indigo-200">Créer</button>
+                <button onClick={createAccount} className="flex-1 py-2 text-[10px] font-black uppercase text-white bg-indigo-600 rounded-xl shadow-lg">Créer</button>
               </div>
             </div>
           ) : (
@@ -285,7 +249,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
         <div className="relative z-10">
           <h3 className="text-white font-black text-lg mb-2">Une idée ? 🚀</h3>
           <p className="text-indigo-100 text-[11px] mb-6 font-medium leading-relaxed">
-            Aidez-moi à faire grandir ZenBudget. Envoyez-moi un petit message pour toute suggestion ou bug !
+            Aidez-moi à faire grandir ZenBudget. Envoyez-moi un message pour toute suggestion ou bug !
           </p>
           <button 
             onClick={handleFeedback}
@@ -308,7 +272,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
       </section>
 
       <div className="pt-8 border-t border-gray-100">
-        <p className="text-center text-[8px] text-gray-300 font-black uppercase tracking-[0.3em]">Version 3.9 • Données Privées • Local First</p>
+        <p className="text-center text-[8px] text-gray-300 font-black uppercase tracking-[0.3em]">Version 4.0 • Données Privées • Local First</p>
       </div>
     </div>
   );
