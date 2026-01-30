@@ -93,7 +93,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     const rows = [];
     
     // 1. Branding & Période
-    rows.push(["ZENBUDGET - RAPPORT EXPERT"]);
+    rows.push(["ZENBUDGET - EXPORT CSV"]);
     rows.push([`Compte: ${activeAccount.name}${s}Periode: ${MONTHS_FR[month]} ${year}`]);
     rows.push([]);
 
@@ -149,7 +149,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     
-    const fileName = `ZenBudget_Expert_${activeAccount.name}_${MONTHS_FR[month]}_${year}.csv`.replace(/\s+/g, '_');
+    const fileName = `ZenBudget_Export_${activeAccount.name}_${MONTHS_FR[month]}_${year}.csv`.replace(/\s+/g, '_');
     const link = document.createElement("a");
     link.setAttribute("href", url);
     link.setAttribute("download", fileName);
@@ -184,11 +184,11 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         <button 
           onClick={handleExportCSV}
-          title="Exporter le relevé expert (CSV)"
+          title="Exporter les données au format CSV"
           className="flex items-center gap-2 bg-indigo-600 px-4 py-2 rounded-2xl shadow-lg shadow-indigo-100 active:scale-95 transition-all text-white hover:bg-indigo-700"
         >
           <IconExport className="w-3.5 h-3.5" />
-          <span className="text-[9px] font-black uppercase tracking-widest">Relevé Expert</span>
+          <span className="text-[9px] font-black uppercase tracking-widest">Export CSV</span>
         </button>
       </div>
 
@@ -284,7 +284,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         {/* Liste détaillée */}
         <div className="space-y-3 pt-4 border-t border-slate-50">
-          <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-4 px-1">Répartition des dépenses</h3>
+          <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-4 px-1">Répartition des denses</h3>
           {categorySummary.length > 0 ? categorySummary.map((cat, idx) => (
             <div 
               key={cat.id} 
