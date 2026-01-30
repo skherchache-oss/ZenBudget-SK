@@ -25,7 +25,7 @@ export const createDefaultAccount = (ownerId: string = 'local-user'): BudgetAcco
   recurringSyncLog: [],
   deletedVirtualIds: [],
   monthlyBudget: 0,
-  cycleEndDay: 28, // Fixé à 28 par défaut pour éviter le 0
+  cycleEndDay: 28,
 });
 
 export const getInitialState = (): AppState => {
@@ -45,25 +45,36 @@ export const getInitialState = (): AppState => {
   try {
     const saved = window.localStorage.getItem(STORAGE_KEY);
     if (!saved) return defaultState;
+    
     const parsed = JSON.parse(saved);
 
-    // Fusion propre des catégories
-    const savedCategories: Category[] = parsed.categories || [];
+    // Protection : si parsed n'est pas un objet ou n'a pas d'accounts, on reset
+    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.accounts)) {
+      return defaultState;
+    }
+
+    // Fusion sécurisée des catégories
+    const savedCategories: Category[] = Array.isArray(parsed.categories) ? parsed.categories : [];
     const mergedCategories = [...DEFAULT_CATEGORIES];
     savedCategories.forEach(sc => {
-      if (!mergedCategories.find(dc => dc.id === sc.id)) {
+      if (sc && sc.id && !mergedCategories.find(dc => dc.id === sc.id)) {
         mergedCategories.push(sc);
       }
     });
 
-    // Nettoyage des comptes
-    const accounts = (parsed.accounts || [defaultAcc]).map((acc: any) => ({
-      ...acc,
-      transactions: acc.transactions || [],
-      recurringTemplates: acc.recurringTemplates || [],
-      deletedVirtualIds: acc.deletedVirtualIds || [],
-      cycleEndDay: acc.cycleEndDay ?? 28
+    // Nettoyage et validation des comptes
+    const accounts = parsed.accounts.map((acc: any) => ({
+      ...createDefaultAccount(defaultUser.id), // Valeurs par défaut
+      ...acc, // Écrase avec les données sauvegardées
+      transactions: Array.isArray(acc.transactions) ? acc.transactions : [],
+      recurringTemplates: Array.isArray(acc.recurringTemplates) ? acc.recurringTemplates : [],
+      deletedVirtualIds: Array.isArray(acc.deletedVirtualIds) ? acc.deletedVirtualIds : [],
+      cycleEndDay: (acc.cycleEndDay && acc.cycleEndDay > 0) ? acc.cycleEndDay : 28
     }));
+
+    const activeId = accounts.find((a: any) => a.id === parsed.activeAccountId) 
+      ? parsed.activeAccountId 
+      : accounts[0].id;
 
     return { 
       ...defaultState, 
@@ -71,10 +82,10 @@ export const getInitialState = (): AppState => {
       user: defaultUser,
       accounts: accounts,
       categories: mergedCategories,
-      activeAccountId: accounts.find((a: any) => a.id === parsed.activeAccountId) ? parsed.activeAccountId : accounts[0].id
+      activeAccountId: activeId
     };
   } catch (e) {
-    console.error("Erreur de chargement du Store", e);
+    console.error("Crash Store - Retour aux valeurs par défaut", e);
     return defaultState;
   }
 };
@@ -83,5 +94,7 @@ export const saveState = (state: AppState) => {
   if (!isStorageAvailable()) return;
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch (e) {}
+  } catch (e) {
+    console.error("Erreur de sauvegarde", e);
+  }
 };
