@@ -18,6 +18,7 @@ interface DashboardProps {
   checkingAccountBalance: number;
   availableBalance: number;
   projectedBalance: number;
+  carryOver: number; // Ajout du solde au début du mois
 }
 
 const renderActiveShape = (props: any) => {
@@ -30,7 +31,7 @@ const renderActiveShape = (props: any) => {
 };
 
 const Dashboard: React.FC<DashboardProps> = ({ 
-  transactions, categories, activeAccount, allAccounts, onSwitchAccount, month, year, checkingAccountBalance, availableBalance, projectedBalance 
+  transactions, categories, activeAccount, allAccounts, onSwitchAccount, month, year, checkingAccountBalance, availableBalance, projectedBalance, carryOver 
 }) => {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [aiAdvice, setAiAdvice] = useState<string>("Analyse zen...");
@@ -60,14 +61,12 @@ const Dashboard: React.FC<DashboardProps> = ({
       }
       setLoadingAdvice(true);
       try {
-        // Initialize Gemini client with process.env.API_KEY directly in the named parameter object
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const prompt = `ZenBudget: Compte courant ${checkingAccountBalance}€, Fin de mois ${projectedBalance}€, Disponible ${availableBalance}€. Fixes ${stats.fixed}€. Donne 1 conseil zen très court (50 car max, français).`;
         const response = await ai.models.generateContent({ 
           model: 'gemini-3-flash-preview', 
           contents: prompt 
         });
-        // Accessing the .text property directly from GenerateContentResponse
         setAiAdvice(response.text || "La discipline offre la liberté.");
       } catch (err) { setAiAdvice("Observez vos flux sans jugement."); }
       finally { setLoadingAdvice(false); }
@@ -88,62 +87,69 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, [transactions, categories, stats.expenses]);
 
   const handleExportCSV = () => {
-    const s = ";"; // Séparateur point-virgule pour Excel FR
-    const f = (n: number) => n.toFixed(2).replace('.', ','); // Formatage monétaire FR
+    const s = ";"; 
+    const f = (n: number) => n.toFixed(2).replace('.', ','); 
     
     const rows = [];
     
     // 1. Branding & Période
-    rows.push(["ZENBUDGET - RAPPORT FINANCIER"]);
+    rows.push(["ZENBUDGET - RAPPORT EXPERT"]);
     rows.push([`Compte: ${activeAccount.name}${s}Periode: ${MONTHS_FR[month]} ${year}`]);
     rows.push([]);
 
     // 2. Section: Tableau de bord
-    rows.push(["SECTION: TABLEAU DE BORD"]);
-    rows.push([`Compte Courant (Solde actuel)${s}${f(checkingAccountBalance)} €`]);
+    rows.push(["SECTION: SYNTHESE DES SOLDES"]);
+    rows.push([`Report du mois precedent${s}${f(carryOver)} €`]);
+    rows.push([`Compte Courant (Aujourd'hui)${s}${f(checkingAccountBalance)} €`]);
     rows.push([`Disponible Reel (Apres charges)${s}${f(availableBalance)} €`]);
-    rows.push([`Projection Fin de Mois${s}${f(projectedBalance)} €`]);
+    rows.push([`Projection de Solde Final${s}${f(projectedBalance)} €`]);
     rows.push([]);
 
     // 3. Section: Analyse des Flux
-    rows.push(["SECTION: ANALYSE DES FLUX"]);
+    rows.push(["SECTION: FLUX DU MOIS"]);
     rows.push([`Total Revenus (+)${s}${f(stats.income)} €`]);
     rows.push([`Total Depenses (-)${s}${f(stats.expenses)} €`]);
-    rows.push([`Capacite d'Epargne Mensuelle${s}${f(stats.net)} €`]);
-    rows.push([`-- Dont charges fixes${s}${f(stats.fixed)} €`]);
+    rows.push([`Capacite d'Epargne Nette${s}${f(stats.net)} €`]);
     rows.push([]);
 
     // 4. Section: Repartition par Categorie
-    rows.push(["SECTION: DEPENSES PAR CATEGORIE"]);
+    rows.push(["SECTION: ANALYSE PAR CATEGORIE"]);
     rows.push([`CATEGORIE${s}MONTANT${s}PART (%)`]);
     categorySummary.forEach(cat => {
       rows.push([`${cat.name}${s}${f(cat.value)} €${s}${Math.round(cat.percent)}%`]);
     });
     rows.push([]);
 
-    // 5. Section: Journal Detaille
-    rows.push(["SECTION: JOURNAL DES OPERATIONS"]);
-    rows.push([`DATE${s}CATEGORIE${s}TYPE${s}MONTANT${s}FIXE${s}NOTE / COMMENTAIRE`]);
+    // 5. Section: Journal Detaille avec Solde Progressif
+    rows.push(["SECTION: JOURNAL DES OPERATIONS (RELEVE)"]);
+    rows.push([`DATE${s}CATEGORIE${s}TYPE${s}MONTANT${s}SOLDE CUMULE${s}FIXE${s}NOTES ET DETAILS`]);
     
+    // Tri chronologique pour le calcul du solde
     const sorted = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    let runningBalance = carryOver;
+
     sorted.forEach(t => {
       const catName = categories.find(c => c.id === t.categoryId)?.name || 'Inconnue';
       const date = new Date(t.date).toLocaleDateString('fr-FR');
-      const amount = (t.type === 'INCOME' ? '' : '-') + f(t.amount);
+      const amountChange = t.type === 'INCOME' ? t.amount : -t.amount;
+      runningBalance += amountChange;
+      
+      const amountStr = (t.type === 'INCOME' ? '+' : '-') + f(t.amount);
       const isFixed = t.isRecurring ? 'OUI' : 'NON';
-      const note = (t.comment || '').replace(/;/g, ','); // Eviter de casser le CSV
-      rows.push([`${date}${s}${catName}${s}${t.type}${s}${amount} €${s}${isFixed}${s}${note}`]);
+      // Nettoyage de la note pour ne pas casser le CSV (pas de point-virgule ou guillemets)
+      const note = (t.comment || '-').replace(/;/g, ',').replace(/"/g, "'"); 
+      
+      rows.push([`${date}${s}${catName}${s}${t.type}${s}${amountStr} €${s}${f(runningBalance)} €${s}${isFixed}${s}"${note}"`]);
     });
 
     rows.push([]);
-    rows.push([`Genere le ${new Date().toLocaleString('fr-FR')} par ZenBudget.`]);
+    rows.push([`Rapport genere par ZenBudget le ${new Date().toLocaleString('fr-FR')}.`]);
 
-    // Assemblage du CSV avec BOM UTF-8 (\uFEFF) pour le support complet des accents et d'Excel
     const csvContent = "\uFEFF" + rows.map(r => r.join('')).join("\n");
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     
-    const fileName = `ZenBudget_${activeAccount.name}_${MONTHS_FR[month]}_${year}.csv`.replace(/\s+/g, '_');
+    const fileName = `ZenBudget_Expert_${activeAccount.name}_${MONTHS_FR[month]}_${year}.csv`.replace(/\s+/g, '_');
     const link = document.createElement("a");
     link.setAttribute("href", url);
     link.setAttribute("download", fileName);
@@ -178,11 +184,11 @@ const Dashboard: React.FC<DashboardProps> = ({
 
         <button 
           onClick={handleExportCSV}
-          title="Exporter les données au format CSV"
+          title="Exporter le relevé expert (CSV)"
           className="flex items-center gap-2 bg-indigo-600 px-4 py-2 rounded-2xl shadow-lg shadow-indigo-100 active:scale-95 transition-all text-white hover:bg-indigo-700"
         >
           <IconExport className="w-3.5 h-3.5" />
-          <span className="text-[9px] font-black uppercase tracking-widest">Export CSV</span>
+          <span className="text-[9px] font-black uppercase tracking-widest">Relevé Expert</span>
         </button>
       </div>
 
@@ -243,17 +249,19 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="w-full h-[200px] relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              {/* @ts-ignore: Prop activeIndex is missing from Recharts types in this environment, suppressing the error to allow the highlight feature */}
+              {/* Fix: use any spread to avoid TypeScript error with Pie props from Recharts */}
               <Pie 
-                activeIndex={activeIndex === null ? undefined : activeIndex} 
-                activeShape={renderActiveShape} 
-                data={categorySummary} 
-                cx="50%" cy="50%" 
-                innerRadius={65} outerRadius={80} 
-                paddingAngle={5} dataKey="value" 
-                stroke="none" 
-                onMouseEnter={(_, idx) => setActiveIndex(idx)} 
-                onMouseLeave={() => setActiveIndex(null)}
+                {...({
+                  activeIndex: activeIndex === null ? undefined : activeIndex, 
+                  activeShape: renderActiveShape, 
+                  data: categorySummary, 
+                  cx: "50%", cy: "50%", 
+                  innerRadius: 65, outerRadius: 80, 
+                  paddingAngle: 5, dataKey: "value", 
+                  stroke: "none", 
+                  onMouseEnter: (_: any, idx: number) => setActiveIndex(idx), 
+                  onMouseLeave: () => setActiveIndex(null)
+                } as any)}
               >
                 {categorySummary.map((entry, idx) => <Cell key={`cell-${idx}`} fill={entry.color} style={{ outline: 'none' }} />)}
               </Pie>
