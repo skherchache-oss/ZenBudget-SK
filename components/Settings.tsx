@@ -6,13 +6,13 @@ import { createDefaultAccount } from '../store';
 
 interface SettingsProps {
   state: AppState;
-  onUpdateCategories: (cats: Category[]) => void;
-  onUpdateBudget: (val: number) => void;
   onUpdateAccounts: (accounts: BudgetAccount[]) => void;
   onSetActiveAccount: (id: string) => void;
   onDeleteAccount: (id: string) => void;
   onReset: () => void;
   onLogout: () => void;
+  onUpdateCategories: (cats: Category[]) => void;
+  onUpdateBudget: (val: number) => void;
 }
 
 const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiveAccount, onDeleteAccount, onReset }) => {
@@ -20,6 +20,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
   const [newAccName, setNewAccName] = useState('');
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [isHowItWorksOpen, setIsHowItWorksOpen] = useState(false);
 
   const activeAccount = state.accounts.find(a => a.id === state.activeAccountId);
 
@@ -90,8 +91,82 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
             🧘‍♂️
           </div>
           <div>
-            <h3 className="font-black text-gray-900 leading-none mb-1">Espace Zen</h3>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Stockage local & Sécurisé</p>
+            <h3 className="font-black text-gray-900 leading-none mb-1 text-[15px]">Espace Zen</h3>
+            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Stockage local & Sécurisé</p>
+          </div>
+        </div>
+      </section>
+
+      {/* Aide & Lexique dépliable */}
+      <section className="bg-white rounded-[32px] border border-slate-100 overflow-hidden transition-all duration-300 shadow-sm">
+        <button 
+          onClick={() => setIsHowItWorksOpen(!isHowItWorksOpen)}
+          className="w-full flex items-center justify-between p-6 hover:bg-slate-50 transition-colors"
+        >
+          <div className="flex items-center gap-3 text-slate-800">
+            <span className="text-xl">✨</span>
+            <h2 className="text-[11px] font-black uppercase tracking-[0.15em]">Comment ça marche ?</h2>
+          </div>
+          <svg className={`w-4 h-4 text-slate-300 transition-transform duration-300 ${isHowItWorksOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M19 9l-7 7-7-7" /></svg>
+        </button>
+
+        <div className={`transition-all duration-500 ease-in-out ${isHowItWorksOpen ? 'max-h-[1200px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
+          <div className="px-6 pb-6 space-y-6">
+            <div className="space-y-4">
+              <div className="bg-indigo-50 p-5 rounded-[24px] border border-indigo-100">
+                <h3 className="text-[12px] font-black text-indigo-900 mb-2">Gestion de budget intuitive</h3>
+                <p className="text-[11px] text-indigo-800/80 leading-relaxed font-medium">
+                  ZenBudget est conçu pour vous offrir une vision claire de vos finances <span className="font-bold">sans la complexité des tableaux Excel</span>. Tout est pensé pour être rapide, mobile et visuel.
+                </p>
+              </div>
+              
+              <div className="space-y-4 pt-2">
+                <div className="flex items-start gap-4">
+                  <div className="w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center text-[10px] shadow-sm shrink-0 mt-0.5 font-black text-white">1</div>
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-800 mb-1">Journal</h4>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">Notez vos revenus et dépenses quotidiennes. ZenBudget calcule instantanément l'impact sur votre mois.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-4">
+                  <div className="w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center text-[10px] shadow-sm shrink-0 mt-0.5 font-black text-white">2</div>
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-800 mb-1">Charges Fixes</h4>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">Automatisez vos abonnements, loyers et prélèvements. Ils sont projetés chaque mois sans action de votre part.</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-4">
+                  <div className="w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center text-[10px] shadow-sm shrink-0 mt-0.5 font-black text-white">3</div>
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-800 mb-1">Stats & Zen</h4>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">Obtenez une analyse immédiate de vos dépenses par catégorie et recevez des conseils pour garder l'équilibre.</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-6 border-t border-slate-100 space-y-4">
+              <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-2">
+                Lexique des Indicateurs
+              </h3>
+              <div className="grid gap-3">
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Compte courant</span>
+                  <p className="text-[11px] text-slate-600 leading-relaxed font-medium italic">"Combien j'ai en banque aujourd'hui ?"</p>
+                  <p className="text-[10px] text-slate-400 mt-1">C'est la somme de vos transactions passées uniquement.</p>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Disponible réel</span>
+                  <p className="text-[11px] text-slate-600 leading-relaxed font-medium italic">"Combien je peux dépenser SANS me mettre dans le rouge ?"</p>
+                  <p className="text-[10px] text-slate-400 mt-1">C'est votre compte courant moins TOUTES les charges fixes qui n'ont pas encore été prélevées d'ici votre prochain salaire.</p>
+                </div>
+                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                  <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Fin de mois</span>
+                  <p className="text-[11px] text-slate-600 leading-relaxed font-medium italic">"Quel sera mon solde final ?"</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Projection totale incluant TOUTES les transactions prévues sur l'ensemble du mois en cours.</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -103,7 +178,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
           <h2 className="text-[11px] font-black text-gray-900 uppercase tracking-widest">Cycle Budgétaire</h2>
         </div>
         <p className="text-[12px] text-gray-500 font-medium leading-relaxed">
-          Définissez le jour où votre budget "redémarre" (souvent la veille du salaire).
+          Définissez le jour où votre budget "redémarre" (souvent le jour du salaire).
         </p>
         <div className="flex flex-wrap gap-2 pt-2">
           {[0, 24, 25, 26, 28].map((day) => (
@@ -128,31 +203,6 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
               onChange={(e) => updateCycleDay(parseInt(e.target.value) || 0)}
               className="w-12 bg-slate-50 border-none rounded-lg p-1 text-center text-[10px] font-black focus:ring-1 focus:ring-indigo-200"
              />
-          </div>
-        </div>
-      </section>
-
-      {/* Section À Propos */}
-      <section className="bg-indigo-50/40 p-6 rounded-[32px] border border-indigo-100/50 space-y-4">
-        <div className="flex items-center gap-2">
-          <span className="text-lg">✨</span>
-          <h2 className="text-[11px] font-black text-indigo-900 uppercase tracking-[0.15em]">Gestion de Budget Intuitive</h2>
-        </div>
-        <p className="text-[13px] text-indigo-900/80 leading-relaxed font-medium">
-          ZenBudget est conçu pour vous offrir une vision claire de votre avenir financier sans la complexité des tableaux Excel.
-        </p>
-        <div className="space-y-3 pt-2">
-          <div className="flex items-start gap-3">
-            <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center text-[10px] shadow-sm shrink-0 mt-0.5 font-bold">1</div>
-            <p className="text-[11px] text-indigo-800/70"><span className="font-bold text-indigo-900">Enregistrez</span> vos revenus et dépenses quotidiennes dans le Journal.</p>
-          </div>
-          <div className="flex items-start gap-3">
-            <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center text-[10px] shadow-sm shrink-0 mt-0.5 font-bold">2</div>
-            <p className="text-[11px] text-indigo-800/70"><span className="font-bold text-indigo-900">Automatisez</span> vos loyers et abonnements dans la section "Fixes".</p>
-          </div>
-          <div className="flex items-start gap-3">
-            <div className="w-5 h-5 rounded-full bg-white flex items-center justify-center text-[10px] shadow-sm shrink-0 mt-0.5 font-bold">3</div>
-            <p className="text-[11px] text-indigo-800/70"><span className="font-bold text-indigo-900">Visualisez</span> votre projection de fin de mois sur les Stats pour anticiper sereinement.</p>
           </div>
         </div>
       </section>
