@@ -4,6 +4,7 @@ import { Transaction, Category, BudgetAccount } from '../types';
 import { MONTHS_FR } from '../constants';
 import { PieChart, Pie, Cell, ResponsiveContainer, Sector } from 'recharts';
 import { GoogleGenAI } from "@google/genai";
+import { IconExport } from './Icons';
 
 interface DashboardProps {
   transactions: Transaction[];
@@ -81,12 +82,109 @@ const Dashboard: React.FC<DashboardProps> = ({
     }).sort((a, b) => b.value - a.value);
   }, [transactions, categories, stats.expenses]);
 
+  const handleExportExcel = () => {
+    // Formatage des nombres pour Excel FR
+    const f = (n: number) => n.toFixed(2).replace('.', ',');
+    const sortedTransactions = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    // Construction du fichier HTML avec styles CSS (que Excel comprend)
+    const html = `
+      <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+      <head>
+        <meta charset="utf-8">
+        <style>
+          .brand { color: #10b981; font-family: 'Segoe UI', sans-serif; font-size: 24px; font-weight: bold; }
+          .header-main { background-color: #f8fafc; border: 1px solid #e2e8f0; font-family: sans-serif; }
+          .title { font-size: 18px; font-weight: bold; color: #1e293b; }
+          .summary-label { font-size: 12px; color: #64748b; background-color: #f1f5f9; font-weight: bold; }
+          .summary-value { font-size: 14px; font-weight: bold; text-align: right; }
+          .table-header { background-color: #4f46e5; color: #ffffff; font-weight: bold; text-align: center; }
+          .cell { border: 0.5pt solid #e2e8f0; padding: 5px; font-family: sans-serif; font-size: 11px; }
+          .income { color: #059669; font-weight: bold; }
+          .expense { color: #1e293b; }
+          .footer { font-size: 10px; color: #94a3b8; font-style: italic; }
+        </style>
+      </head>
+      <body>
+        <table>
+          <tr><td colspan="6" class="brand">ZenBudget</td></tr>
+          <tr><td colspan="6" class="title">Rapport Financier Mensuel - ${MONTHS_FR[month]} ${year}</td></tr>
+          <tr><td colspan="6" style="color: #64748b;">Compte : ${activeAccount.name}</td></tr>
+          <tr><td></td></tr>
+          
+          <tr class="header-main">
+            <td colspan="2" class="summary-label cell">INDICATEURS CLES</td>
+            <td colspan="4" class="cell"></td>
+          </tr>
+          <tr>
+            <td colspan="2" class="cell">Compte Courant (Solde actuel)</td>
+            <td class="summary-value cell">${f(checkingAccountBalance)} €</td>
+            <td colspan="3"></td>
+          </tr>
+          <tr>
+            <td colspan="2" class="cell">Disponible Réel (Apres charges futures)</td>
+            <td class="summary-value cell" style="color: ${availableBalance >= 0 ? '#4f46e5' : '#ef4444'}">${f(availableBalance)} €</td>
+            <td colspan="3"></td>
+          </tr>
+          <tr>
+            <td colspan="2" class="cell">Projection Fin de Mois</td>
+            <td class="summary-value cell">${f(projectedBalance)} €</td>
+            <td colspan="3"></td>
+          </tr>
+          
+          <tr><td></td></tr>
+          
+          <tr>
+            <td colspan="6" class="table-header cell" style="background-color: #1e293b;">JOURNAL DES TRANSACTIONS</td>
+          </tr>
+          <tr class="table-header">
+            <td class="cell" style="width: 100px;">DATE</td>
+            <td class="cell" style="width: 150px;">CATEGORIE</td>
+            <td class="cell" style="width: 100px;">TYPE</td>
+            <td class="cell" style="width: 120px;">MONTANT</td>
+            <td class="cell" style="width: 250px;">NOTE / COMMENTAIRE</td>
+            <td class="cell" style="width: 80px;">FIXE</td>
+          </tr>
+          ${sortedTransactions.map(t => {
+            const cat = categories.find(c => c.id === t.categoryId);
+            return `
+              <tr>
+                <td class="cell" style="text-align: center;">${new Date(t.date).toLocaleDateString('fr-FR')}</td>
+                <td class="cell">${cat?.name || 'Inconnue'}</td>
+                <td class="cell" style="text-align: center;">${t.type === 'INCOME' ? 'REVENU' : 'DEPENSE'}</td>
+                <td class="cell ${t.type === 'INCOME' ? 'income' : 'expense'}" style="text-align: right;">${t.type === 'INCOME' ? '+' : '-'}${f(t.amount)} €</td>
+                <td class="cell">${t.comment || ''}</td>
+                <td class="cell" style="text-align: center;">${t.isRecurring ? 'OUI' : ''}</td>
+              </tr>
+            `;
+          }).join('')}
+          
+          <tr><td></td></tr>
+          <tr><td colspan="6" class="footer">Généré le ${new Date().toLocaleString()} via ZenBudget. Votre sérénité financière est notre priorité.</td></tr>
+        </table>
+      </body>
+      </html>
+    `;
+
+    // Téléchargement avec extension .xls pour forcer l'ouverture Excel
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    const fileName = `ZenBudget_${activeAccount.name}_${MONTHS_FR[month]}_${year}.xls`.replace(/\s+/g, '_');
+    
+    link.setAttribute("href", url);
+    link.setAttribute("download", fileName);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const hoveredCategory = activeIndex !== null ? categorySummary[activeIndex] : null;
 
   return (
     <div className="flex flex-col h-full space-y-6 overflow-y-auto no-scrollbar pb-24 px-1 animate-in fade-in slide-in-from-bottom-4 duration-700">
       
-      {/* Account Switcher */}
+      {/* Account Switcher & Actions */}
       <div className="flex items-center justify-between shrink-0">
         <div className="relative">
           <button onClick={() => setShowAccountMenu(!showAccountMenu)} className="flex items-center gap-2.5 bg-white px-4 py-2 rounded-2xl border border-slate-100 shadow-sm active:scale-95 transition-all">
@@ -104,6 +202,15 @@ const Dashboard: React.FC<DashboardProps> = ({
             </div>
           )}
         </div>
+
+        <button 
+          onClick={handleExportExcel}
+          title="Exporter le rapport visuel ZenBudget"
+          className="flex items-center gap-2 bg-indigo-600 px-4 py-2 rounded-2xl shadow-lg shadow-indigo-100 active:scale-95 transition-all text-white hover:bg-indigo-700"
+        >
+          <IconExport className="w-3.5 h-3.5" />
+          <span className="text-[9px] font-black uppercase tracking-widest">Rapport Pro</span>
+        </button>
       </div>
 
       {/* 1. LES 3 CHIFFRES CLÉS */}
