@@ -38,6 +38,7 @@ export const getInitialState = (): AppState => {
     activeAccountId: defaultAcc.id,
     categories: DEFAULT_CATEGORIES,
     tasks: [],
+    activeView: 'DASHBOARD'
   };
 
   if (!isStorageAvailable()) return defaultState;
@@ -45,47 +46,35 @@ export const getInitialState = (): AppState => {
   try {
     const saved = window.localStorage.getItem(STORAGE_KEY);
     if (!saved) return defaultState;
-    
     const parsed = JSON.parse(saved);
 
-    // Protection : si parsed n'est pas un objet ou n'a pas d'accounts, on reset
-    if (!parsed || typeof parsed !== 'object' || !Array.isArray(parsed.accounts)) {
-      return defaultState;
-    }
-
-    // Fusion sécurisée des catégories
-    const savedCategories: Category[] = Array.isArray(parsed.categories) ? parsed.categories : [];
+    const savedCategories: Category[] = parsed.categories || [];
     const mergedCategories = [...DEFAULT_CATEGORIES];
     savedCategories.forEach(sc => {
-      if (sc && sc.id && !mergedCategories.find(dc => dc.id === sc.id)) {
+      if (!mergedCategories.find(dc => dc.id === sc.id)) {
         mergedCategories.push(sc);
       }
     });
 
-    // Nettoyage et validation des comptes
-    const accounts = parsed.accounts.map((acc: any) => ({
-      ...createDefaultAccount(defaultUser.id), // Valeurs par défaut
-      ...acc, // Écrase avec les données sauvegardées
-      transactions: Array.isArray(acc.transactions) ? acc.transactions : [],
-      recurringTemplates: Array.isArray(acc.recurringTemplates) ? acc.recurringTemplates : [],
-      deletedVirtualIds: Array.isArray(acc.deletedVirtualIds) ? acc.deletedVirtualIds : [],
-      cycleEndDay: (acc.cycleEndDay && acc.cycleEndDay > 0) ? acc.cycleEndDay : 28
+    const accounts = (parsed.accounts || [defaultAcc]).map((acc: any) => ({
+      ...acc,
+      transactions: acc.transactions || [],
+      recurringTemplates: acc.recurringTemplates || [],
+      deletedVirtualIds: acc.deletedVirtualIds || [],
+      recurringSyncLog: acc.recurringSyncLog || [],
+      cycleEndDay: acc.cycleEndDay ?? 28
     }));
-
-    const activeId = accounts.find((a: any) => a.id === parsed.activeAccountId) 
-      ? parsed.activeAccountId 
-      : accounts[0].id;
 
     return { 
       ...defaultState, 
       ...parsed, 
-      user: defaultUser,
+      user: parsed.user || defaultUser,
       accounts: accounts,
       categories: mergedCategories,
-      activeAccountId: activeId
+      activeAccountId: accounts.find((a: any) => a.id === parsed.activeAccountId) ? parsed.activeAccountId : accounts[0].id
     };
   } catch (e) {
-    console.error("Crash Store - Retour aux valeurs par défaut", e);
+    console.error("Erreur de restauration du stockage local", e);
     return defaultState;
   }
 };
@@ -94,7 +83,5 @@ export const saveState = (state: AppState) => {
   if (!isStorageAvailable()) return;
   try {
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch (e) {
-    console.error("Erreur de sauvegarde", e);
-  }
+  } catch (e) {}
 };
