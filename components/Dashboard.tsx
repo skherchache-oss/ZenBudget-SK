@@ -1,9 +1,9 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { MONTHS_FR } from '../constants';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { GoogleGenAI } from "@google/genai";
+// CORRECTION : Utilisation du package officiel
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface DashboardProps {
   transactions: Transaction[];
@@ -41,30 +41,36 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   useEffect(() => {
     const fetchAiAdvice = async () => {
-      const apiKey = process.env.API_KEY;
+      // CORRECTION : Accès variable environnement Vite
+      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+      
       if (!apiKey) {
-        setAiAdvice(availableBalance < 100 ? "Un petit pas vers l'économie, un grand pas vers la paix." : "Votre horizon financier semble dégagé et serein.");
+        setAiAdvice(availableBalance < 100 ? "Cultivez la patience, l'abondance viendra." : "Votre ciel financier est d'une clarté parfaite.");
         return;
       }
 
       setLoadingAdvice(true);
       try {
-        const ai = new GoogleGenAI({ apiKey });
-        const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
-          contents: `Tu es un coach financier Zen. Voici les données : Disponible ${availableBalance}€, Charges fixes ${stats.fixed}€, Dépenses variables ${stats.variable}€. Donne un seul conseil ultra-court (max 60 caractères), poétique et bienveillant en français pour aider l'utilisateur à se sentir serein. N'affiche aucun chiffre, sois inspirant.`
-        });
+        // CORRECTION : Nouvelle syntaxe d'initialisation SDK
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         
-        const text = response.text?.trim().replace(/^["']|["']$/g, '');
-        setAiAdvice(text || "La clarté est le premier pas vers la liberté.");
+        const prompt = `Tu es un coach financier Zen. Voici les données : Disponible ${availableBalance}€, Charges fixes ${stats.fixed}€, Dépenses variables ${stats.variable}€. Donne un seul conseil ultra-court (max 60 caractères), poétique et bienveillant en français. N'affiche aucun chiffre, sois inspirant et bref.`;
+        
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text().trim().replace(/^["']|["']$/g, '');
+        
+        setAiAdvice(text || "La simplicité est la clé de la richesse intérieure.");
       } catch (err) { 
-        setAiAdvice("Observez vos flux comme l'eau d'une rivière."); 
+        console.error("AI Error:", err);
+        setAiAdvice("Laissez vos économies respirer comme vous."); 
       } finally { 
         setLoadingAdvice(false); 
       }
     };
     
-    const timer = setTimeout(fetchAiAdvice, 1200);
+    const timer = setTimeout(fetchAiAdvice, 1500);
     return () => clearTimeout(timer);
   }, [availableBalance, stats.fixed, stats.variable]);
 
@@ -108,24 +114,22 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="flex flex-col h-full space-y-6 overflow-y-auto no-scrollbar pb-32 px-1 fade-in">
-      {/* HEADER */}
       <div className="flex items-center justify-between pt-4">
         <div className="flex flex-col">
-          <h2 className="text-2xl font-black text-slate-800 tracking-tighter leading-none">Aujourd'hui ✨</h2>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tighter leading-none">Bilan ✨</h2>
           <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mt-1.5 truncate max-w-[140px]">{activeAccount.name}</p>
         </div>
         <button onClick={handleExportCSV} className="flex items-center gap-2 px-3.5 py-2.5 bg-white rounded-2xl border border-slate-100 shadow-sm text-[9px] font-black uppercase tracking-widest text-slate-500 active:scale-95 transition-all">
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-          Export
+          Export CSV
         </button>
       </div>
 
-      {/* SOLDE BANCAIRE */}
       <div>
         <h2 className={sectionTitleStyle}><span>🏦</span> Solde Bancaire</h2>
         <div className="bg-slate-900 px-6 py-9 rounded-[40px] shadow-2xl relative overflow-hidden flex flex-col justify-center min-h-[130px]">
           <div className="absolute top-0 right-0 p-8 opacity-10"><svg className="w-16 h-16 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L1 12h3v9h6v-6h4v6h6v-9h3L12 2z"/></svg></div>
-          <span className="text-indigo-400 text-[9px] font-black uppercase tracking-[0.3em] mb-1">Compte courant</span>
+          <span className="text-indigo-400 text-[9px] font-black uppercase tracking-[0.3em] mb-1">Situation actuelle</span>
           <div className="flex items-baseline gap-2">
             <span className="text-5xl font-black tracking-tighter text-white">{Math.round(checkingAccountBalance).toLocaleString('fr-FR')}</span>
             <span className="text-xl font-black text-slate-500">€</span>
@@ -133,7 +137,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* QUICK STATS */}
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-indigo-600 p-5 rounded-[32px] shadow-lg shadow-indigo-100 flex flex-col gap-1 border border-indigo-500/20">
           <span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest">Disponible Réel</span>
@@ -145,26 +148,26 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* AI ADVICE - NEW DESIGN */}
-      <div className="relative">
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-100 to-emerald-100 rounded-[30px] blur opacity-30"></div>
-        <div className="relative bg-gradient-to-br from-indigo-50/40 via-white to-emerald-50/40 p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm overflow-hidden">
-          <div className={`w-11 h-11 rounded-2xl bg-white shadow-md flex items-center justify-center text-2xl shrink-0 transition-transform duration-700 ${loadingAdvice ? 'scale-110' : 'scale-100'}`}>
-            {loadingAdvice ? '🧠' : '🧘'}
+      <div className="relative group">
+        <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-200/50 to-emerald-200/50 rounded-[30px] blur opacity-20 group-hover:opacity-40 transition-opacity"></div>
+        <div className="relative bg-white/60 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm overflow-hidden">
+          <div className={`w-11 h-11 rounded-2xl bg-white shadow-sm flex items-center justify-center text-2xl shrink-0 transition-transform duration-1000 ${loadingAdvice ? 'animate-pulse scale-110' : 'scale-100'}`}>
+            {loadingAdvice ? '💎' : '🧘'}
           </div>
-          <div className="flex flex-col">
-            <span className="text-[7px] font-black text-indigo-400 uppercase tracking-[0.3em] mb-1">Conseil Zen de l'IA</span>
-            <p className={`text-[12px] font-bold leading-tight text-slate-600 italic transition-all duration-500 ${loadingAdvice ? 'opacity-40 animate-pulse' : 'opacity-100'}`}>
+          <div className="flex flex-col min-w-0">
+            <span className="text-[7px] font-black text-indigo-400 uppercase tracking-[0.3em] mb-1 leading-none">Intelligence Zen</span>
+            <p className={`text-[12px] font-bold leading-tight text-slate-600 italic transition-all duration-700 ${loadingAdvice ? 'opacity-30 blur-[1px]' : 'opacity-100'}`}>
               "{aiAdvice}"
             </p>
           </div>
           {loadingAdvice && (
-            <div className="absolute bottom-0 left-0 h-0.5 bg-indigo-200 animate-[loading_2s_infinite]" style={{ width: '30%' }}></div>
+            <div className="absolute bottom-0 left-0 h-[2px] w-full bg-indigo-50 overflow-hidden">
+              <div className="h-full bg-indigo-400 animate-[loading_2s_infinite]"></div>
+            </div>
           )}
         </div>
       </div>
 
-      {/* BILAN DES FLUX */}
       <section>
         <h2 className={sectionTitleStyle}><span>🔄</span> Bilan des flux</h2>
         <div className="bg-white p-6 rounded-[36px] border border-slate-100 shadow-sm grid grid-cols-2 gap-6">
@@ -179,7 +182,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </section>
 
-      {/* CHART & CATEGORIES */}
       <section>
         <h2 className={sectionTitleStyle}><span>📊</span> Répartition</h2>
         <div className="bg-white p-6 rounded-[36px] border border-slate-100 shadow-sm space-y-6">
@@ -232,8 +234,8 @@ const Dashboard: React.FC<DashboardProps> = ({
       
       <style>{`
         @keyframes loading {
-          0% { left: -30%; }
-          100% { left: 100%; }
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(300%); }
         }
       `}</style>
     </div>

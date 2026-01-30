@@ -146,35 +146,22 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
               </div>
             </div>
 
-            {/* Transactions du jour sélectionné sous le calendrier */}
-            <div className="space-y-2 animate-in slide-in-from-bottom duration-300">
-              <div className="flex items-center justify-between px-2 mt-4">
+            {/* DETAIL DU JOUR - DYNAMIQUE */}
+            <div className="animate-in slide-in-from-bottom duration-300">
+              <div className="flex items-center justify-between px-2 mb-2">
                 <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
-                  {selectedDay ? `Opérations du ${selectedDay} ${MONTHS_FR[month]}` : "Sélectionnez un jour"}
+                  {selectedDay ? `${selectedDay} ${MONTHS_FR[month]}` : "Jour sélectionné"}
                 </h3>
-                {selectedDayTransactions.length > 0 && (
-                  <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest">{selectedDayTransactions.length} opération(s)</span>
-                )}
               </div>
-              
-              <div className="bg-white rounded-[24px] shadow-lg border border-slate-50 overflow-hidden divide-y divide-slate-50 min-h-[60px]">
+              <div className="bg-white rounded-[24px] shadow-sm border border-slate-50 overflow-hidden divide-y divide-slate-50">
                 {selectedDayTransactions.length > 0 ? (
                   selectedDayTransactions.map((t, idx) => (
-                    <TransactionItem 
-                      key={t.id} 
-                      t={t} 
-                      category={categories.find(c => c.id === t.categoryId)} 
-                      isLast={idx === selectedDayTransactions.length - 1} 
-                      isOpen={openItemId === t.id} 
-                      onToggle={() => setOpenItemId(openItemId === t.id ? null : t.id)} 
-                      onDelete={onDelete} 
-                      onEdit={onEdit} 
-                    />
+                    <TransactionItem key={t.id} t={t} category={categories.find(c => c.id === t.categoryId)} isLast={idx === selectedDayTransactions.length - 1} isOpen={openItemId === t.id} onToggle={() => setOpenItemId(openItemId === t.id ? null : t.id)} onDelete={onDelete} onEdit={onEdit} />
                   ))
                 ) : (
-                  <div className="py-8 text-center px-4">
-                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic leading-relaxed">
-                      {selectedDay ? "Aucune opération ce jour là. Profitez de ce moment zen." : "Touchez un jour pour voir les détails"}
+                  <div className="py-6 text-center px-4">
+                    <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">
+                      {selectedDay ? "Horizon dégagé, aucune opération." : "Touchez un jour pour voir les détails"}
                     </p>
                   </div>
                 )}
@@ -185,16 +172,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
           <div className="bg-white rounded-[24px] shadow-lg border border-slate-50 overflow-hidden divide-y divide-slate-50 animate-in fade-in duration-500">
             {transactions.length > 0 ? (
               transactions.map((t, idx) => (
-                <TransactionItem 
-                  key={t.id} 
-                  t={t} 
-                  category={categories.find(c => c.id === t.categoryId)} 
-                  isLast={idx === transactions.length - 1} 
-                  isOpen={openItemId === t.id} 
-                  onToggle={() => setOpenItemId(openItemId === t.id ? null : t.id)} 
-                  onDelete={onDelete} 
-                  onEdit={onEdit} 
-                />
+                <TransactionItem key={t.id} t={t} category={categories.find(c => c.id === t.categoryId)} isLast={idx === transactions.length - 1} isOpen={openItemId === t.id} onToggle={() => setOpenItemId(openItemId === t.id ? null : t.id)} onDelete={onDelete} onEdit={onEdit} />
               ))
             ) : (
               <div className="py-20 text-center">
