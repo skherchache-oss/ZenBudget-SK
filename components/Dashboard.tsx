@@ -2,7 +2,8 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { MONTHS_FR } from '../constants';
 import { PieChart, Pie, Cell, ResponsiveContainer, Sector } from 'recharts';
-import { GoogleGenAI } from "@google/genai";
+// CORRECTION : Utilisation du package officiel compatible ESM/Vercel
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface DashboardProps {
   transactions: Transaction[];
@@ -54,24 +55,30 @@ const Dashboard: React.FC<DashboardProps> = ({
       const currentKey = `${month}-${year}-${Math.round(availableBalance / 10)}`;
       if (lastAdviceKey.current === currentKey) return;
       
-      if (!process.env.API_KEY) {
+      // Utilisation de window.process pour éviter les crashs au build
+      const apiKey = (window as any).process?.env?.API_KEY;
+
+      if (!apiKey) {
         setAiAdvice(availableBalance < 100 ? "Prévoyez une marge pour les imprévus." : "Votre disponible est confortable.");
         return;
       }
 
       setLoadingAdvice(true);
       try {
-        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        // CORRECTION : Nouvelle syntaxe GoogleGenerativeAI
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        
         const prompt = `ZenBudget: Disponible ${availableBalance}€, Fixes ${stats.fixed}€, Variables ${stats.variable}€. Donne 1 conseil bienveillant et zen très court (50 car max, français). Pas de chiffres.`;
         
-        const response = await ai.models.generateContent({
-          model: 'gemini-3-flash-preview',
-          contents: prompt
-        });
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        const text = response.text();
         
-        setAiAdvice(response.text?.trim() || "La clarté apporte la sérénité.");
+        setAiAdvice(text.trim() || "La clarté apporte la sérénité.");
         lastAdviceKey.current = currentKey;
       } catch (err) { 
+        console.error("AI Error:", err);
         setAiAdvice("Observez vos flux sans jugement."); 
       } finally { 
         setLoadingAdvice(false); 
@@ -138,7 +145,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* CARTES DE SOLDE */}
       <div className="bg-slate-900 px-6 py-10 rounded-[48px] shadow-2xl relative overflow-hidden flex flex-col justify-center min-h-[140px]">
         <span className="text-indigo-400 text-[10px] font-black uppercase tracking-[0.3em] opacity-80 mb-1">Solde Bancaire Actuel</span>
         <div className="flex items-baseline gap-1.5">
@@ -158,7 +164,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* BILAN DES FLUX */}
       <section className="bg-white p-6 rounded-[40px] border border-slate-100 shadow-sm space-y-4">
         <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-widest flex items-center gap-2"><span>🔄</span> Bilan des flux</h3>
         <div className="grid grid-cols-2 gap-4">
@@ -173,7 +178,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </section>
 
-      {/* AI ADVICE */}
       <div className="bg-slate-100 p-5 rounded-[28px] flex items-center gap-4 border border-white">
         <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center text-xl shrink-0">🧘</div>
         <p className={`text-[11px] font-medium leading-tight text-slate-600 italic ${loadingAdvice ? 'opacity-30' : 'opacity-100'}`}>
@@ -181,10 +185,8 @@ const Dashboard: React.FC<DashboardProps> = ({
         </p>
       </div>
 
-      {/* GRAPH ET LISTE CATEGORIES */}
       <div className="bg-white p-6 rounded-[40px] border border-slate-100 shadow-sm space-y-6">
         <h3 className="text-[11px] font-black text-slate-900 uppercase tracking-widest text-center">Répartition Catégories</h3>
-        
         <div className="w-full h-[180px] relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -212,7 +214,6 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
-        {/* LISTE DÉTAILLÉE DES CATÉGORIES */}
         <div className="space-y-3 pt-2">
           {categorySummary.map((item, idx) => (
             <div 
