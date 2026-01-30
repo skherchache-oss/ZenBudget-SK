@@ -49,34 +49,34 @@ const TransactionItem: React.FC<{
   };
 
   return (
-    <div className="flex items-center bg-white first:rounded-t-[24px] last:rounded-b-[24px] relative overflow-hidden h-[68px]">
+    <div className="flex items-center bg-white first:rounded-t-[20px] last:rounded-b-[20px] relative overflow-hidden h-[60px]">
       <div className={`absolute inset-y-0 right-0 flex transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] z-20 ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-        <button onClick={(e) => handleAction(e, 'edit')} className="w-20 h-full bg-indigo-600 text-white flex flex-col items-center justify-center gap-1.5 transition-colors active:bg-indigo-700">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-          <span className="text-[8px] font-black uppercase tracking-widest">Éditer</span>
+        <button onClick={(e) => handleAction(e, 'edit')} className="w-20 h-full bg-indigo-600 text-white flex flex-col items-center justify-center gap-1 transition-colors active:bg-indigo-700">
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+          <span className="text-[7px] font-black uppercase tracking-widest">Éditer</span>
         </button>
-        <button onClick={(e) => handleAction(e, 'delete')} className={`w-20 h-full flex flex-col items-center justify-center gap-1.5 transition-all ${isConfirmingDelete ? 'bg-black text-white' : 'bg-red-600 text-white active:bg-red-700'}`}>
-          <span className="text-[8px] font-black uppercase px-2 text-center leading-tight tracking-widest">{isConfirmingDelete ? 'Sûr ?' : 'Supprimer'}</span>
+        <button onClick={(e) => handleAction(e, 'delete')} className={`w-20 h-full flex flex-col items-center justify-center gap-1 transition-all ${isConfirmingDelete ? 'bg-black text-white' : 'bg-red-600 text-white active:bg-red-700'}`}>
+          <span className="text-[7px] font-black uppercase px-2 text-center leading-tight tracking-widest">{isConfirmingDelete ? 'Sûr ?' : 'Supprimer'}</span>
         </button>
       </div>
       <div 
-        className={`relative bg-white flex-1 h-full flex items-center gap-4 px-5 transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] z-10 cursor-pointer ${!isLast ? 'border-b border-slate-50' : ''}`}
+        className={`relative bg-white flex-1 h-full flex items-center gap-3 px-4 transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] z-10 cursor-pointer ${!isLast ? 'border-b border-slate-50' : ''}`}
         style={{ transform: `translateX(${isOpen ? -threshold : 0}px)` }}
         onClick={onToggle}
       >
-        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-xl shrink-0 transition-transform ${isVirtual ? 'bg-amber-50 border border-amber-100' : 'bg-slate-50 border border-slate-100 shadow-sm'}`}>
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-lg shrink-0 transition-transform ${isVirtual ? 'bg-amber-50 border border-amber-100' : 'bg-slate-50 border border-slate-100 shadow-sm'}`}>
           {category?.icon || '❓'}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-[13px] font-black text-slate-800 truncate uppercase tracking-tight">
+            <span className="text-[12px] font-black text-slate-800 truncate uppercase tracking-tight">
               {category?.name}
             </span>
-            {t.isRecurring && <span className="text-amber-500 text-[10px] shrink-0">⚡️</span>}
+            {t.isRecurring && <span className="text-amber-500 text-[9px] shrink-0">⚡️</span>}
           </div>
-          <div className="text-[10px] text-slate-400 font-medium truncate mt-0.5">{t.comment || 'Note vide'}</div>
+          <div className="text-[9px] text-slate-400 font-medium truncate mt-0">{t.comment || 'Note vide'}</div>
         </div>
-        <div className={`text-sm font-black shrink-0 ${t.type === 'INCOME' ? 'text-emerald-600' : 'text-slate-900'} ${isVirtual ? 'opacity-60' : ''}`}>
+        <div className={`text-[13px] font-black shrink-0 ${t.type === 'INCOME' ? 'text-emerald-600' : 'text-slate-900'} ${isVirtual ? 'opacity-60' : ''}`}>
           {t.type === 'INCOME' ? '+' : '-'}{t.amount.toLocaleString('fr-FR', { minimumFractionDigits: 0 })}€
         </div>
       </div>
@@ -148,35 +148,35 @@ const TransactionList: React.FC<TransactionListProps> = ({
 
   return (
     <div 
-      className="space-y-5 pb-24 h-full"
+      className="space-y-3 pb-24 h-full"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      <div className="flex items-center justify-between px-1">
-        <h2 className="text-2xl font-black tracking-tighter text-slate-800">Journal</h2>
-        <div className="bg-slate-900 rounded-2xl px-4 py-2 flex items-center gap-3 shadow-xl ring-4 ring-slate-100">
-           <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">{projectionLabel}</span>
-           <span className={`text-sm font-black ${totalBalance >= 0 ? 'text-indigo-400' : 'text-red-400'}`}>
+      <div className="flex items-center justify-between px-1 mb-1">
+        <h2 className="text-xl font-black tracking-tighter text-slate-800">Journal</h2>
+        <div className="bg-slate-900 rounded-xl px-3 py-1.5 flex items-center gap-2.5 shadow-lg ring-2 ring-slate-100">
+           <span className="text-[7px] font-black uppercase tracking-[0.2em] text-slate-400">{projectionLabel}</span>
+           <span className={`text-[12px] font-black ${totalBalance >= 0 ? 'text-indigo-400' : 'text-red-400'}`}>
             {totalBalance.toLocaleString('fr-FR')}€
            </span>
         </div>
       </div>
 
-      <div className="flex bg-slate-100 p-1.5 rounded-2xl shadow-inner shrink-0">
-        <button onClick={() => setViewMode('CALENDAR')} className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all duration-300 ${viewMode === 'CALENDAR' ? 'bg-white text-slate-900 shadow-md scale-[1.02]' : 'text-slate-400 hover:text-slate-600'}`}>Calendrier</button>
-        <button onClick={() => setViewMode('LIST')} className={`flex-1 py-2 text-[9px] font-black uppercase tracking-widest rounded-xl transition-all duration-300 ${viewMode === 'LIST' ? 'bg-white text-slate-900 shadow-md scale-[1.02]' : 'text-slate-400 hover:text-slate-600'}`}>Liste</button>
+      <div className="flex bg-slate-100 p-1 rounded-xl shadow-inner shrink-0">
+        <button onClick={() => setViewMode('CALENDAR')} className={`flex-1 py-1.5 text-[8px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 ${viewMode === 'CALENDAR' ? 'bg-white text-slate-900 shadow-md scale-[1.01]' : 'text-slate-400 hover:text-slate-600'}`}>Calendrier</button>
+        <button onClick={() => setViewMode('LIST')} className={`flex-1 py-1.5 text-[8px] font-black uppercase tracking-widest rounded-lg transition-all duration-300 ${viewMode === 'LIST' ? 'bg-white text-slate-900 shadow-md scale-[1.01]' : 'text-slate-400 hover:text-slate-600'}`}>Liste</button>
       </div>
 
       <div key={`${month}-${year}`} className={animationClass}>
         {viewMode === 'CALENDAR' ? (
-          <div className="space-y-6">
-            <div className="bg-white/60 backdrop-blur-xl rounded-[40px] p-5 shadow-2xl border border-white">
-              <div className="grid grid-cols-7 mb-4">
+          <div className="space-y-4">
+            <div className="bg-white/60 backdrop-blur-xl rounded-[32px] p-3 shadow-xl border border-white">
+              <div className="grid grid-cols-7 mb-2">
                 {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((d, i) => (
-                  <div key={i} className="text-center text-[8px] font-black uppercase text-slate-300 py-1 tracking-widest">{d}</div>
+                  <div key={i} className="text-center text-[7px] font-black uppercase text-slate-300 py-0.5 tracking-widest">{d}</div>
                 ))}
               </div>
-              <div className="grid grid-cols-7 gap-2">
+              <div className="grid grid-cols-7 gap-1.5">
                 {Array.from({ length: startOffset }).map((_, i) => <div key={`empty-${i}`} />)}
                 {Array.from({ length: daysInMonth }).map((_, i) => {
                   const day = i + 1;
@@ -186,14 +186,14 @@ const TransactionList: React.FC<TransactionListProps> = ({
                   const isToday = isThisMonth && today.getDate() === day;
                   return (
                     <button key={day} onClick={() => onSelectDay(day)}
-                      className={`h-16 rounded-[22px] flex flex-col items-center justify-between py-2.5 transition-all duration-300 border relative ${isSelected ? 'bg-slate-900 border-slate-900 text-white shadow-2xl z-10 scale-110' : (isToday ? 'bg-indigo-50 border-indigo-200 text-indigo-900' : 'bg-white border-slate-50 hover:bg-slate-50 active:scale-95')}`}
+                      className={`h-12 rounded-[16px] flex flex-col items-center justify-between py-1.5 transition-all duration-300 border relative ${isSelected ? 'bg-slate-900 border-slate-900 text-white shadow-2xl z-10 scale-105' : (isToday ? 'bg-indigo-50 border-indigo-200 text-indigo-900' : 'bg-white border-slate-50 hover:bg-slate-50 active:scale-95')}`}
                     >
-                      <span className={`text-[11px] font-black ${isSelected ? 'text-white' : 'text-slate-800'}`}>{day}</span>
-                      <div className="flex flex-col items-center gap-1">
-                        <span className={`text-[7px] font-black tracking-tighter leading-none ${isSelected ? 'text-indigo-300' : (balance >= 0 ? 'text-indigo-600' : 'text-red-500')}`}>{Math.round(balance)}€</span>
+                      <span className={`text-[10px] font-black ${isSelected ? 'text-white' : 'text-slate-800'}`}>{day}</span>
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span className={`text-[6px] font-black tracking-tighter leading-none ${isSelected ? 'text-indigo-300' : (balance >= 0 ? 'text-indigo-600' : 'text-red-500')}`}>{Math.round(balance)}€</span>
                         <div className="flex gap-0.5">
-                          {dayT.some(t => t.type === 'INCOME') && <div className="w-1 h-1 rounded-full bg-emerald-400" />}
-                          {dayT.some(t => t.type === 'EXPENSE') && <div className="w-1 h-1 rounded-full bg-red-400" />}
+                          {dayT.some(t => t.type === 'INCOME') && <div className="w-0.5 h-0.5 rounded-full bg-emerald-400" />}
+                          {dayT.some(t => t.type === 'EXPENSE') && <div className="w-0.5 h-0.5 rounded-full bg-red-400" />}
                         </div>
                       </div>
                     </button>
@@ -202,31 +202,31 @@ const TransactionList: React.FC<TransactionListProps> = ({
               </div>
             </div>
             
-            <div className="space-y-3">
+            <div className="space-y-2">
               <div className="flex items-center justify-between px-2">
-                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Le {selectedDay} {MONTHS_FR[month]}</h3>
+                <h3 className="text-[9px] font-black uppercase tracking-[0.15em] text-slate-400">Opérations du {selectedDay} {MONTHS_FR[month]}</h3>
                 <div className="flex items-center gap-2">
-                  <span className="text-[9px] font-black text-slate-300 uppercase">Solde :</span>
-                  <span className={`text-xs font-black ${dailyBalances[selectedDay || 1] >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>{Math.round(dailyBalances[selectedDay || 1])}€</span>
+                  <span className="text-[8px] font-black text-slate-300 uppercase">Solde :</span>
+                  <span className={`text-[11px] font-black ${dailyBalances[selectedDay || 1] >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>{Math.round(dailyBalances[selectedDay || 1])}€</span>
                 </div>
               </div>
-              <div className="bg-white rounded-[32px] shadow-xl border border-slate-50 overflow-hidden divide-y divide-slate-50">
+              <div className="bg-white rounded-[24px] shadow-lg border border-slate-50 overflow-hidden divide-y divide-slate-50">
                 {dayTransactions.length > 0 ? dayTransactions.map((t, idx) => (
                   <TransactionItem key={t.id} t={t} category={categories.find(c => c.id === t.categoryId)} isLast={idx === dayTransactions.length - 1} isOpen={openItemId === t.id} onToggle={() => setOpenItemId(openItemId === t.id ? null : t.id)} onDelete={onDelete} onEdit={onEdit} />
-                )) : <div className="py-10 text-center opacity-40 italic text-[10px] font-black uppercase tracking-widest">Aucune opération</div>}
+                )) : <div className="py-8 text-center opacity-40 italic text-[9px] font-black uppercase tracking-widest">Aucune opération</div>}
               </div>
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
-             <div className="bg-indigo-600 p-5 rounded-[32px] text-white shadow-xl flex justify-between items-center relative overflow-hidden">
-               <div><span className="text-[9px] font-black uppercase tracking-widest text-indigo-200 block mb-1">Report précédent</span><div className="text-2xl font-black tracking-tight">{carryOver.toLocaleString('fr-FR')}€</div></div>
-               <div className="text-right"><span className="text-[9px] font-black uppercase tracking-widest text-indigo-200 block mb-1">Mouvements {MONTHS_FR[month]}</span><div className="text-lg font-bold">{(totalBalance - carryOver).toLocaleString('fr-FR')}€</div></div>
+          <div className="space-y-3">
+             <div className="bg-indigo-600 p-4 rounded-[24px] text-white shadow-xl flex justify-between items-center relative overflow-hidden">
+               <div><span className="text-[8px] font-black uppercase tracking-widest text-indigo-200 block mb-0.5">Report précédent</span><div className="text-xl font-black tracking-tight">{carryOver.toLocaleString('fr-FR')}€</div></div>
+               <div className="text-right"><span className="text-[8px] font-black uppercase tracking-widest text-indigo-200 block mb-0.5">Mouvements {MONTHS_FR[month]}</span><div className="text-md font-bold">{(totalBalance - carryOver).toLocaleString('fr-FR')}€</div></div>
              </div>
-             <div className="bg-white rounded-[32px] shadow-xl border border-slate-50 overflow-hidden divide-y divide-slate-50">
+             <div className="bg-white rounded-[24px] shadow-lg border border-slate-50 overflow-hidden divide-y divide-slate-50">
               {filteredTransactions.length > 0 ? filteredTransactions.map((t, idx) => (
                 <TransactionItem key={t.id} t={t} category={categories.find(c => c.id === t.categoryId)} isLast={idx === filteredTransactions.length - 1} isOpen={openItemId === t.id} onToggle={() => setOpenItemId(openItemId === t.id ? null : t.id)} onDelete={onDelete} onEdit={onEdit} />
-              )) : <div className="p-16 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest italic">Aucune opération</div>}
+              )) : <div className="p-12 text-center text-[9px] font-black text-slate-300 uppercase tracking-widest italic">Aucune opération</div>}
             </div>
           </div>
         )}

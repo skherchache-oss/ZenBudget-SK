@@ -18,7 +18,7 @@ interface DashboardProps {
   checkingAccountBalance: number;
   availableBalance: number;
   projectedBalance: number;
-  carryOver: number; // Ajout du solde au début du mois
+  carryOver: number;
 }
 
 const renderActiveShape = (props: any) => {
@@ -34,12 +34,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   transactions, categories, activeAccount, allAccounts, onSwitchAccount, month, year, checkingAccountBalance, availableBalance, projectedBalance, carryOver 
 }) => {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const [aiAdvice, setAiAdvice] = useState<string>("Analyse zen...");
+  const [aiAdvice, setAiAdvice] = useState<string>("Analyse en cours...");
   const [loadingAdvice, setLoadingAdvice] = useState(false);
   const [showAccountMenu, setShowAccountMenu] = useState(false);
-
-  const cycleDay = activeAccount?.cycleEndDay || 0;
-  const projectionLabel = cycleDay > 0 ? `Solde au ${cycleDay}` : `Fin de mois (${MONTHS_FR[month]})`;
 
   const stats = useMemo(() => {
     let income = 0, expenses = 0, fixed = 0;
@@ -50,29 +47,32 @@ const Dashboard: React.FC<DashboardProps> = ({
         if (t.isRecurring) fixed += t.amount;
       }
     });
-    return { income, expenses, fixed, variable: expenses - fixed, net: income - expenses };
+    return { 
+      income, 
+      expenses, 
+      fixed, 
+      variable: expenses - fixed, 
+      net: income - expenses 
+    };
   }, [transactions]);
 
   useEffect(() => {
     const fetchAiAdvice = async () => {
       if (!process.env.API_KEY) {
-        setAiAdvice(projectedBalance < 0 ? "Attention au solde projeté fin de cycle." : "Gestion sereine ce mois-ci.");
+        setAiAdvice(availableBalance < 100 ? "Prévoyez une marge pour les imprévus." : "Votre disponible est confortable, savourez l'instant.");
         return;
       }
       setLoadingAdvice(true);
       try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-        const prompt = `ZenBudget: Compte courant ${checkingAccountBalance}€, Fin de mois ${projectedBalance}€, Disponible ${availableBalance}€. Fixes ${stats.fixed}€. Donne 1 conseil zen très court (50 car max, français).`;
-        const response = await ai.models.generateContent({ 
-          model: 'gemini-3-flash-preview', 
-          contents: prompt 
-        });
-        setAiAdvice(response.text || "La discipline offre la liberté.");
+        const prompt = `ZenBudget: Bancaire ${checkingAccountBalance}€, Disponible ${availableBalance}€, Fixes ${stats.fixed}€, Variables ${stats.variable}€. Donne 1 conseil bienveillant et zen très court (50 car max, français).`;
+        const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
+        setAiAdvice(response.text || "La clarté apporte la sérénité.");
       } catch (err) { setAiAdvice("Observez vos flux sans jugement."); }
       finally { setLoadingAdvice(false); }
     };
     fetchAiAdvice();
-  }, [projectedBalance, checkingAccountBalance, availableBalance, stats]);
+  }, [availableBalance, checkingAccountBalance, stats]);
 
   const categorySummary = useMemo(() => {
     const map: Record<string, number> = {};
@@ -89,174 +89,162 @@ const Dashboard: React.FC<DashboardProps> = ({
   const handleExportCSV = () => {
     const s = ";"; 
     const f = (n: number) => n.toFixed(2).replace('.', ','); 
-    
     const rows = [];
-    
-    // 1. Branding & Période
     rows.push(["ZENBUDGET - EXPORT CSV"]);
     rows.push([`Compte: ${activeAccount.name}${s}Periode: ${MONTHS_FR[month]} ${year}`]);
     rows.push([]);
-
-    // 2. Section: Tableau de bord
     rows.push(["SECTION: SYNTHESE DES SOLDES"]);
-    rows.push([`Report du mois precedent${s}${f(carryOver)} €`]);
-    rows.push([`Compte Courant (Aujourd'hui)${s}${f(checkingAccountBalance)} €`]);
+    rows.push([`Report mois precedent${s}${f(carryOver)} €`]);
+    rows.push([`Solde Bancaire (Actuel)${s}${f(checkingAccountBalance)} €`]);
     rows.push([`Disponible Reel (Apres charges)${s}${f(availableBalance)} €`]);
-    rows.push([`Projection de Solde Final${s}${f(projectedBalance)} €`]);
+    rows.push([`Projection Fin de Mois${s}${f(projectedBalance)} €`]);
     rows.push([]);
-
-    // 3. Section: Analyse des Flux
-    rows.push(["SECTION: FLUX DU MOIS"]);
-    rows.push([`Total Revenus (+)${s}${f(stats.income)} €`]);
-    rows.push([`Total Depenses (-)${s}${f(stats.expenses)} €`]);
-    rows.push([`Capacite d'Epargne Nette${s}${f(stats.net)} €`]);
+    rows.push(["SECTION: ANALYSE DES CHARGES"]);
+    rows.push([`Charges Fixes (Abonnements...)${s}${f(stats.fixed)} €`]);
+    rows.push([`Depenses Variables (Courses...)${s}${f(stats.variable)} €`]);
     rows.push([]);
-
-    // 4. Section: Repartition par Categorie
-    rows.push(["SECTION: ANALYSE PAR CATEGORIE"]);
-    rows.push([`CATEGORIE${s}MONTANT${s}PART (%)`]);
-    categorySummary.forEach(cat => {
-      rows.push([`${cat.name}${s}${f(cat.value)} €${s}${Math.round(cat.percent)}%`]);
-    });
-    rows.push([]);
-
-    // 5. Section: Journal Detaille avec Solde Progressif
-    rows.push(["SECTION: JOURNAL DES OPERATIONS (RELEVE)"]);
-    rows.push([`DATE${s}CATEGORIE${s}TYPE${s}MONTANT${s}SOLDE CUMULE${s}FIXE${s}NOTES ET DETAILS`]);
+    rows.push(["SECTION: JOURNAL DES OPERATIONS"]);
+    rows.push([`DATE${s}CATEGORIE${s}TYPE${s}MONTANT${s}SOLDE CUMULE${s}FIXE${s}NOTES`]);
     
-    // Tri chronologique pour le calcul du solde
     const sorted = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    let runningBalance = carryOver;
-
+    let running = carryOver;
     sorted.forEach(t => {
       const catName = categories.find(c => c.id === t.categoryId)?.name || 'Inconnue';
-      const date = new Date(t.date).toLocaleDateString('fr-FR');
-      const amountChange = t.type === 'INCOME' ? t.amount : -t.amount;
-      runningBalance += amountChange;
-      
-      const amountStr = (t.type === 'INCOME' ? '+' : '-') + f(t.amount);
-      const isFixed = t.isRecurring ? 'OUI' : 'NON';
-      // Nettoyage de la note pour ne pas casser le CSV (pas de point-virgule ou guillemets)
-      const note = (t.comment || '-').replace(/;/g, ',').replace(/"/g, "'"); 
-      
-      rows.push([`${date}${s}${catName}${s}${t.type}${s}${amountStr} €${s}${f(runningBalance)} €${s}${isFixed}${s}"${note}"`]);
+      const amt = t.type === 'INCOME' ? t.amount : -t.amount;
+      running += amt;
+      const note = (t.comment || '').replace(/;/g, ',').replace(/"/g, "'");
+      rows.push([`${new Date(t.date).toLocaleDateString('fr-FR')}${s}${catName}${s}${t.type}${s}${f(t.amount)} €${s}${f(running)} €${s}${t.isRecurring?'OUI':'NON'}${s}"${note}"`]);
     });
-
-    rows.push([]);
-    rows.push([`Rapport genere par ZenBudget le ${new Date().toLocaleString('fr-FR')}.`]);
-
-    const csvContent = "\uFEFF" + rows.map(r => r.join('')).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
     
-    const fileName = `ZenBudget_Export_${activeAccount.name}_${MONTHS_FR[month]}_${year}.csv`.replace(/\s+/g, '_');
+    const blob = new Blob(["\uFEFF" + rows.map(r => r.join('')).join("\n")], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", fileName);
-    document.body.appendChild(link);
+    link.href = url;
+    link.download = `ZenBudget_${activeAccount.name}_${MONTHS_FR[month]}.csv`;
     link.click();
-    document.body.removeChild(link);
   };
 
   const hoveredCategory = activeIndex !== null ? categorySummary[activeIndex] : null;
 
   return (
-    <div className="flex flex-col h-full space-y-6 overflow-y-auto no-scrollbar pb-24 px-1 animate-in fade-in slide-in-from-bottom-4 duration-700">
+    <div className="flex flex-col h-full space-y-7 overflow-y-auto no-scrollbar pb-24 px-1 animate-in fade-in duration-700">
       
-      {/* Account Switcher & Actions */}
-      <div className="flex items-center justify-between shrink-0">
-        <div className="relative">
-          <button onClick={() => setShowAccountMenu(!showAccountMenu)} className="flex items-center gap-2.5 bg-white px-4 py-2 rounded-2xl border border-slate-100 shadow-sm active:scale-95 transition-all">
-            <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: activeAccount.color }} />
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-800">{activeAccount.name}</span>
-            <svg className={`w-3 h-3 text-slate-400 transition-transform ${showAccountMenu ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M19 9l-7 7-7-7" /></svg>
+      {/* 1. Header Zen & Actions */}
+      <div className="flex items-center justify-between pt-2">
+        <div>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tighter">Bienvenue ✨</h2>
+          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Votre horizon financier</p>
+        </div>
+        <div className="flex gap-2">
+          <button 
+            onClick={handleExportCSV} 
+            title="Export CSV"
+            className="p-3 bg-white rounded-2xl border border-slate-100 shadow-sm text-slate-400 active:scale-90 transition-all hover:text-indigo-600"
+          >
+            <IconExport className="w-4 h-4" />
           </button>
-          {showAccountMenu && (
-            <div className="absolute top-12 left-0 w-48 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-[70] animate-in zoom-in-95 duration-200">
-              {allAccounts.map(acc => (
-                <button key={acc.id} onClick={() => { onSwitchAccount(acc.id); setShowAccountMenu(false); }} className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-slate-50 text-[10px] font-black uppercase tracking-widest text-slate-600">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: acc.color }} /> {acc.name}
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="relative">
+            <button onClick={() => setShowAccountMenu(!showAccountMenu)} className="flex items-center gap-2 bg-white px-4 py-3 rounded-2xl border border-slate-100 shadow-sm active:scale-95 transition-all">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: activeAccount.color }} />
+              <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">{activeAccount.name}</span>
+            </button>
+            {showAccountMenu && (
+              <div className="absolute top-14 right-0 w-48 bg-white rounded-[24px] shadow-2xl border border-slate-100 py-2 z-[70] animate-in zoom-in-95 duration-200">
+                {allAccounts.map(acc => (
+                  <button key={acc.id} onClick={() => { onSwitchAccount(acc.id); setShowAccountMenu(false); }} className="w-full flex items-center gap-3 px-5 py-3 hover:bg-slate-50 text-[10px] font-black uppercase text-slate-600">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: acc.color }} /> {acc.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-
-        <button 
-          onClick={handleExportCSV}
-          title="Exporter les données au format CSV"
-          className="flex items-center gap-2 bg-indigo-600 px-4 py-2 rounded-2xl shadow-lg shadow-indigo-100 active:scale-95 transition-all text-white hover:bg-indigo-700"
-        >
-          <IconExport className="w-3.5 h-3.5" />
-          <span className="text-[9px] font-black uppercase tracking-widest">Export CSV</span>
-        </button>
       </div>
 
-      {/* 1. LES CHIFFRES CLÉS */}
-      <div className="grid grid-cols-1 gap-4 shrink-0">
-        <div className="bg-slate-900 p-7 rounded-[40px] shadow-2xl relative overflow-hidden ring-1 ring-white/10">
-          <div className="relative z-10">
-            <span className="text-indigo-400 text-[10px] font-black uppercase tracking-[0.2em] block mb-1">Compte courant</span>
+      {/* 2. Solde Bancaire Card (Le Référentiel) */}
+      <div className="bg-slate-900 p-8 rounded-[48px] shadow-2xl relative overflow-hidden ring-1 ring-white/10 group">
+        <div className="relative z-10 flex justify-between items-start">
+          <div>
+            <span className="text-indigo-400 text-[10px] font-black uppercase tracking-[0.3em] block mb-2 opacity-80">Solde Bancaire</span>
             <div className="flex items-baseline gap-2">
-              <span className="text-5xl font-black tracking-tighter text-white leading-none">{Math.round(checkingAccountBalance).toLocaleString('fr-FR')}</span>
-              <span className="text-2xl font-black text-slate-600">€</span>
+              <span className="text-5xl font-black tracking-tighter text-white leading-none">
+                {Math.round(checkingAccountBalance).toLocaleString('fr-FR')}
+              </span>
+              <span className="text-2xl font-black text-slate-500">€</span>
             </div>
           </div>
-          <div className="absolute -right-6 -top-6 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="bg-white/10 px-3 py-1 rounded-full backdrop-blur-md">
+            <span className="text-[8px] font-black text-white/60 uppercase tracking-widest">Temps réel</span>
+          </div>
+        </div>
+        <div className="absolute -right-10 -top-10 w-48 h-48 bg-indigo-500/20 rounded-full blur-[60px] pointer-events-none group-hover:bg-indigo-500/30 transition-colors" />
+      </div>
+
+      {/* 3. Disponible Réel & Fin de mois (L'Action) */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-indigo-600 p-6 rounded-[36px] shadow-xl shadow-indigo-100 flex flex-col gap-3 relative overflow-hidden">
+          <span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest block relative z-10">Disponible Réel</span>
+          <div className="relative z-10">
+            <div className="text-2xl font-black text-white leading-none mb-1">{Math.round(availableBalance).toLocaleString('fr-FR')}€</div>
+            <p className="text-[7px] font-black text-indigo-200 uppercase tracking-tighter opacity-70">Après charges fixes</p>
+          </div>
+          <div className="absolute -right-4 -bottom-4 w-16 h-16 bg-white/10 rounded-full blur-xl" />
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm flex flex-col justify-between">
-            <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block mb-2">Disponible réel</span>
-            <div className="flex items-baseline gap-1">
-              <span className={`text-2xl font-black leading-none ${availableBalance >= 0 ? 'text-indigo-600' : 'text-red-500'}`}>{Math.round(availableBalance).toLocaleString('fr-FR')}</span>
-              <span className="text-xs font-black text-slate-300">€</span>
-            </div>
-          </div>
-          <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-sm flex flex-col justify-between">
-            <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block mb-2">{projectionLabel}</span>
-            <div className="flex items-baseline gap-1">
-              <span className={`text-2xl font-black leading-none ${projectedBalance >= 0 ? 'text-slate-900' : 'text-red-500'}`}>{Math.round(projectedBalance).toLocaleString('fr-FR')}</span>
-              <span className="text-xs font-black text-slate-300">€</span>
-            </div>
+        <div className="bg-white p-6 rounded-[36px] border border-slate-100 shadow-sm flex flex-col gap-3">
+          <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block">Fin de mois</span>
+          <div>
+            <div className={`text-2xl font-black leading-none mb-1 ${projectedBalance >= 0 ? 'text-slate-900' : 'text-red-500'}`}>{Math.round(projectedBalance).toLocaleString('fr-FR')}€</div>
+            <p className="text-[7px] font-black text-slate-400 uppercase tracking-tighter">Projection finale</p>
           </div>
         </div>
       </div>
 
-      {/* 2. BLOCS FLUX */}
-      <div className="grid grid-cols-2 gap-4 shrink-0">
-        <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm">
-          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Entrées</span>
-          <div className="text-lg font-black text-emerald-600">+{stats.income.toLocaleString('fr-FR')}€</div>
+      {/* 4. Répartition Fixes vs Variables */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-white p-6 rounded-[36px] border border-slate-50 shadow-sm flex items-center gap-4">
+          <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center text-xl shrink-0">⚡️</div>
+          <div className="min-w-0">
+            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Fixes</span>
+            <div className="text-sm font-black text-slate-800 truncate">{Math.round(stats.fixed).toLocaleString('fr-FR')}€</div>
+          </div>
         </div>
-        <div className="bg-white p-5 rounded-[28px] border border-slate-100 shadow-sm text-right">
-          <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block mb-1">Sorties</span>
-          <div className="text-lg font-black text-slate-900">-{stats.expenses.toLocaleString('fr-FR')}€</div>
+        <div className="bg-white p-6 rounded-[36px] border border-slate-50 shadow-sm flex items-center gap-4">
+          <div className="w-10 h-10 rounded-2xl bg-indigo-50 flex items-center justify-center text-xl shrink-0">🌊</div>
+          <div className="min-w-0">
+            <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest block">Variables</span>
+            <div className="text-sm font-black text-slate-800 truncate">{Math.round(stats.variable).toLocaleString('fr-FR')}€</div>
+          </div>
         </div>
       </div>
 
-      {/* 3. CONSEIL AI */}
-      <div className="bg-indigo-600 text-white p-6 rounded-[32px] shadow-xl relative overflow-hidden flex flex-col justify-center min-h-[90px]">
-        <div className="flex items-center gap-2 mb-2">
-          <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-          <h4 className="font-black text-[9px] uppercase tracking-[0.3em] text-indigo-200">Conseil Zen</h4>
+      {/* 5. Conseil AI Banner */}
+      <div className="bg-slate-100 p-6 rounded-[40px] flex items-center gap-5 border border-white">
+        <div className="w-12 h-12 rounded-2xl bg-white shadow-sm flex items-center justify-center text-2xl shrink-0 animate-pulse">🧘</div>
+        <div className="flex-1 min-w-0">
+          <p className={`text-[12px] font-medium leading-tight text-slate-600 italic transition-opacity duration-700 ${loadingAdvice ? 'opacity-30' : 'opacity-100'}`}>
+            "{aiAdvice}"
+          </p>
         </div>
-        <p className={`text-[13px] font-medium italic text-indigo-50 leading-tight transition-opacity ${loadingAdvice ? 'opacity-30' : 'opacity-100'}`}>"{aiAdvice}"</p>
       </div>
 
-      {/* 4. GRAPHIQUE & RÉPARTITION */}
-      <div className="bg-white p-6 rounded-[40px] border border-slate-100 shadow-sm shrink-0 space-y-6">
-        <div className="w-full h-[200px] relative">
+      {/* 6. Graphique & Catégories */}
+      <div className="bg-white p-8 rounded-[48px] border border-slate-100 shadow-sm space-y-6">
+        <div className="flex items-center justify-between px-1">
+          <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Postes de dépenses</h3>
+          <span className="text-[9px] font-black text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-xl">Analyses</span>
+        </div>
+        
+        <div className="w-full h-[180px] relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              {/* Fix: use any spread to avoid TypeScript error with Pie props from Recharts */}
               <Pie 
                 {...({
                   activeIndex: activeIndex === null ? undefined : activeIndex, 
                   activeShape: renderActiveShape, 
                   data: categorySummary, 
                   cx: "50%", cy: "50%", 
-                  innerRadius: 65, outerRadius: 80, 
+                  innerRadius: 60, outerRadius: 75, 
                   paddingAngle: 5, dataKey: "value", 
                   stroke: "none", 
                   onMouseEnter: (_: any, idx: number) => setActiveIndex(idx), 
@@ -270,49 +258,41 @@ const Dashboard: React.FC<DashboardProps> = ({
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
             {hoveredCategory ? (
               <div className="text-center animate-in zoom-in duration-300">
-                <span className="text-4xl leading-none">{hoveredCategory.icon}</span>
-                <div className="text-[11px] font-black text-slate-900 mt-1 uppercase tracking-tighter">{Math.round(hoveredCategory.percent)}%</div>
+                <span className="text-3xl">{hoveredCategory.icon}</span>
+                <div className="text-[10px] font-black text-slate-900 uppercase mt-1">{Math.round(hoveredCategory.percent)}%</div>
               </div>
             ) : (
               <div className="text-center">
-                <span className="text-[9px] font-black text-slate-300 uppercase block tracking-widest">Dépenses</span>
+                <span className="text-[9px] font-black text-slate-300 uppercase block tracking-tighter">Sorties</span>
                 <span className="text-lg font-black text-slate-900">{Math.round(stats.expenses).toLocaleString('fr-FR')}€</span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Liste détaillée */}
         <div className="space-y-3 pt-4 border-t border-slate-50">
-          <h3 className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 mb-4 px-1">Répartition des denses</h3>
           {categorySummary.length > 0 ? categorySummary.map((cat, idx) => (
             <div 
               key={cat.id} 
-              className={`flex items-center gap-4 p-3 rounded-2xl transition-all ${activeIndex === idx ? 'bg-slate-50 scale-[1.02]' : 'hover:bg-slate-50/50'}`}
+              className={`flex items-center gap-4 p-4 rounded-[28px] transition-all ${activeIndex === idx ? 'bg-slate-50 scale-[1.02]' : 'hover:bg-slate-50/50'}`}
               onMouseEnter={() => setActiveIndex(idx)}
               onMouseLeave={() => setActiveIndex(null)}
             >
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0" style={{ backgroundColor: `${cat.color}15`, color: cat.color }}>
+              <div className="w-11 h-11 rounded-2xl flex items-center justify-center text-xl shrink-0" style={{ backgroundColor: `${cat.color}15`, color: cat.color }}>
                 {cat.icon}
               </div>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] font-black text-slate-800 uppercase tracking-tight truncate">{cat.name}</span>
-                  <span className="text-[11px] font-black text-slate-900">{Math.round(cat.value).toLocaleString('fr-FR')}€</span>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[12px] font-black text-slate-700 uppercase tracking-tight truncate">{cat.name}</span>
+                  <span className="text-[12px] font-black text-slate-900">{Math.round(cat.value).toLocaleString('fr-FR')}€</span>
                 </div>
-                <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full rounded-full transition-all duration-1000" 
-                    style={{ width: `${cat.percent}%`, backgroundColor: cat.color }}
-                  />
+                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${cat.percent}%`, backgroundColor: cat.color }} />
                 </div>
-              </div>
-              <div className="text-[9px] font-black text-slate-300 w-8 text-right">
-                {Math.round(cat.percent)}%
               </div>
             </div>
           )) : (
-            <div className="py-8 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest italic">Aucune dépense enregistrée</div>
+            <div className="py-10 text-center text-[10px] font-black text-slate-300 uppercase tracking-widest italic">Aucune dépense ce mois-ci</div>
           )}
         </div>
       </div>

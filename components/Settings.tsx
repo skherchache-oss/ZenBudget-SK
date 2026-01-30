@@ -77,7 +77,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
   const handleFeedback = () => {
     const subject = encodeURIComponent("Feedback ZenBudget-SK");
     const body = encodeURIComponent(
-      `Bonjour !\n\nVoici mon retour sur l'application ZenBudget :\n\n[Écrivez votre message ici]\n\n---\nInfos techniques :\nDate: ${new Date().toLocaleDateString()}\nVersion: 3.8`
+      `Bonjour !\n\nVoici mon retour sur l'application ZenBudget :\n\n[Écrivez votre message ici]\n\n---\nInfos techniques :\nDate: ${new Date().toLocaleDateString()}\nVersion: 3.9`
     );
     window.location.href = `mailto:s.kherchache@gmail.com?subject=${subject}&body=${body}`;
   };
@@ -132,14 +132,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
                   <div className="w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center text-[10px] shadow-sm shrink-0 mt-0.5 font-black text-white">2</div>
                   <div>
                     <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-800 mb-1">Charges Fixes</h4>
-                    <p className="text-[11px] text-slate-500 leading-relaxed">Automatisez vos abonnements, loyers et prélèvements. Ils sont projetés chaque mois sans action de votre part.</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-4">
-                  <div className="w-6 h-6 rounded-full bg-slate-900 flex items-center justify-center text-[10px] shadow-sm shrink-0 mt-0.5 font-black text-white">3</div>
-                  <div>
-                    <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-800 mb-1">Stats & Zen</h4>
-                    <p className="text-[11px] text-slate-500 leading-relaxed">Obtenez une analyse immédiate de vos dépenses par catégorie et recevez des conseils pour garder l'équilibre.</p>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">Automatisez vos abonnements et loyers. Ils sont projetés chaque mois pour anticiper vos dépenses.</p>
                   </div>
                 </div>
               </div>
@@ -151,19 +144,19 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
               </h3>
               <div className="grid gap-3">
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Compte courant</span>
-                  <p className="text-[11px] text-slate-600 leading-relaxed font-medium italic">"Combien j'ai en banque aujourd'hui ?"</p>
-                  <p className="text-[10px] text-slate-400 mt-1">C'est la somme de vos transactions passées uniquement.</p>
+                  <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Solde Bancaire</span>
+                  <p className="text-[11px] text-slate-600 leading-relaxed font-medium italic">"Ce que j'ai en banque aujourd'hui"</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Somme de toutes vos opérations déjà passées. C'est votre photo à l'instant T.</p>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Disponible réel</span>
-                  <p className="text-[11px] text-slate-600 leading-relaxed font-medium italic">"Combien je peux dépenser SANS me mettre dans le rouge ?"</p>
-                  <p className="text-[10px] text-slate-400 mt-1">C'est votre compte courant moins TOUTES les charges fixes qui n'ont pas encore été prélevées d'ici votre prochain salaire.</p>
+                  <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Disponible Réel</span>
+                  <p className="text-[11px] text-slate-600 leading-relaxed font-medium italic">"Ce que je peux vraiment dépenser"</p>
+                  <p className="text-[10px] text-slate-400 mt-1">C'est votre Solde Bancaire moins les charges fixes (loyer, netflix...) qui ne sont pas encore tombées. Le chiffre le plus fiable.</p>
                 </div>
                 <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Fin de mois</span>
-                  <p className="text-[11px] text-slate-600 leading-relaxed font-medium italic">"Quel sera mon solde final ?"</p>
-                  <p className="text-[10px] text-slate-400 mt-1">Projection totale incluant TOUTES les transactions prévues sur l'ensemble du mois en cours.</p>
+                  <span className="text-[9px] font-black text-indigo-600 uppercase tracking-widest block mb-1">Fin de Mois</span>
+                  <p className="text-[11px] text-slate-600 leading-relaxed font-medium italic">"Mon solde final prévu"</p>
+                  <p className="text-[10px] text-slate-400 mt-1">Projection incluant tout ce qui est prévu jusqu'à votre prochain cycle de salaire.</p>
                 </div>
               </div>
             </div>
@@ -315,7 +308,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
       </section>
 
       <div className="pt-8 border-t border-gray-100">
-        <p className="text-center text-[8px] text-gray-300 font-black uppercase tracking-[0.3em]">Version 3.8 • Données Privées • Local First</p>
+        <p className="text-center text-[8px] text-gray-300 font-black uppercase tracking-[0.3em]">Version 3.9 • Données Privées • Local First</p>
       </div>
     </div>
   );
