@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+// 1. Correction de l'import : Utilisation du SDK officiel
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface DashboardProps {
@@ -38,29 +39,39 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, [transactions]);
 
   const fetchAiAdvice = async () => {
-    // Vite utilise import.meta.env pour les variables préfixées par VITE_
+    // 2. Correction de la clé API : Vite utilise import.meta.env pour le client
     const apiKey = (import.meta as any).env.VITE_GEMINI_API_KEY || "";
     
     if (!apiKey) {
-      setAiAdvice("ZenTip : Pensez à isoler vos charges fixes dès le début.");
+      setAiAdvice("ZenTip : Pensez à isoler vos charges fixes dès le début du cycle.");
       return;
     }
 
     setLoadingAdvice(true);
     try {
+      // 3. Initialisation correcte du SDK
       const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       
-      const prompt = `Expert Finance Zen. Contexte :
-        - Solde disponible actuel : ${availableBalance}€
-        - Dépenses totales : ${stats.expenses}€
+      const prompt = `Tu es un expert en finance personnelle pour l'app ZenBudget.
+        Contexte actuel :
+        - Solde disponible (incluant charges fixes à venir) : ${availableBalance}€
+        - Dépenses totales du mois : ${stats.expenses}€
         - Revenus prévus : ${stats.income}€
-        Mission : Conseil financier pragmatique (max 60 car). Style direct et rassurant. Français uniquement.`;
+        
+        MISSION :
+        Donne un conseil financier PRAGMATIQUE et COURT (max 60 car).
+        Focus : Épargne, charges ou gestion de trésorerie.
+        Style : Professionnel, direct, bienveillant.
+        Français uniquement.`;
 
       const result = await model.generateContent(prompt);
-      const text = result.response.text().trim().replace(/^["']|["']$/g, '');
-      if (text) setAiAdvice(text);
+      const response = await result.response;
+      const text = response.text().trim().replace(/^["']|["']$/g, '');
+      
+      if (text && text.length > 5) setAiAdvice(text);
     } catch (err) { 
+      console.error("Erreur Gemini:", err);
       setAiAdvice("ZenTip : Gardez un œil sur vos dépenses variables."); 
     } finally { 
       setLoadingAdvice(false); 
@@ -125,7 +136,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 rounded-2xl shadow-xl active:scale-95 transition-all text-white border border-slate-800"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-          <span className="text-[10px] font-black uppercase tracking-widest">CSV</span>
+          <span className="text-[10px] font-black uppercase tracking-widest whitespace-nowrap">Exporter CSV</span>
         </button>
       </div>
 
@@ -143,11 +154,11 @@ const Dashboard: React.FC<DashboardProps> = ({
 
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-indigo-600 p-5 rounded-[32px] shadow-lg flex flex-col gap-1 border border-indigo-500/20">
-          <span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest">Dispo. (fixes inclus)</span>
+          <span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest leading-none mb-1">Dispo. réel (fixes inclus)</span>
           <div className="text-2xl font-black text-white">{formatVal(availableBalance)}€</div>
         </div>
         <div className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm flex flex-col gap-1">
-          <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest">Projection Fin</span>
+          <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest leading-none mb-1">Projection fin de mois</span>
           <div className={`text-2xl font-black ${projectedBalance >= 0 ? 'text-slate-900' : 'text-red-500'}`}>{formatVal(projectedBalance)}€</div>
         </div>
       </div>
