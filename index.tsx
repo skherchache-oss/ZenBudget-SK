@@ -38,12 +38,11 @@ const App: React.FC = () => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
-  // --- MOTEUR DE PROJECTION ROBUSTE ---
-
+  // --- MOTEUR DE PROJECTION ROBUSTE (MOIS PAR MOIS) ---
   const getProjectedBalanceAtDate = (targetDate: Date) => {
     if (!activeAccount) return 0;
     
-    // 1. Solde basé sur les transactions réelles uniquement
+    // 1. Point de départ : Toutes les transactions réelles passées et futures (déjà saisies)
     let balance = activeAccount.transactions.reduce((acc, t) => {
       const tDate = new Date(t.date);
       return tDate <= targetDate ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
@@ -53,17 +52,17 @@ const App: React.FC = () => {
     const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
     const today = new Date();
     
-    // On projette par itération mensuelle pour éviter les bugs de Date JS
+    // On itère mois par mois pour injecter les flux fixes "virtuels" (non encore saisis)
     let cursorYear = today.getFullYear();
     let cursorMonth = today.getMonth();
     const targetTS = targetDate.getTime();
 
-    // On projette sur 24 mois maximum
+    // Projection sur 24 mois glissants maximum pour la performance
     for (let i = 0; i < 24; i++) {
-      const firstOfMonth = new Date(cursorYear, cursorMonth, 1).getTime();
-      if (firstOfMonth > targetTS) break;
+      const startOfCursorMonth = new Date(cursorYear, cursorMonth, 1).getTime();
+      if (startOfCursorMonth > targetTS) break;
 
-      // Matérialisations réelles pour ce mois
+      // Quelles transactions réelles sont liées à un template pour ce mois précis ?
       const materializedIds = new Set(
         activeAccount.transactions
           .filter(t => {
@@ -81,9 +80,13 @@ const App: React.FC = () => {
         const tplDate = new Date(cursorYear, cursorMonth, day, 12, 0, 0);
         const vId = `virtual-${tpl.id}-${cursorMonth}-${cursorYear}`;
 
-        // Si la date théorique est dans la plage ET non encore payée réellement
+        // On ajoute le flux si :
+        // 1. La date du flux est avant la date cible
+        // 2. Il n'a pas été matérialisé (pointé) ce mois-ci
+        // 3. Il n'a pas été explicitement supprimé par l'utilisateur
         if (tplDate.getTime() <= targetTS && !materializedIds.has(String(tpl.id)) && !deletedVirtuals.has(vId)) {
-          // On ne projette les "oubliés" du passé que pour le mois en cours
+          // Note : on n'ajoute les flux passés que s'ils sont dans le mois courant 
+          // (les mois passés sont supposés être déjà pointés ou ignorés)
           const startOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1).getTime();
           if (tplDate.getTime() >= startOfCurrentMonth) {
             balance += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
@@ -91,6 +94,7 @@ const App: React.FC = () => {
         }
       });
 
+      // Passage au mois suivant
       cursorMonth++;
       if (cursorMonth > 11) { cursorMonth = 0; cursorYear++; }
     }
@@ -104,16 +108,19 @@ const App: React.FC = () => {
   }, [activeAccount]);
 
   const availableBalance = useMemo(() => {
+    // Le "Disponible" est le solde à la fin du cycle en cours
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
     return getProjectedBalanceAtDate(endOfMonth);
   }, [activeAccount, now]);
 
   const projectedBalance = useMemo(() => {
+    // Solde projeté à la fin du mois actuellement affiché dans le journal
     const endOfView = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
     return getProjectedBalanceAtDate(endOfView);
   }, [activeAccount, currentMonth, currentYear]);
 
   const carryOver = useMemo(() => {
+    // Solde à la veille du mois affiché
     const lastDayPrev = new Date(currentYear, currentMonth, 0, 23, 59, 59);
     return getProjectedBalanceAtDate(lastDayPrev);
   }, [activeAccount, currentMonth, currentYear]);
@@ -121,6 +128,7 @@ const App: React.FC = () => {
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
     
+    // Transactions réelles du mois
     const realOnes = activeAccount.transactions.filter(t => {
       const d = new Date(t.date);
       return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
@@ -129,6 +137,7 @@ const App: React.FC = () => {
     const materializedIds = new Set(realOnes.map(t => String(t.templateId || "")));
     const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
 
+    // Transactions virtuelles (flux fixes non encore pointés)
     const virtuals: Transaction[] = (activeAccount.recurringTemplates || [])
       .filter(tpl => tpl.isActive && !materializedIds.has(String(tpl.id)))
       .map(tpl => {
@@ -177,7 +186,7 @@ const App: React.FC = () => {
       const isVirtual = targetId.startsWith('virtual-');
       let templateId = t.templateId || (isVirtual ? targetId.split('-')[1] : undefined);
 
-      // FORCE SYNCHRO FIXES
+      // Synchronisation avec les Flux Fixes
       if (t.isRecurring) {
         if (templateId) {
           nextTpls = nextTpls.map(tpl => String(tpl.id) === String(templateId) ? { 
