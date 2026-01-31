@@ -156,63 +156,58 @@ const App: React.FC = () => {
       const acc = { ...prev.accounts[accIdx] };
       let nextTx = [...acc.transactions];
       let nextTpls = [...(acc.recurringTemplates || [])];
-      let nextDels = [...(acc.deletedVirtualIds || [])];
       
       const inputId = String(t.id || "");
       const isVirtual = inputId.startsWith('virtual-');
       
-      // Extraction cruciale du templateId pour garantir la mise à jour du modèle parent
+      // Extraction du templateId d'origine
       let templateId = t.templateId;
       if (!templateId && isVirtual) {
-        templateId = inputId.split('-')[1]; // Format: virtual-TPLID-MM-YYYY
+        templateId = inputId.split('-')[1];
       }
 
-      const tDate = new Date(t.date);
-      const day = tDate.getDate();
-
-      // 1. MISE À JOUR DU MODÈLE (FIXE) -> Impacte tous les mois futurs projetés
+      // 1. SYNC AVEC LE MODÈLE (POUR TOUS LES MOIS FUTURS)
       if (t.isRecurring) {
         if (templateId) {
+          // Mise à jour de l'existant
           nextTpls = nextTpls.map(tpl => String(tpl.id) === String(templateId) ? {
             ...tpl, 
             amount: t.amount, 
             categoryId: t.categoryId, 
             comment: t.comment, 
-            type: t.type, 
-            dayOfMonth: day
+            type: t.type,
+            dayOfMonth: new Date(t.date).getDate()
           } : tpl);
         } else {
+          // Nouveau flux fixe
           const newTplId = generateId();
           nextTpls.push({
             id: newTplId, amount: t.amount, categoryId: t.categoryId, comment: t.comment, type: t.type,
-            dayOfMonth: day, isActive: true
+            dayOfMonth: new Date(t.date).getDate(), isActive: true
           });
           templateId = newTplId;
         }
+      } else if (templateId && !isVirtual) {
+        // Si on désactive la récurrence sur un item qui l'était
+        nextTpls = nextTpls.filter(tpl => String(tpl.id) !== String(templateId));
+        templateId = undefined;
       }
 
-      // 2. GESTION DE LA TRANSACTION RÉELLE DANS LE JOURNAL
-      const targetTxId = isVirtual ? generateId() : (t.id || generateId());
-      const finalTxData: Transaction = {
-        ...t,
-        id: targetTxId,
-        templateId: templateId
-      };
+      // 2. MISE À JOUR DU JOURNAL RÉEL
+      // Si c'était virtuel, on le matérialise (l'id virtuel disparaît naturellement via materializedIds)
+      const targetId = isVirtual ? generateId() : (t.id || generateId());
+      const finalTx: Transaction = { ...t, id: targetId, templateId: templateId };
 
       if (isVirtual) {
-        // Matérialisation de l'occurrence virtuelle pour le mois en cours
-        nextTx = [finalTxData, ...nextTx];
-        nextDels.push(inputId);
+        nextTx = [finalTx, ...nextTx];
       } else if (t.id && nextTx.some(tx => String(tx.id) === String(t.id))) {
-        // Mise à jour d'une transaction manuelle
-        nextTx = nextTx.map(tx => String(tx.id) === String(t.id) ? finalTxData : tx);
+        nextTx = nextTx.map(tx => String(tx.id) === String(t.id) ? finalTx : tx);
       } else {
-        // Nouvelle transaction
-        nextTx = [finalTxData, ...nextTx];
+        nextTx = [finalTx, ...nextTx];
       }
 
       const nextAccounts = [...prev.accounts];
-      nextAccounts[accIdx] = { ...acc, transactions: nextTx, recurringTemplates: nextTpls, deletedVirtualIds: nextDels };
+      nextAccounts[accIdx] = { ...acc, transactions: nextTx, recurringTemplates: nextTpls };
       return { ...prev, accounts: nextAccounts };
     });
     setShowAddModal(false);
@@ -225,10 +220,29 @@ const App: React.FC = () => {
       if (accIdx === -1) return prev;
       const acc = { ...prev.accounts[accIdx] };
       const idStr = String(id);
+      
+      let nextTx = [...acc.transactions];
+      let nextTpls = [...(acc.recurringTemplates || [])];
       let nextDels = [...(acc.deletedVirtualIds || [])];
-      if (idStr.startsWith('virtual-')) nextDels.push(idStr);
+
+      // Trouver si c'est lié à un template
+      let templateIdToDelete: string | undefined;
+      
+      if (idStr.startsWith('virtual-')) {
+        templateIdToDelete = idStr.split('-')[1];
+      } else {
+        const tx = nextTx.find(t => String(t.id) === idStr);
+        if (tx?.templateId) templateIdToDelete = String(tx.templateId);
+        nextTx = nextTx.filter(t => String(t.id) !== idStr);
+      }
+
+      // Si c'est un flux fixe, on supprime le modèle pour tous les mois futurs
+      if (templateIdToDelete) {
+        nextTpls = nextTpls.filter(tpl => String(tpl.id) !== String(templateIdToDelete));
+      }
+
       const nextAccounts = [...prev.accounts];
-      nextAccounts[accIdx] = { ...acc, transactions: acc.transactions.filter(t => String(t.id) !== idStr), deletedVirtualIds: nextDels };
+      nextAccounts[accIdx] = { ...acc, transactions: nextTx, recurringTemplates: nextTpls, deletedVirtualIds: nextDels };
       return { ...prev, accounts: nextAccounts };
     });
   };
