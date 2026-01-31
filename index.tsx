@@ -38,11 +38,10 @@ const App: React.FC = () => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
-  // --- MOTEUR DE PROJECTION RENFORCÉ ---
+  // --- MOTEUR DE PROJECTION ---
   const getProjectedBalanceAtDate = (targetDate: Date) => {
     if (!activeAccount) return 0;
     
-    // 1. Solde basé sur les transactions réelles jusqu'à targetDate
     let balance = activeAccount.transactions.reduce((acc, t) => {
       const tDate = new Date(t.date);
       return tDate <= targetDate ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
@@ -52,17 +51,14 @@ const App: React.FC = () => {
     const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
     const today = new Date();
     
-    // On projette à partir du début du mois actuel pour rattraper les fixes "non encore payés"
     let cursorYear = today.getFullYear();
     let cursorMonth = today.getMonth();
     const targetTS = targetDate.getTime();
 
-    // On parcourt les mois jusqu'à la date cible (limite 24 mois pour sécurité)
     for (let i = 0; i < 24; i++) {
       const firstOfCursorMonth = new Date(cursorYear, cursorMonth, 1);
       if (firstOfCursorMonth.getTime() > targetTS) break;
 
-      // Quelles transactions réelles de CE MOIS ont déjà matérialisé un template ?
       const materializedIds = new Set(
         activeAccount.transactions
           .filter(t => {
@@ -75,16 +71,12 @@ const App: React.FC = () => {
 
       templates.forEach(tpl => {
         if (!tpl.isActive) return;
-        
         const lastDayInMonth = new Date(cursorYear, cursorMonth + 1, 0).getDate();
         const day = Math.min(tpl.dayOfMonth, lastDayInMonth);
-        // On fixe à midi pour éviter les sauts de fuseau horaire
         const tplDate = new Date(cursorYear, cursorMonth, day, 12, 0, 0);
         const vId = `virtual-${tpl.id}-${cursorMonth}-${cursorYear}`;
 
-        // On inclut le flux s'il est avant la cible ET non déjà payé réellement
         if (tplDate.getTime() <= targetTS && !materializedIds.has(String(tpl.id)) && !deletedVirtuals.has(vId)) {
-          // On ne rajoute que ce qui appartient au futur OU au mois en cours (fixes non pointés)
           const startOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1).getTime();
           if (tplDate.getTime() >= startOfCurrentMonth) {
             balance += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
@@ -95,7 +87,6 @@ const App: React.FC = () => {
       cursorMonth++;
       if (cursorMonth > 11) { cursorMonth = 0; cursorYear++; }
     }
-
     return balance;
   };
 
@@ -121,33 +112,24 @@ const App: React.FC = () => {
 
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
-    
-    // Transactions réelles
     const realOnes = activeAccount.transactions.filter(t => {
       const d = new Date(t.date);
       return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
     });
-
     const materializedIds = new Set(realOnes.filter(t => !!t.templateId).map(t => String(t.templateId)));
     const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
 
-    // Transactions virtuelles pour le mois sélectionné
     const virtuals: Transaction[] = (activeAccount.recurringTemplates || [])
       .filter(tpl => tpl.isActive && !materializedIds.has(String(tpl.id)))
       .map(tpl => {
         const lastDay = new Date(currentYear, currentMonth + 1, 0).getDate();
         const day = Math.min(tpl.dayOfMonth, lastDay);
-        const vId = `virtual-${tpl.id}-${currentMonth}-${currentYear}`;
-        
         return {
-          id: vId,
-          amount: tpl.amount, 
-          type: tpl.type, 
-          categoryId: tpl.categoryId,
+          id: `virtual-${tpl.id}-${currentMonth}-${currentYear}`,
+          amount: tpl.amount, type: tpl.type, categoryId: tpl.categoryId,
           comment: tpl.comment || (tpl.type === 'INCOME' ? 'Revenu fixe' : 'Charge fixe'),
           date: new Date(currentYear, currentMonth, day, 12, 0, 0).toISOString(),
-          isRecurring: true, 
-          templateId: tpl.id
+          isRecurring: true, templateId: tpl.id
         };
       })
       .filter(v => !deletedVirtuals.has(v.id));
@@ -176,33 +158,49 @@ const App: React.FC = () => {
       let nextTpls = [...(acc.recurringTemplates || [])];
       let nextDels = [...(acc.deletedVirtualIds || [])];
       
-      const targetId = String(t.id || editingTransaction?.id || "");
-      const isVirtual = targetId.startsWith('virtual-');
-      let templateId = t.templateId || (isVirtual ? targetId.split('-')[1] : undefined);
+      const inputId = String(t.id || "");
+      const isVirtual = inputId.startsWith('virtual-');
+      
+      // Extraction ou création du templateId
+      let templateId = t.templateId;
+      if (!templateId && isVirtual) {
+        templateId = inputId.split('-')[1];
+      }
 
-      // Synchro avec les templates
+      // 1. GESTION DU TEMPLATE (Synchronisation partout pareil)
       if (t.isRecurring) {
+        const tDate = new Date(t.date);
+        const day = tDate.getDate();
+        
         if (templateId) {
-          nextTpls = nextTpls.map(tpl => String(tpl.id) === String(templateId) ? { 
-            ...tpl, amount: t.amount, categoryId: t.categoryId, comment: t.comment, type: t.type, dayOfMonth: new Date(t.date).getDate() 
+          // Mise à jour du template existant -> changement global pour le futur
+          nextTpls = nextTpls.map(tpl => String(tpl.id) === String(templateId) ? {
+            ...tpl, amount: t.amount, categoryId: t.categoryId, comment: t.comment, type: t.type, dayOfMonth: day
           } : tpl);
         } else {
+          // Création d'un nouveau template
           const newTplId = generateId();
           nextTpls.push({
             id: newTplId, amount: t.amount, categoryId: t.categoryId, comment: t.comment, type: t.type,
-            dayOfMonth: new Date(t.date).getDate(), isActive: true
+            dayOfMonth: day, isActive: true
           });
           templateId = newTplId;
         }
       }
 
-      const finalTx = { ...t, templateId };
-
-      if (targetId && !isVirtual && nextTx.some(i => String(i.id) === targetId)) {
-        nextTx = nextTx.map(i => String(i.id) === targetId ? ({ ...finalTx, id: targetId } as Transaction) : i);
+      // 2. GESTION DE LA TRANSACTION RÉELLE
+      const finalTxData = { ...t, templateId, id: isVirtual ? generateId() : (inputId || generateId()) };
+      
+      if (isVirtual) {
+        // C'était une occurrence virtuelle : on la matérialise et on cache l'ID virtuel
+        nextDels.push(inputId);
+        nextTx = [finalTxData as Transaction, ...nextTx];
+      } else if (inputId && nextTx.some(tx => String(tx.id) === inputId)) {
+        // C'est une mise à jour d'une transaction existante
+        nextTx = nextTx.map(tx => String(tx.id) === inputId ? (finalTxData as Transaction) : tx);
       } else {
-        if (isVirtual) nextDels.push(targetId);
-        nextTx = [{ ...finalTx, id: generateId() } as Transaction, ...nextTx];
+        // C'est une nouvelle transaction manuelle
+        nextTx = [finalTxData as Transaction, ...nextTx];
       }
 
       const nextAccounts = [...prev.accounts];
@@ -214,21 +212,15 @@ const App: React.FC = () => {
   };
 
   const handleDeleteTransaction = (id: string) => {
-    const idStr = String(id);
     setState(prev => {
       const accIdx = prev.accounts.findIndex(a => a.id === prev.activeAccountId);
       if (accIdx === -1) return prev;
-      
       const acc = { ...prev.accounts[accIdx] };
+      const idStr = String(id);
       let nextDels = [...(acc.deletedVirtualIds || [])];
       if (idStr.startsWith('virtual-')) nextDels.push(idStr);
-      
       const nextAccounts = [...prev.accounts];
-      nextAccounts[accIdx] = { 
-        ...acc, 
-        transactions: acc.transactions.filter(t => String(t.id) !== idStr),
-        deletedVirtualIds: nextDels 
-      };
+      nextAccounts[accIdx] = { ...acc, transactions: acc.transactions.filter(t => String(t.id) !== idStr), deletedVirtualIds: nextDels };
       return { ...prev, accounts: nextAccounts };
     });
   };
@@ -237,69 +229,23 @@ const App: React.FC = () => {
     <div className="flex flex-col h-screen bg-[#F8F9FD] text-slate-900 overflow-hidden font-sans">
       <header className="bg-white/80 backdrop-blur-xl border-b border-slate-100 px-4 py-3 safe-top shrink-0 z-50">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-3">
-            <IconLogo className="w-8 h-8" />
-            <h1 className="text-xl font-black tracking-tighter text-slate-900 italic">ZenBudget</h1>
-          </div>
+          <div className="flex items-center gap-3"><IconLogo className="w-8 h-8" /><h1 className="text-xl font-black tracking-tighter text-slate-900 italic">ZenBudget</h1></div>
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-sm flex-1 max-w-[180px] justify-between">
              <button onClick={() => handleMonthChange(-1)} className="p-2 hover:bg-white rounded-xl transition-all text-slate-400 active:scale-90"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15 19l-7-7 7-7" /></svg></button>
-             <div className="flex items-center justify-center px-1 overflow-hidden">
-                <span className="text-[12px] font-black uppercase tracking-widest text-indigo-700 whitespace-nowrap">{MONTHS_FR[currentMonth]} {currentYear}</span>
-             </div>
+             <div className="flex items-center justify-center px-1 overflow-hidden"><span className="text-[12px] font-black uppercase tracking-widest text-indigo-700 whitespace-nowrap">{MONTHS_FR[currentMonth]} {currentYear}</span></div>
              <button onClick={() => handleMonthChange(1)} className="p-2 hover:bg-white rounded-xl transition-all text-slate-400 active:scale-90"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M9 5l7 7-7 7" /></svg></button>
           </div>
         </div>
       </header>
 
       <main className="flex-1 overflow-hidden max-w-2xl w-full mx-auto px-4 pt-2 pb-2">
-        {activeView === 'DASHBOARD' && (
-          <Dashboard 
-            transactions={effectiveTransactions} categories={state.categories} activeAccount={activeAccount} allAccounts={state.accounts}
-            onSwitchAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))} month={currentMonth} year={currentYear}
-            onViewTransactions={() => setActiveView('TRANSACTIONS')} checkingAccountBalance={checkingAccountBalance} availableBalance={availableBalance} projectedBalance={projectedBalance}
-            carryOver={carryOver}
-          />
-        )}
-        {activeView === 'TRANSACTIONS' && (
-          <TransactionList 
-            transactions={effectiveTransactions} categories={state.categories} month={currentMonth} year={currentYear}
-            onDelete={handleDeleteTransaction} onEdit={(t) => { setEditingTransaction(t); setShowAddModal(true); }}
-            onAddAtDate={(date) => { setModalInitialDate(date); setShowAddModal(true); }}
-            selectedDay={selectedDay} onSelectDay={setSelectedDay} totalBalance={projectedBalance}
-            carryOver={carryOver} cycleEndDay={activeAccount?.cycleEndDay || 0}
-            onMonthChange={handleMonthChange} slideDirection={slideDirection}
-          />
-        )}
-        {activeView === 'RECURRING' && (
-          <RecurringManager 
-            recurringTemplates={activeAccount?.recurringTemplates || []} categories={state.categories}
-            onUpdate={(templates) => setState(prev => ({ ...prev, accounts: prev.accounts.map(a => a.id === activeAccount.id ? { ...a, recurringTemplates: templates } : a) }))}
-            totalBalance={projectedBalance}
-          />
-        )}
-        {activeView === 'SETTINGS' && (
-          <Settings 
-            state={state} onUpdateCategories={(cats) => setState(prev => ({ ...prev, categories: cats }))} onUpdateBudget={() => {}}
-            onUpdateAccounts={(accounts) => setState(prev => ({ ...prev, accounts }))} onSetActiveAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))}
-            onDeleteAccount={(id) => {
-              setState(prev => {
-                const nextAccounts = prev.accounts.filter(a => a.id !== id);
-                if (nextAccounts.length === 0) return prev;
-                return { ...prev, accounts: nextAccounts, activeAccountId: id === prev.activeAccountId ? nextAccounts[0].id : prev.activeAccountId };
-              });
-            }}
-            onReset={() => { if (window.confirm("Tout effacer ?")) { localStorage.clear(); window.location.reload(); } }} onLogout={() => {}}
-          />
-        )}
+        {activeView === 'DASHBOARD' && <Dashboard transactions={effectiveTransactions} categories={state.categories} activeAccount={activeAccount} allAccounts={state.accounts} onSwitchAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))} month={currentMonth} year={currentYear} onViewTransactions={() => setActiveView('TRANSACTIONS')} checkingAccountBalance={checkingAccountBalance} availableBalance={availableBalance} projectedBalance={projectedBalance} carryOver={carryOver} />}
+        {activeView === 'TRANSACTIONS' && <TransactionList transactions={effectiveTransactions} categories={state.categories} month={currentMonth} year={currentYear} onDelete={handleDeleteTransaction} onEdit={(t) => { setEditingTransaction(t); setShowAddModal(true); }} onAddAtDate={(date) => { setModalInitialDate(date); setShowAddModal(true); }} selectedDay={selectedDay} onSelectDay={setSelectedDay} totalBalance={projectedBalance} carryOver={carryOver} cycleEndDay={activeAccount?.cycleEndDay || 0} onMonthChange={handleMonthChange} slideDirection={slideDirection} />}
+        {activeView === 'RECURRING' && <RecurringManager recurringTemplates={activeAccount?.recurringTemplates || []} categories={state.categories} onUpdate={(templates) => setState(prev => ({ ...prev, accounts: prev.accounts.map(a => a.id === activeAccount.id ? { ...a, recurringTemplates: templates } : a) }))} totalBalance={projectedBalance} />}
+        {activeView === 'SETTINGS' && <Settings state={state} onUpdateCategories={(cats) => setState(prev => ({ ...prev, categories: cats }))} onUpdateBudget={() => {}} onUpdateAccounts={(accounts) => setState(prev => ({ ...prev, accounts }))} onSetActiveAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))} onDeleteAccount={(id) => { setState(prev => { const nextAccounts = prev.accounts.filter(a => a.id !== id); if (nextAccounts.length === 0) return prev; return { ...prev, accounts: nextAccounts, activeAccountId: id === prev.activeAccountId ? nextAccounts[0].id : prev.activeAccountId }; }); }} onReset={() => { if (window.confirm("Tout effacer ?")) { localStorage.clear(); window.location.reload(); } }} onLogout={() => {}} />}
       </main>
 
-      <button onClick={() => { 
-        setEditingTransaction(null); 
-        const d = new Date(currentYear, currentMonth, selectedDay || 1, 12, 0, 0);
-        setModalInitialDate(d.toISOString()); 
-        setShowAddModal(true); 
-      }} 
-        className="fixed bottom-[100px] right-6 w-14 h-14 bg-slate-900 text-white rounded-[22px] shadow-2xl flex items-center justify-center active:scale-90 z-40 border-4 border-white transition-all"><IconPlus className="w-7 h-7" /></button>
+      <button onClick={() => { setEditingTransaction(null); const d = new Date(currentYear, currentMonth, selectedDay || 1, 12, 0, 0); setModalInitialDate(d.toISOString()); setShowAddModal(true); }} className="fixed bottom-[100px] right-6 w-14 h-14 bg-slate-900 text-white rounded-[22px] shadow-2xl flex items-center justify-center active:scale-90 z-40 border-4 border-white transition-all"><IconPlus className="w-7 h-7" /></button>
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-100 flex justify-around items-center pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] px-6 z-40">
         <NavBtn active={activeView === 'DASHBOARD'} onClick={() => setActiveView('DASHBOARD')} icon={<IconHome />} label="Stats" />
