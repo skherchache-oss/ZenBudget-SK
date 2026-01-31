@@ -59,13 +59,15 @@ const TransactionItem: React.FC<{
           <div className="flex items-center gap-1.5"><span className="text-[13px] font-black text-slate-800 truncate uppercase tracking-tight">{category?.name}</span>{t.isRecurring && <span className="text-amber-500 text-[10px]">⚡️</span>}</div>
           <div className="text-[10px] text-slate-400 font-medium truncate">{t.comment || 'Note vide'}</div>
         </div>
-        <div className={`text-[14px] font-black shrink-0 ${t.type === 'INCOME' ? 'text-emerald-600' : 'text-slate-900'} ${isVirtual ? 'opacity-60' : ''}`}>{t.type === 'INCOME' ? '+' : '-'}{Math.round(t.amount).toLocaleString('fr-FR')}€</div>
+        <div className={`text-[14px] font-black shrink-0 ${t.type === 'INCOME' ? 'text-emerald-600' : 'text-slate-900'} ${isVirtual ? 'opacity-60' : ''}`}>
+          {t.type === 'INCOME' ? '+' : '-'}{Math.round(t.amount).toLocaleString('fr-FR')}€
+        </div>
       </div>
     </div>
   );
 };
 
-const TransactionList: React.FC<TransactionListProps> = ({ transactions, categories, month, year, onDelete, onEdit, onAddAtDate, selectedDay, onSelectDay, totalBalance, carryOver, cycleEndDay, onMonthChange, slideDirection }) => {
+const TransactionList: React.FC<TransactionListProps> = ({ transactions, categories, month, year, onDelete, onEdit, onAddAtDate, selectedDay, onSelectDay, totalBalance, carryOver, onMonthChange, slideDirection }) => {
   const [viewMode, setViewMode] = useState<'LIST' | 'CALENDAR'>('CALENDAR');
   const [openItemId, setOpenItemId] = useState<string | null>(null);
 
@@ -78,8 +80,11 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
       const d = new Date(t.date).getDate();
       if (!txByDay[d]) txByDay[d] = []; txByDay[d].push(t);
     });
+    // On trie les transactions par jour pour assurer le calcul progressif
     for(let i = 1; i <= daysInMonth; i++) {
-      (txByDay[i] || []).forEach(t => { running += (t.type === 'INCOME' ? t.amount : -t.amount); });
+      (txByDay[i] || []).sort((a,b) => a.type === 'INCOME' ? -1 : 1).forEach(t => { 
+        running += (t.type === 'INCOME' ? t.amount : -t.amount); 
+      });
       days[i] = running;
     }
     return days;
@@ -100,7 +105,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
         <h2 className="text-xl font-black tracking-tighter text-slate-800">Journal</h2>
         <div className="bg-slate-900 rounded-xl px-2.5 py-1.5 flex items-center gap-2 shadow-lg">
            <span className="text-[7px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">
-             {cycleEndDay > 0 ? `Proj au ${cycleEndDay}` : `Fin de mois`}
+             Fin de mois
            </span>
            <span className={`text-[12px] font-black ${totalBalance >= 0 ? 'text-indigo-400' : 'text-red-400'} whitespace-nowrap`}>
              {Math.round(totalBalance).toLocaleString('fr-FR')}€
@@ -133,11 +138,13 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
                   return (
                     <button key={day} onClick={() => onSelectDay(day)} className={`h-15 rounded-[16px] flex flex-col items-center justify-between py-2 transition-all border ${isSelected ? 'bg-slate-900 border-slate-900 text-white z-10 scale-105' : (isToday ? 'bg-indigo-50 border-indigo-200 text-indigo-900' : 'bg-white border-slate-50')}`}>
                       <span className={`text-[13px] font-semibold ${isSelected ? 'text-white' : 'text-slate-600'}`}>{day}</span>
-                      <div className="flex flex-col items-center gap-0 w-full">
-                        <span className={`text-[11px] font-black tracking-tighter ${isSelected ? 'text-indigo-300' : (balance >= 0 ? 'text-indigo-600' : 'text-red-500')}`}>{Math.round(balance).toLocaleString('fr-FR', { notation: 'compact' })}</span>
+                      <div className="flex flex-col items-center gap-0 w-full px-0.5">
+                        <span className={`text-[10px] font-black tracking-tighter truncate w-full text-center ${isSelected ? 'text-indigo-300' : (balance >= 0 ? 'text-indigo-600' : 'text-red-500')}`}>
+                          {Math.round(balance).toLocaleString('fr-FR')}
+                        </span>
                         <div className="flex gap-0.5 mt-1">
-                          {dayT.some(t => t.type === 'INCOME') && <div className="w-1.5 h-1.5 rounded-full bg-emerald-400" />}
-                          {dayT.some(t => t.type === 'EXPENSE') && <div className="w-1.5 h-1.5 rounded-full bg-red-400" />}
+                          {dayT.some(t => t.type === 'INCOME') && <div className="w-1 h-1 rounded-full bg-emerald-400" />}
+                          {dayT.some(t => t.type === 'EXPENSE') && <div className="w-1 h-1 rounded-full bg-red-400" />}
                         </div>
                       </div>
                     </button>
@@ -146,7 +153,6 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
               </div>
             </div>
 
-            {/* DETAIL DU JOUR - DYNAMIQUE */}
             <div className="animate-in slide-in-from-bottom duration-300">
               <div className="flex items-center justify-between px-2 mb-2">
                 <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
