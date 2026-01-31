@@ -39,105 +39,95 @@ const App: React.FC = () => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
-  /**
-   * HELPERS DE DATE ROBUSTES
-   * On utilise des nombres pour les comparaisons (YYYYMMDD) pour éviter les bugs d'objets Date sur mobile.
-   */
-  const getDateNumber = (date: Date | string) => {
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return 0;
-    return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
-  };
+  // --- MOTEUR DE CALCUL ROBUSTE ---
 
-  /**
-   * getProjectedBalanceAtDate : Moteur de calcul linéaire
-   */
   const getProjectedBalanceAtDate = (targetDate: Date) => {
     if (!activeAccount) return 0;
     
-    const targetNum = getDateNumber(targetDate);
-    const now = new Date();
-    const currentMonthNum = now.getFullYear() * 100 + (now.getMonth() + 1);
-    const targetMonthNum = targetDate.getFullYear() * 100 + (targetDate.getMonth() + 1);
-
-    // 1. Base : Toutes les transactions réelles jusqu'à la date cible
+    // 1. Solde Réel (uniquement les transactions saisies)
     let balance = activeAccount.transactions.reduce((acc, t) => {
-      return getDateNumber(t.date) <= targetNum ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
+      const txDate = new Date(t.date);
+      return txDate <= targetDate ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
     }, 0);
 
-    // 2. Projections : On n'ajoute les virtuels QUE pour le mois en cours et les mois futurs
+    // 2. Ajout des Projections Virtuelles (fixes non encore pointés)
     const templates = activeAccount.recurringTemplates || [];
     const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
     
-    // On boucle du mois actuel jusqu'au mois cible
-    let cursorYear = now.getFullYear();
-    let cursorMonth = now.getMonth();
-    
-    // Protection anti-boucle (max 24 mois de projection)
-    for (let i = 0; i < 24; i++) {
-      const cursorMonthNum = cursorYear * 100 + (cursorMonth + 1);
-      if (cursorMonthNum > targetMonthNum) break;
+    // On définit le point de départ de l'analyse historique (le mois de la 1ère transaction ou le mois actuel)
+    let startCursor: Date;
+    if (activeAccount.transactions.length > 0) {
+      const minTime = Math.min(...activeAccount.transactions.map(t => new Date(t.date).getTime()));
+      const firstDate = new Date(minTime);
+      startCursor = new Date(firstDate.getFullYear(), firstDate.getMonth(), 1, 12, 0, 0);
+    } else {
+      const now = new Date();
+      startCursor = new Date(now.getFullYear(), now.getMonth(), 1, 12, 0, 0);
+    }
 
-      // Quelles charges fixes ont été payées "réellement" ce mois-ci ?
+    // On parcourt mois par mois jusqu'à la date cible
+    let cursor = new Date(startCursor);
+    let iterations = 0;
+    while (cursor <= targetDate && iterations < 36) { // Max 3 ans de projection
+      const cM = cursor.getMonth();
+      const cY = cursor.getFullYear();
+      
+      // Identifier les charges fixes déjà payées (matérialisées) ce mois-ci
       const materializedIds = new Set(
         activeAccount.transactions
           .filter(t => {
             const d = new Date(t.date);
-            return d.getMonth() === cursorMonth && d.getFullYear() === cursorYear && t.templateId;
+            return d.getMonth() === cM && d.getFullYear() === cY && t.templateId;
           })
           .map(t => String(t.templateId))
       );
 
       templates.forEach(tpl => {
         if (!tpl.isActive) return;
-        if (materializedIds.has(String(tpl.id))) return; // Déjà payé réellement
+        if (materializedIds.has(String(tpl.id))) return; // Déjà pris en compte dans le solde réel
 
-        const vId = `virtual-${tpl.id}-${cursorMonth}-${cursorYear}`;
-        if (deletedVirtuals.has(vId)) return; // Supprimé par l'utilisateur
-
-        // Calcul de la date théorique de ce virtuel
-        const lastDay = new Date(cursorYear, cursorMonth + 1, 0).getDate();
+        const lastDay = new Date(cY, cM + 1, 0).getDate();
         const day = Math.min(tpl.dayOfMonth, lastDay);
-        const tplNum = cursorYear * 10000 + (cursorMonth + 1) * 100 + day;
-
-        // Si la date du virtuel est dans le passé ou le futur (jusqu'à targetDate)
-        // Mais on ne compte pas les virtuels des mois passés (avant maintenant) 
-        // car on part du principe que le solde réel les inclut ou qu'ils sont "perdus".
-        if (tplNum <= targetNum && cursorMonthNum >= currentMonthNum) {
+        const tplDate = new Date(cY, cM, day, 12, 0, 0);
+        const vId = `virtual-${tpl.id}-${cM}-${cY}`;
+        
+        if (tplDate <= targetDate && !deletedVirtuals.has(vId)) {
           balance += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
         }
       });
-
-      cursorMonth++;
-      if (cursorMonth > 11) {
-        cursorMonth = 0;
-        cursorYear++;
-      }
+      
+      cursor.setMonth(cursor.getMonth() + 1);
+      iterations++;
     }
-
+    
     return balance;
   };
 
   const checkingAccountBalance = useMemo(() => {
     if (!activeAccount) return 0;
-    const todayNum = getDateNumber(new Date());
+    const now = new Date();
+    // Solde purement bancaire (transactions réelles jusqu'à aujourd'hui)
     return activeAccount.transactions.reduce((acc, t) => {
-      return getDateNumber(t.date) <= todayNum ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
+      const txDate = new Date(t.date);
+      return txDate <= now ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
     }, 0);
   }, [activeAccount]);
 
   const availableBalance = useMemo(() => {
+    // Solde à la fin du mois en cours (incluant toutes les charges fixes du mois)
     const now = new Date();
     const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
     return getProjectedBalanceAtDate(end);
   }, [activeAccount]);
 
   const projectedBalance = useMemo(() => {
+    // Solde à la fin du mois affiché sur l'écran
     const end = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
     return getProjectedBalanceAtDate(end);
   }, [activeAccount, currentMonth, currentYear]);
 
   const carryOver = useMemo(() => {
+    // Report du mois précédent
     const lastDayPrev = new Date(currentYear, currentMonth, 0, 23, 59, 59);
     return getProjectedBalanceAtDate(lastDayPrev);
   }, [activeAccount, currentMonth, currentYear]);
@@ -196,6 +186,7 @@ const App: React.FC = () => {
       const isVirtual = idStr.startsWith('virtual-');
       const templateId = t.templateId || (isVirtual ? idStr.split('-')[1] : undefined);
       
+      // Mise à jour du template si la transaction est récurrente
       if (t.isRecurring && templateId) {
         nextTpl = nextTpl.map(tpl => String(tpl.id) === String(templateId) ? { ...tpl, amount: t.amount, categoryId: t.categoryId, comment: t.comment, type: t.type } : tpl);
       }
@@ -206,6 +197,7 @@ const App: React.FC = () => {
         if (isVirtual && targetId) nextDel.push(idStr);
         nextTx = [{ ...t, id: generateId(), templateId: templateId } as Transaction, ...nextTx];
       }
+      
       const nextAccounts = [...prev.accounts];
       nextAccounts[accIndex] = { ...acc, transactions: nextTx, recurringTemplates: nextTpl, deletedVirtualIds: nextDel };
       return { ...prev, accounts: nextAccounts };
@@ -220,9 +212,9 @@ const App: React.FC = () => {
       if (accIndex === -1) return prev;
       const acc = { ...prev.accounts[accIndex] };
       let nextDel = [...(acc.deletedVirtualIds || [])];
-      if (String(id).startsWith('virtual-')) nextDel.push(id);
+      if (String(id).startsWith('virtual-')) nextDel.push(String(id));
       const nextAccounts = [...prev.accounts];
-      nextAccounts[accIndex] = { ...acc, transactions: acc.transactions.filter(t => t.id !== id), deletedVirtualIds: nextDel };
+      nextAccounts[accIndex] = { ...acc, transactions: acc.transactions.filter(t => String(t.id) !== String(id)), deletedVirtualIds: nextDel };
       return { ...prev, accounts: nextAccounts };
     });
   };
