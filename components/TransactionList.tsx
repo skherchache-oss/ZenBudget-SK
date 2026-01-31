@@ -20,6 +20,14 @@ interface TransactionListProps {
   slideDirection: 'next' | 'prev' | null;
 }
 
+const formatCurrency = (amount: number) => {
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'decimal',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Math.round(amount));
+};
+
 const TransactionItem: React.FC<{ 
   t: Transaction; 
   category?: Category; 
@@ -60,7 +68,7 @@ const TransactionItem: React.FC<{
           <div className="text-[10px] text-slate-400 font-medium truncate">{t.comment || 'Note vide'}</div>
         </div>
         <div className={`text-[14px] font-black shrink-0 ${t.type === 'INCOME' ? 'text-emerald-600' : 'text-slate-900'} ${isVirtual ? 'opacity-60' : ''}`}>
-          {t.type === 'INCOME' ? '+' : '-'}{Math.round(t.amount).toLocaleString('fr-FR')}€
+          {t.type === 'INCOME' ? '+' : '-'}{formatCurrency(t.amount)}€
         </div>
       </div>
     </div>
@@ -76,11 +84,13 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     let running = carryOver;
     const txByDay: Record<number, Transaction[]> = {};
+    
     transactions.forEach(t => {
       const d = new Date(t.date).getDate();
-      if (!txByDay[d]) txByDay[d] = []; txByDay[d].push(t);
+      if (!txByDay[d]) txByDay[d] = []; 
+      txByDay[d].push(t);
     });
-    // On trie les transactions par jour pour assurer le calcul progressif
+
     for(let i = 1; i <= daysInMonth; i++) {
       (txByDay[i] || []).sort((a,b) => a.type === 'INCOME' ? -1 : 1).forEach(t => { 
         running += (t.type === 'INCOME' ? t.amount : -t.amount); 
@@ -108,7 +118,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
              Fin de mois
            </span>
            <span className={`text-[12px] font-black ${totalBalance >= 0 ? 'text-indigo-400' : 'text-red-400'} whitespace-nowrap`}>
-             {Math.round(totalBalance).toLocaleString('fr-FR')}€
+             {formatCurrency(totalBalance)}€
            </span>
         </div>
       </div>
@@ -140,7 +150,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
                       <span className={`text-[13px] font-semibold ${isSelected ? 'text-white' : 'text-slate-600'}`}>{day}</span>
                       <div className="flex flex-col items-center gap-0 w-full px-0.5">
                         <span className={`text-[10px] font-black tracking-tighter truncate w-full text-center ${isSelected ? 'text-indigo-300' : (balance >= 0 ? 'text-indigo-600' : 'text-red-500')}`}>
-                          {Math.round(balance).toLocaleString('fr-FR')}
+                          {formatCurrency(balance)}
                         </span>
                         <div className="flex gap-0.5 mt-1">
                           {dayT.some(t => t.type === 'INCOME') && <div className="w-1 h-1 rounded-full bg-emerald-400" />}

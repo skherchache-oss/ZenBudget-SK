@@ -39,6 +39,7 @@ const App: React.FC = () => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
+  // Date de référence normalisée à midi pour éviter les bugs de fuseau horaire mobile
   const now = useMemo(() => {
     const d = new Date();
     d.setHours(12, 0, 0, 0);
@@ -46,32 +47,42 @@ const App: React.FC = () => {
   }, []);
 
   /**
-   * getProjectedBalanceAtDate: Calcule le solde cumulé.
-   * On évite le bug des 29k en limitant la recherche historique au début de l'activité réelle.
+   * Helper pour comparer des dates sans les heures/minutes (comparaison au jour près)
+   */
+  const isBeforeOrEqual = (date1: Date, date2: Date) => {
+    const d1 = new Date(date1); d1.setHours(23, 59, 59, 999);
+    const d2 = new Date(date2); d2.setHours(23, 59, 59, 999);
+    return d1.getTime() <= d2.getTime();
+  };
+
+  /**
+   * getProjectedBalanceAtDate: Moteur de calcul robuste
    */
   const getProjectedBalanceAtDate = (targetDate: Date) => {
     if (!activeAccount) return 0;
     
-    // 1. Transactions réelles
+    // 1. Transactions réelles (saisies manuellement)
     let balance = activeAccount.transactions.reduce((acc, t) => {
-      return new Date(t.date) <= targetDate ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
+      const txDate = new Date(t.date);
+      return isBeforeOrEqual(txDate, targetDate) ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
     }, 0);
 
-    // 2. Projections
+    // 2. Projections virtuelles
     const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
     const templates = activeAccount.recurringTemplates || [];
     
-    // Trouver la date de début : soit la 1ère transaction, soit le mois actuel
-    let startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    // On commence les projections au mois de la première transaction ou au mois actuel
+    let cursor = new Date(now.getFullYear(), now.getMonth(), 1, 12, 0, 0);
     if (activeAccount.transactions.length > 0) {
       const firstTxDate = new Date(Math.min(...activeAccount.transactions.map(t => new Date(t.date).getTime())));
-      if (firstTxDate < startDate) {
-        startDate = new Date(firstTxDate.getFullYear(), firstTxDate.getMonth(), 1);
-      }
+      cursor = new Date(firstTxDate.getFullYear(), firstTxDate.getMonth(), 1, 12, 0, 0);
     }
 
-    let cursor = new Date(startDate);
-    while (cursor <= targetDate) {
+    // Protection contre les boucles infinies sur mobile
+    let iterations = 0;
+    const maxIterations = 60; // 5 ans de projection max
+
+    while (isBeforeOrEqual(cursor, targetDate) && iterations < maxIterations) {
       const cM = cursor.getMonth();
       const cY = cursor.getFullYear();
       
@@ -92,20 +103,23 @@ const App: React.FC = () => {
         const tplDate = new Date(cY, cM, day, 12, 0, 0);
         const vId = `virtual-${tpl.id}-${cM}-${cY}`;
         
-        if (tplDate <= targetDate && !deletedVirtuals.has(vId)) {
+        if (isBeforeOrEqual(tplDate, targetDate) && !deletedVirtuals.has(vId)) {
           balance += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
         }
       });
+      
       cursor.setMonth(cursor.getMonth() + 1);
-      if (cursor.getFullYear() > targetDate.getFullYear() + 1) break;
+      iterations++;
     }
+    
     return balance;
   };
 
   const checkingAccountBalance = useMemo(() => {
     if (!activeAccount) return 0;
     return activeAccount.transactions.reduce((acc, t) => {
-      return new Date(t.date) <= now ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
+      const txDate = new Date(t.date);
+      return isBeforeOrEqual(txDate, now) ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
     }, 0);
   }, [activeAccount, now]);
 
@@ -120,18 +134,22 @@ const App: React.FC = () => {
   }, [activeAccount, currentMonth, currentYear]);
 
   const carryOver = useMemo(() => {
+    // Report = Solde à la fin du mois précédent
     const endOfPrevMonth = new Date(currentYear, currentMonth, 0, 23, 59, 59);
     return getProjectedBalanceAtDate(endOfPrevMonth);
   }, [activeAccount, currentMonth, currentYear]);
 
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
+    
     const manuals = activeAccount.transactions.filter(t => {
       const d = new Date(t.date);
       return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
     });
+
     const materializedIds = new Set(manuals.map(t => t.templateId).filter(Boolean));
     const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
+
     const virtuals: Transaction[] = (activeAccount.recurringTemplates || [])
       .filter(tpl => tpl.isActive && !materializedIds.has(tpl.id))
       .map(tpl => {
@@ -146,6 +164,7 @@ const App: React.FC = () => {
         };
       })
       .filter(v => !deletedVirtuals.has(v.id));
+
     return [...manuals, ...virtuals].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [activeAccount, currentMonth, currentYear]);
 
@@ -171,9 +190,11 @@ const App: React.FC = () => {
       const targetId = t.id || editingTransaction?.id;
       const isVirtual = targetId?.toString().startsWith('virtual-');
       const templateId = t.templateId || (isVirtual ? targetId?.toString().split('-')[1] : undefined);
+      
       if (t.isRecurring && templateId) {
         nextTpl = nextTpl.map(tpl => tpl.id === templateId ? { ...tpl, amount: t.amount, categoryId: t.categoryId, comment: t.comment, type: t.type } : tpl);
       }
+      
       if (targetId && !isVirtual && nextTx.some(i => i.id === targetId)) {
         nextTx = nextTx.map(i => i.id === targetId ? ({ ...t, id: targetId, templateId } as Transaction) : i);
       } else {
