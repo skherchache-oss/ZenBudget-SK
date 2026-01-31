@@ -59,7 +59,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ categories, o
       comment,
       date: secureDate,
       isRecurring,
-      templateId: editItem?.templateId // TRÈS IMPORTANT : On transmet le templateId original pour la synchro
+      templateId: editItem?.templateId // CONSERVE LE LIEN AVEC LE MODÈLE
     });
   };
 

@@ -38,7 +38,6 @@ const App: React.FC = () => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
-  // --- MOTEUR DE PROJECTION ---
   const getProjectedBalanceAtDate = (targetDate: Date) => {
     if (!activeAccount) return 0;
     
@@ -161,8 +160,7 @@ const App: React.FC = () => {
       const inputId = String(t.id || "");
       const isVirtual = inputId.startsWith('virtual-');
       
-      // Extraction cruciale du templateId
-      // Si c'est virtuel, on le tire de l'id, sinon on utilise celui passé par le modal
+      // Extraction cruciale : on doit retrouver le templateId d'origine
       let templateId = t.templateId;
       if (!templateId && isVirtual) {
         templateId = inputId.split('-')[1];
@@ -171,15 +169,18 @@ const App: React.FC = () => {
       const tDate = new Date(t.date);
       const day = tDate.getDate();
 
-      // 1. MISE À JOUR OU CRÉATION DU MODÈLE (FIXE)
+      // 1. MISE À JOUR DU MODÈLE (Synchronisation globale)
       if (t.isRecurring) {
         if (templateId) {
-          // On met à jour le modèle existant -> Changement global immédiat
           nextTpls = nextTpls.map(tpl => String(tpl.id) === String(templateId) ? {
-            ...tpl, amount: t.amount, categoryId: t.categoryId, comment: t.comment, type: t.type, dayOfMonth: day
+            ...tpl, 
+            amount: t.amount, 
+            categoryId: t.categoryId, 
+            comment: t.comment, 
+            type: t.type, 
+            dayOfMonth: day
           } : tpl);
         } else {
-          // Création d'un nouveau modèle fixe
           const newTplId = generateId();
           nextTpls.push({
             id: newTplId, amount: t.amount, categoryId: t.categoryId, comment: t.comment, type: t.type,
@@ -187,37 +188,26 @@ const App: React.FC = () => {
           });
           templateId = newTplId;
         }
-      } else {
-        // Si l'utilisateur décoche "isRecurring" sur une transaction qui était fixe, 
-        // on pourrait supprimer le lien, mais on garde généralement le template intact pour les autres mois.
-        // On se contente de rompre le lien pour cette transaction précise si souhaité.
       }
 
-      // 2. GESTION DE LA TRANSACTION DANS LE JOURNAL
+      // 2. GESTION DE L'OPÉRATION DANS LE JOURNAL
+      const targetTxId = isVirtual ? generateId() : (t.id || generateId());
+      const finalTxData: Transaction = {
+        ...t,
+        id: targetTxId,
+        templateId: templateId
+      };
+
       if (isVirtual) {
-        // Matérialisation d'un virtuel : On l'ajoute comme transaction réelle et on masque le virtuel
-        const newRealTx: Transaction = {
-          ...t,
-          id: generateId(),
-          templateId: templateId
-        };
-        nextTx = [newRealTx, ...nextTx];
+        // On matérialise l'occurrence virtuelle
+        nextTx = [finalTxData, ...nextTx];
         nextDels.push(inputId);
-      } else if (inputId && nextTx.some(tx => String(tx.id) === inputId)) {
-        // Modification d'une transaction existante (réelle)
-        nextTx = nextTx.map(tx => String(tx.id) === inputId ? {
-          ...t,
-          id: inputId, // On garde l'ID original pour éviter les doublons
-          templateId: templateId
-        } as Transaction : tx);
+      } else if (t.id && nextTx.some(tx => String(tx.id) === String(t.id))) {
+        // Modification d'une transaction réelle existante
+        nextTx = nextTx.map(tx => String(tx.id) === String(t.id) ? finalTxData : tx);
       } else {
-        // Ajout d'une nouvelle transaction totalement manuelle
-        const newTx: Transaction = {
-          ...t,
-          id: generateId(),
-          templateId: templateId
-        };
-        nextTx = [newTx, ...nextTx];
+        // Nouvelle transaction manuelle
+        nextTx = [finalTxData, ...nextTx];
       }
 
       const nextAccounts = [...prev.accounts];
