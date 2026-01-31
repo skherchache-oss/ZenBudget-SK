@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-// 1. Correction de l'import : Utilisation du SDK officiel
+// Utilisation du SDK officiel recommandé
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface DashboardProps {
@@ -39,31 +39,33 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, [transactions]);
 
   const fetchAiAdvice = async () => {
-    // 2. Correction de la clé API : Vite utilise import.meta.env pour le client
+    // Correction : Vite utilise import.meta.env pour les variables préfixées par VITE_
     const apiKey = (import.meta as any).env.VITE_GEMINI_API_KEY || "";
     
     if (!apiKey) {
-      setAiAdvice("ZenTip : Pensez à isoler vos charges fixes dès le début du cycle.");
+      setAiAdvice("ZenTip : Optimisez vos charges fixes pour augmenter votre épargne.");
       return;
     }
 
     setLoadingAdvice(true);
     try {
-      // 3. Initialisation correcte du SDK
       const genAI = new GoogleGenerativeAI(apiKey);
+      // Utilisation d'un modèle stable et rapide
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const randomSeed = Math.random().toString(36).substring(7);
       
       const prompt = `Tu es un expert en finance personnelle pour l'app ZenBudget.
         Contexte actuel :
-        - Solde disponible (incluant charges fixes à venir) : ${availableBalance}€
+        - Solde disponible (après charges fixes) : ${availableBalance}€
         - Dépenses totales du mois : ${stats.expenses}€
         - Revenus prévus : ${stats.income}€
         
         MISSION :
         Donne un conseil financier PRAGMATIQUE et COURT (max 60 car).
-        Focus : Épargne, charges ou gestion de trésorerie.
+        Focus : Épargne, charges fixes ou gestion de flux.
         Style : Professionnel, direct, bienveillant.
-        Français uniquement.`;
+        Français uniquement.
+        Seed: ${randomSeed}`;
 
       const result = await model.generateContent(prompt);
       const response = await result.response;
@@ -71,15 +73,15 @@ const Dashboard: React.FC<DashboardProps> = ({
       
       if (text && text.length > 5) setAiAdvice(text);
     } catch (err) { 
-      console.error("Erreur Gemini:", err);
-      setAiAdvice("ZenTip : Gardez un œil sur vos dépenses variables."); 
+      console.error("Erreur Gemini AI:", err);
+      setAiAdvice("ZenTip : Gardez un œil sur vos dépenses variables ce mois-ci."); 
     } finally { 
       setLoadingAdvice(false); 
     }
   };
 
   useEffect(() => {
-    const timer = setTimeout(fetchAiAdvice, 1200);
+    const timer = setTimeout(fetchAiAdvice, 1500);
     return () => clearTimeout(timer);
   }, [availableBalance]);
 
@@ -91,7 +93,14 @@ const Dashboard: React.FC<DashboardProps> = ({
     const total = stats.expenses || 1;
     return Object.entries(map).map(([id, value]) => {
       const cat = categories.find(c => c.id === id);
-      return { id, name: cat?.name || 'Autres', value, color: cat?.color || '#94a3b8', icon: cat?.icon || '📦', percent: (value / total) * 100 };
+      return { 
+        id, 
+        name: cat?.name || 'Autres', 
+        value, 
+        color: cat?.color || '#94a3b8', 
+        icon: cat?.icon || '📦', 
+        percent: (value / total) * 100 
+      };
     }).sort((a, b) => b.value - a.value);
   }, [transactions, categories, stats.expenses]);
 
@@ -102,11 +111,11 @@ const Dashboard: React.FC<DashboardProps> = ({
       const rows: string[] = [
         `ZENBUDGET - EXPORT STATS - ${activeAccount.name.toUpperCase()}`,
         "",
-        `Solde Réel Pointé${s}${f(checkingAccountBalance)} €`,
-        `Disponible Réel (après fixes)${s}${f(availableBalance)} €`,
+        `Solde Réel Bancaire${s}${f(checkingAccountBalance)} €`,
+        `Disponible Réel (incl. fixes)${s}${f(availableBalance)} €`,
         `Projection Fin de Mois${s}${f(projectedBalance)} €`,
         "",
-        "--- RÉPARTITION ---",
+        "--- RÉPARTITION DES DÉPENSES ---",
         `Catégorie${s}Montant${s}Part (%)`
       ];
       categorySummary.forEach(c => {
@@ -115,7 +124,9 @@ const Dashboard: React.FC<DashboardProps> = ({
       const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href = url; link.download = `ZenBudget_Stats_${activeAccount.name.replace(/\s+/g, '_')}.csv`; link.click();
+      link.href = url; 
+      link.download = `ZenBudget_Stats_${activeAccount.name.replace(/\s+/g, '_')}.csv`; 
+      link.click();
     } catch (e) {
       console.error(e);
     }
@@ -154,11 +165,11 @@ const Dashboard: React.FC<DashboardProps> = ({
 
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-indigo-600 p-5 rounded-[32px] shadow-lg flex flex-col gap-1 border border-indigo-500/20">
-          <span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest leading-none mb-1">Dispo. réel (fixes inclus)</span>
+          <span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest leading-none mb-1">Disponible Réel (incl. fixes)</span>
           <div className="text-2xl font-black text-white">{formatVal(availableBalance)}€</div>
         </div>
         <div className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm flex flex-col gap-1">
-          <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest leading-none mb-1">Projection fin de mois</span>
+          <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest leading-none mb-1">Projection Fin de mois</span>
           <div className={`text-2xl font-black ${projectedBalance >= 0 ? 'text-slate-900' : 'text-red-500'}`}>{formatVal(projectedBalance)}€</div>
         </div>
       </div>
