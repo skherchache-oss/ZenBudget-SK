@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Category, TransactionType, Transaction } from '../types';
 
@@ -18,18 +17,13 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ categories, o
   const [date, setDate] = useState(initialDate.split('T')[0]);
   const [isRecurring, setIsRecurring] = useState(editItem?.isRecurring || false);
 
-  // Gestion du bouton "Retour" matériel
   useEffect(() => {
     window.history.pushState({ modalOpen: true }, '');
-    const handlePopState = () => {
-      onClose();
-    };
+    const handlePopState = () => onClose();
     window.addEventListener('popstate', handlePopState);
     return () => {
       window.removeEventListener('popstate', handlePopState);
-      if (window.history.state?.modalOpen) {
-        window.history.back();
-      }
+      if (window.history.state?.modalOpen) window.history.back();
     };
   }, [onClose]);
 
@@ -51,9 +45,7 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ categories, o
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const sanitizedAmount = amount.replace(',', '.');
-    const parsedAmount = parseFloat(sanitizedAmount);
-    
+    const parsedAmount = parseFloat(amount.replace(',', '.'));
     if (isNaN(parsedAmount) || parsedAmount <= 0 || !categoryId) return;
     
     const [year, month, day] = date.split('-').map(Number);
@@ -66,7 +58,8 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ categories, o
       categoryId,
       comment,
       date: secureDate,
-      isRecurring
+      isRecurring,
+      templateId: editItem?.templateId // TRÈS IMPORTANT : On transmet le templateId original pour la synchro
     });
   };
 
@@ -76,97 +69,44 @@ const AddTransactionModal: React.FC<AddTransactionModalProps> = ({ categories, o
   }, [amount, categoryId]);
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 bg-slate-900/60 backdrop-blur-md transition-all">
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 bg-slate-900/70 backdrop-blur-md transition-all">
       <div className="absolute inset-0" onClick={onClose} />
-      
       <div className="bg-white w-full max-w-md rounded-t-[40px] sm:rounded-[40px] shadow-2xl p-6 relative z-10 animate-in slide-in-from-bottom duration-300 no-scrollbar overflow-y-auto max-h-[92vh]">
-        
-        {/* BOUTON FERMER ULTRA VISIBLE */}
         <div className="absolute -top-16 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
-          <button 
-            onClick={onClose} 
-            className="w-12 h-12 bg-white rounded-full shadow-2xl flex items-center justify-center text-slate-900 border-2 border-white/20 active:scale-90 transition-transform"
-          >
-            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-          </button>
-          <span className="text-[10px] font-black text-white uppercase tracking-widest opacity-80">Fermer</span>
+          <button onClick={onClose} className="w-14 h-14 bg-white rounded-full shadow-2xl flex items-center justify-center text-slate-900 border-4 border-white active:scale-90 transition-transform"><svg className="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
+          <span className="text-[10px] font-black text-white uppercase tracking-[0.3em] drop-shadow-md">Fermer</span>
         </div>
-
-        <div className="mb-6 mt-2 text-center">
+        <div className="mb-6 mt-4 text-center">
           <h2 className="text-xl font-black text-slate-900 tracking-tight">{editItem ? 'Modifier' : 'Ajouter'}</h2>
         </div>
-
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="flex p-1 bg-slate-100 rounded-2xl">
-            <button 
-              type="button"
-              onClick={() => setType('EXPENSE')}
-              className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-[0.15em] transition-all ${type === 'EXPENSE' ? 'bg-red-500 text-white shadow-lg' : 'text-slate-400'}`}
-            >
-              Dépense
-            </button>
-            <button 
-              type="button"
-              onClick={() => setType('INCOME')}
-              className={`flex-1 py-3 rounded-xl font-black text-[10px] uppercase tracking-[0.15em] transition-all ${type === 'INCOME' ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-400'}`}
-            >
-              Revenu
-            </button>
+            <button type="button" onClick={() => setType('EXPENSE')} className={`flex-1 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-[0.15em] transition-all ${type === 'EXPENSE' ? 'bg-red-500 text-white shadow-lg' : 'text-slate-400'}`}>Dépense</button>
+            <button type="button" onClick={() => setType('INCOME')} className={`flex-1 py-3.5 rounded-xl font-black text-[10px] uppercase tracking-[0.15em] transition-all ${type === 'INCOME' ? 'bg-emerald-500 text-white shadow-lg' : 'text-slate-400'}`}>Revenu</button>
           </div>
-
-          <div className="text-center bg-slate-50 py-6 rounded-[32px] border border-slate-100 shadow-inner">
+          <div className="text-center bg-slate-50 py-8 rounded-[36px] border border-slate-100 shadow-inner">
             <label className="text-[8px] font-black uppercase text-slate-400 tracking-[0.2em] mb-1 block">Montant (€)</label>
-            <input 
-              type="text" inputMode="decimal" value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.00"
-              className="w-full text-center text-5xl font-black focus:outline-none placeholder-slate-200 text-slate-900 bg-transparent border-none ring-0"
-              autoFocus={!editItem}
-            />
+            <input type="text" inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0.00" className="w-full text-center text-6xl font-black focus:outline-none placeholder-slate-200 text-slate-900 bg-transparent border-none ring-0" autoFocus={!editItem} />
           </div>
-
           <div>
             <label className="text-[8px] font-black uppercase text-slate-400 tracking-[0.2em] mb-3 block ml-2">Catégorie</label>
             <div className="grid grid-cols-4 gap-2">
               {filteredCategories.map(cat => (
-                <button
-                  key={cat.id} type="button" onClick={() => setCategoryId(cat.id)}
-                  className={`flex flex-col items-center gap-1.5 p-2.5 rounded-2xl transition-all border-2 ${categoryId === cat.id ? 'border-indigo-600 bg-indigo-50 shadow-sm' : 'border-transparent bg-slate-50 hover:bg-slate-100'}`}
-                >
+                <button key={cat.id} type="button" onClick={() => setCategoryId(cat.id)} className={`flex flex-col items-center gap-1.5 p-3 rounded-2xl transition-all border-2 ${categoryId === cat.id ? 'border-indigo-600 bg-indigo-50 shadow-sm' : 'border-transparent bg-slate-50 hover:bg-slate-100'}`}>
                   <span className="text-2xl">{cat.icon}</span>
                   <span className="text-[8px] font-black text-slate-600 truncate w-full text-center uppercase tracking-tight">{cat.name}</span>
                 </button>
               ))}
             </div>
           </div>
-
           <div className="space-y-4">
-            <input 
-              type="text" value={comment} onChange={(e) => setComment(e.target.value)}
-              placeholder="Une petite note..."
-              className="w-full bg-slate-50 border-none rounded-2xl p-4 text-sm font-bold text-slate-800 focus:ring-1 focus:ring-indigo-100"
-            />
-            
+            <input type="text" value={comment} onChange={(e) => setComment(e.target.value)} placeholder="Note..." className="w-full bg-slate-50 border-none rounded-2xl p-4.5 text-sm font-bold text-slate-800 focus:ring-1 focus:ring-indigo-100" />
             <div className="grid grid-cols-2 gap-4">
-              <input 
-                type="date" value={date} onChange={(e) => setDate(e.target.value)}
-                className="bg-slate-50 border-none rounded-2xl p-4 text-sm font-black text-slate-800"
-              />
-              <button 
-                type="button" onClick={() => setIsRecurring(!isRecurring)}
-                className={`rounded-2xl border-2 transition-all font-black text-[10px] uppercase tracking-widest ${isRecurring ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-slate-50 border-transparent text-slate-400'}`}
-              >
-                {isRecurring ? 'Fixe ✓' : 'Ponctuel'}
-              </button>
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="bg-slate-50 border-none rounded-2xl p-4.5 text-sm font-black text-slate-800" />
+              <button type="button" onClick={() => setIsRecurring(!isRecurring)} className={`rounded-2xl border-2 transition-all font-black text-[10px] uppercase tracking-widest ${isRecurring ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg' : 'bg-slate-50 border-transparent text-slate-400'}`}>{isRecurring ? 'Fixe ✓' : 'Ponctuel'}</button>
             </div>
           </div>
-
-          <button 
-            type="submit" disabled={!isFormValid}
-            className={`w-full py-5 text-white font-black rounded-[24px] shadow-2xl active:scale-[0.98] transition-all tracking-[0.2em] uppercase text-[11px] ${!isFormValid ? 'bg-slate-200 cursor-not-allowed' : 'bg-slate-900'}`}
-          >
-            {editItem ? 'Mettre à jour' : 'Enregistrer'}
-          </button>
+          <button type="submit" disabled={!isFormValid} className={`w-full py-5 text-white font-black rounded-[28px] shadow-2xl active:scale-[0.98] transition-all tracking-[0.2em] uppercase text-[11px] mt-4 ${!isFormValid ? 'bg-slate-200 cursor-not-allowed' : 'bg-slate-900 shadow-slate-200'}`}>{editItem ? 'Mettre à jour' : 'Enregistrer'}</button>
         </form>
       </div>
     </div>

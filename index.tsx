@@ -161,24 +161,25 @@ const App: React.FC = () => {
       const inputId = String(t.id || "");
       const isVirtual = inputId.startsWith('virtual-');
       
-      // Extraction ou création du templateId
+      // Extraction cruciale du templateId
+      // Si c'est virtuel, on le tire de l'id, sinon on utilise celui passé par le modal
       let templateId = t.templateId;
       if (!templateId && isVirtual) {
         templateId = inputId.split('-')[1];
       }
 
-      // 1. GESTION DU TEMPLATE (Synchronisation partout pareil)
+      const tDate = new Date(t.date);
+      const day = tDate.getDate();
+
+      // 1. MISE À JOUR OU CRÉATION DU MODÈLE (FIXE)
       if (t.isRecurring) {
-        const tDate = new Date(t.date);
-        const day = tDate.getDate();
-        
         if (templateId) {
-          // Mise à jour du template existant -> changement global pour le futur
+          // On met à jour le modèle existant -> Changement global immédiat
           nextTpls = nextTpls.map(tpl => String(tpl.id) === String(templateId) ? {
             ...tpl, amount: t.amount, categoryId: t.categoryId, comment: t.comment, type: t.type, dayOfMonth: day
           } : tpl);
         } else {
-          // Création d'un nouveau template
+          // Création d'un nouveau modèle fixe
           const newTplId = generateId();
           nextTpls.push({
             id: newTplId, amount: t.amount, categoryId: t.categoryId, comment: t.comment, type: t.type,
@@ -186,21 +187,37 @@ const App: React.FC = () => {
           });
           templateId = newTplId;
         }
+      } else {
+        // Si l'utilisateur décoche "isRecurring" sur une transaction qui était fixe, 
+        // on pourrait supprimer le lien, mais on garde généralement le template intact pour les autres mois.
+        // On se contente de rompre le lien pour cette transaction précise si souhaité.
       }
 
-      // 2. GESTION DE LA TRANSACTION RÉELLE
-      const finalTxData = { ...t, templateId, id: isVirtual ? generateId() : (inputId || generateId()) };
-      
+      // 2. GESTION DE LA TRANSACTION DANS LE JOURNAL
       if (isVirtual) {
-        // C'était une occurrence virtuelle : on la matérialise et on cache l'ID virtuel
+        // Matérialisation d'un virtuel : On l'ajoute comme transaction réelle et on masque le virtuel
+        const newRealTx: Transaction = {
+          ...t,
+          id: generateId(),
+          templateId: templateId
+        };
+        nextTx = [newRealTx, ...nextTx];
         nextDels.push(inputId);
-        nextTx = [finalTxData as Transaction, ...nextTx];
       } else if (inputId && nextTx.some(tx => String(tx.id) === inputId)) {
-        // C'est une mise à jour d'une transaction existante
-        nextTx = nextTx.map(tx => String(tx.id) === inputId ? (finalTxData as Transaction) : tx);
+        // Modification d'une transaction existante (réelle)
+        nextTx = nextTx.map(tx => String(tx.id) === inputId ? {
+          ...t,
+          id: inputId, // On garde l'ID original pour éviter les doublons
+          templateId: templateId
+        } as Transaction : tx);
       } else {
-        // C'est une nouvelle transaction manuelle
-        nextTx = [finalTxData as Transaction, ...nextTx];
+        // Ajout d'une nouvelle transaction totalement manuelle
+        const newTx: Transaction = {
+          ...t,
+          id: generateId(),
+          templateId: templateId
+        };
+        nextTx = [newTx, ...nextTx];
       }
 
       const nextAccounts = [...prev.accounts];
