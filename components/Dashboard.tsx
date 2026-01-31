@@ -2,7 +2,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { MONTHS_FR } from '../constants';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-// CORRECTION : Utilisation du package officiel
+// CORRECTION : Utilisation du nom de package aligné avec l'importmap
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface DashboardProps {
@@ -21,10 +21,10 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
-  transactions, categories, activeAccount, month, year, checkingAccountBalance, availableBalance, projectedBalance 
+  transactions, categories, activeAccount, checkingAccountBalance, availableBalance, projectedBalance 
 }) => {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const [aiAdvice, setAiAdvice] = useState<string>("Analyse de votre sérénité...");
+  const [aiAdvice, setAiAdvice] = useState<string>("Analyse de votre budget en cours...");
   const [loadingAdvice, setLoadingAdvice] = useState(false);
 
   const stats = useMemo(() => {
@@ -39,40 +39,60 @@ const Dashboard: React.FC<DashboardProps> = ({
     return { income, expenses, fixed, variable: expenses - fixed, net: income - expenses };
   }, [transactions]);
 
-  useEffect(() => {
-    const fetchAiAdvice = async () => {
-      // CORRECTION : Accès variable environnement Vite
-      const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-      
-      if (!apiKey) {
-        setAiAdvice(availableBalance < 100 ? "Cultivez la patience, l'abondance viendra." : "Votre ciel financier est d'une clarté parfaite.");
-        return;
-      }
-
-      setLoadingAdvice(true);
-      try {
-        // CORRECTION : Nouvelle syntaxe d'initialisation SDK
-        const genAI = new GoogleGenerativeAI(apiKey);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        
-        const prompt = `Tu es un coach financier Zen. Voici les données : Disponible ${availableBalance}€, Charges fixes ${stats.fixed}€, Dépenses variables ${stats.variable}€. Donne un seul conseil ultra-court (max 60 caractères), poétique et bienveillant en français. N'affiche aucun chiffre, sois inspirant et bref.`;
-        
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        const text = response.text().trim().replace(/^["']|["']$/g, '');
-        
-        setAiAdvice(text || "La simplicité est la clé de la richesse intérieure.");
-      } catch (err) { 
-        console.error("AI Error:", err);
-        setAiAdvice("Laissez vos économies respirer comme vous."); 
-      } finally { 
-        setLoadingAdvice(false); 
-      }
-    };
+  const fetchAiAdvice = async () => {
+    // CORRECTION : Utilisation de import.meta.env pour Vite/Vercel
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     
-    const timer = setTimeout(fetchAiAdvice, 1500);
+    if (!apiKey) {
+      setAiAdvice("Conseil : Pensez à mettre de côté 10% de vos revenus dès le début du mois.");
+      return;
+    }
+
+    setLoadingAdvice(true);
+    try {
+      // CORRECTION : Mise à jour vers la syntaxe SDK officielle
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      
+      const randomSeed = Math.random().toString(36).substring(7);
+      
+      const prompt = `Tu es un expert en finances personnelles. Analyse ces données :
+        - Reste à dépenser : ${availableBalance}€
+        - Dépenses totales ce mois : ${stats.expenses}€
+        - Revenus : ${stats.income}€
+        
+        MISSION :
+        Donne un UNIQUE conseil financier PRATIQUE et DIRECT.
+        Le conseil doit aider à mieux gérer son argent, épargner ou éviter des d'épenses inutiles.
+        
+        CONTRAINTES :
+        - Style : Clair, simple, professionnel, sans métaphore.
+        - Longueur : Maximum 65 caractères.
+        - Thèmes : Épargne de précaution, budget variable, factures, investissement simple.
+        - Pas de "Maître Zen", pas de poésie. Juste de la finance.
+        - Pas de chiffres précis dans le conseil.
+        - Langue : Français uniquement.
+        - Graine : ${randomSeed}`;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text().trim().replace(/^["']|["']$/g, '');
+      
+      if (text && text.length > 5) {
+        setAiAdvice(text);
+      }
+    } catch (err) { 
+      console.error("Erreur IA:", err);
+      setAiAdvice("Conseil : Vérifiez vos abonnements inutilisés pour réduire vos charges fixes."); 
+    } finally { 
+      setLoadingAdvice(false); 
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(fetchAiAdvice, 800);
     return () => clearTimeout(timer);
-  }, [availableBalance, stats.fixed, stats.variable]);
+  }, [availableBalance]);
 
   const categorySummary = useMemo(() => {
     const map: Record<string, number> = {};
@@ -91,7 +111,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     const f = (n: number) => n.toFixed(2).replace('.', ',');
     const rows: string[] = [
       `ZENBUDGET - BILAN${s}${activeAccount.name.toUpperCase()}`,
-      `Période${s}${MONTHS_FR[month]} ${year}`,
       "",
       `Solde Bancaire${s}${f(checkingAccountBalance)} €`,
       `Disponible Réel${s}${f(availableBalance)} €`,
@@ -110,7 +129,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const hoveredCategory = activeIndex !== null ? categorySummary[activeIndex] : null;
-  const sectionTitleStyle = "text-[9px] font-black text-slate-400 uppercase tracking-[0.25em] mb-1 flex items-center gap-2 px-2";
+  const sectionTitleStyle = "text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1 flex items-center gap-2 px-2";
 
   return (
     <div className="flex flex-col h-full space-y-6 overflow-y-auto no-scrollbar pb-32 px-1 fade-in">
@@ -119,8 +138,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           <h2 className="text-2xl font-black text-slate-800 tracking-tighter leading-none">Bilan ✨</h2>
           <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mt-1.5 truncate max-w-[140px]">{activeAccount.name}</p>
         </div>
-        <button onClick={handleExportCSV} className="flex items-center gap-2 px-3.5 py-2.5 bg-white rounded-2xl border border-slate-100 shadow-sm text-[9px] font-black uppercase tracking-widest text-slate-500 active:scale-95 transition-all">
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+        <button onClick={handleExportCSV} className="px-4 py-2.5 bg-white rounded-2xl border border-slate-100 shadow-sm text-[9px] font-black uppercase tracking-widest text-slate-500 active:scale-95 transition-all">
           Export CSV
         </button>
       </div>
@@ -148,96 +166,76 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      <div className="relative group">
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-200/50 to-emerald-200/50 rounded-[30px] blur opacity-20 group-hover:opacity-40 transition-opacity"></div>
-        <div className="relative bg-white/60 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm overflow-hidden">
-          <div className={`w-11 h-11 rounded-2xl bg-white shadow-sm flex items-center justify-center text-2xl shrink-0 transition-transform duration-1000 ${loadingAdvice ? 'animate-pulse scale-110' : 'scale-100'}`}>
-            {loadingAdvice ? '💎' : '🧘'}
+      <div className="relative group cursor-pointer" onClick={fetchAiAdvice}>
+        <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-200 to-blue-200 rounded-[30px] blur opacity-10 group-hover:opacity-20 transition-opacity"></div>
+        <div className="relative bg-white/70 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm overflow-hidden active:scale-[0.98] transition-all">
+          <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-xl shadow-inner shrink-0 relative">
+            {loadingAdvice ? (
+              <svg className="animate-spin h-6 w-6 text-indigo-500" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : "💡"}
           </div>
-          <div className="flex flex-col min-w-0">
-            <span className="text-[7px] font-black text-indigo-400 uppercase tracking-[0.3em] mb-1 leading-none">Intelligence Zen</span>
-            <p className={`text-[12px] font-bold leading-tight text-slate-600 italic transition-all duration-700 ${loadingAdvice ? 'opacity-30 blur-[1px]' : 'opacity-100'}`}>
-              "{aiAdvice}"
+          <div className="flex-1 min-w-0">
+            <span className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-500 block mb-1">Analyse Intelligente</span>
+            <p className="text-[11px] font-bold text-slate-700 leading-tight">
+              {aiAdvice}
             </p>
           </div>
-          {loadingAdvice && (
-            <div className="absolute bottom-0 left-0 h-[2px] w-full bg-indigo-50 overflow-hidden">
-              <div className="h-full bg-indigo-400 animate-[loading_2s_infinite]"></div>
-            </div>
-          )}
         </div>
       </div>
 
-      <section>
-        <h2 className={sectionTitleStyle}><span>🔄</span> Bilan des flux</h2>
-        <div className="bg-white p-6 rounded-[36px] border border-slate-100 shadow-sm grid grid-cols-2 gap-6">
-          <div className="space-y-1">
-            <span className="text-[9px] font-black text-emerald-500 uppercase tracking-widest block">Entrées</span>
-            <div className="text-xl font-black text-slate-800">+{Math.round(stats.income).toLocaleString('fr-FR')}€</div>
-          </div>
-          <div className="space-y-1 border-l border-slate-50 pl-6">
-            <span className="text-[9px] font-black text-red-400 uppercase tracking-widest block">Sorties</span>
-            <div className="text-xl font-black text-slate-800">-{Math.round(stats.expenses).toLocaleString('fr-FR')}€</div>
-          </div>
-        </div>
-      </section>
-
-      <section>
-        <h2 className={sectionTitleStyle}><span>📊</span> Répartition</h2>
-        <div className="bg-white p-6 rounded-[36px] border border-slate-100 shadow-sm space-y-6">
-          <div className="w-full h-[180px] relative">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie 
-                  data={categorySummary} cx="50%" cy="50%" innerRadius={60} outerRadius={82} paddingAngle={4} dataKey="value" stroke="none" 
-                  onMouseEnter={(_: any, idx: number) => setActiveIndex(idx)}
-                  onMouseLeave={() => setActiveIndex(null)}
-                >
-                  {categorySummary.map((entry, idx) => <Cell key={`cell-${idx}`} fill={entry.color} className="transition-all duration-300 outline-none" />)}
-                </Pie>
-              </PieChart>
-            </ResponsiveContainer>
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none text-center">
-              {hoveredCategory ? (
-                <>
-                  <span className="text-2xl animate-bounce mb-1">{hoveredCategory.icon}</span>
-                  <span className="text-[11px] font-black uppercase text-slate-900 tracking-tighter">{Math.round(hoveredCategory.percent)}%</span>
-                </>
-              ) : (
-                <>
-                  <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Sorties</span>
-                  <span className="text-lg font-black text-slate-900">{Math.round(stats.expenses).toLocaleString('fr-FR')}€</span>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-2.5 pt-2">
-            {categorySummary.slice(0, 5).map((item, idx) => (
-              <div 
-                key={item.id} 
-                className={`flex items-center justify-between p-3.5 rounded-[22px] transition-all duration-300 border ${activeIndex === idx ? 'bg-indigo-50/50 border-indigo-100 scale-[1.02]' : 'bg-slate-50/50 border-transparent'}`}
+      <div className="bg-white/80 backdrop-blur-xl rounded-[40px] p-6 border border-white shadow-xl">
+        <h2 className={sectionTitleStyle}><span>📊</span> Répartition des dépenses</h2>
+        <div className="h-[240px] w-full mt-4 relative">
+          <ResponsiveContainer width="100%" height="100%">
+            <PieChart>
+              <Pie
+                data={categorySummary}
+                innerRadius={75}
+                outerRadius={100}
+                paddingAngle={8}
+                dataKey="value"
+                onMouseEnter={(_, index) => setActiveIndex(index)}
+                onMouseLeave={() => setActiveIndex(null)}
+                stroke="none"
               >
-                <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-white shadow-sm flex items-center justify-center text-xl">{item.icon}</div>
-                  <div>
-                    <div className="text-[11px] font-black text-slate-800 uppercase tracking-tight leading-none">{item.name}</div>
-                    <div className="text-[9px] text-slate-400 font-bold mt-1 uppercase tracking-widest">{Math.round(item.percent)}%</div>
-                  </div>
-                </div>
-                <div className="text-[13px] font-black text-slate-900">{Math.round(item.value).toLocaleString('fr-FR')}€</div>
-              </div>
-            ))}
+                {categorySummary.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} opacity={activeIndex === null || activeIndex === index ? 1 : 0.3} />
+                ))}
+              </Pie>
+            </PieChart>
+          </ResponsiveContainer>
+          
+          <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+            {hoveredCategory ? (
+              <>
+                <span className="text-2xl mb-1">{hoveredCategory.icon}</span>
+                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{hoveredCategory.name}</span>
+                <span className="text-lg font-black text-slate-900">{Math.round(hoveredCategory.value)}€</span>
+              </>
+            ) : (
+              <>
+                <span className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em]">Total</span>
+                <span className="text-2xl font-black text-slate-900">{Math.round(stats.expenses)}€</span>
+              </>
+            )}
           </div>
         </div>
-      </section>
-      
-      <style>{`
-        @keyframes loading {
-          0% { transform: translateX(-100%); }
-          100% { transform: translateX(300%); }
-        }
-      `}</style>
+
+        <div className="grid grid-cols-2 gap-2 mt-6">
+          {categorySummary.slice(0, 4).map((cat) => (
+            <div key={cat.id} className="flex items-center gap-2 p-2 bg-slate-50 rounded-2xl border border-slate-100">
+              <span className="w-8 h-8 rounded-lg flex items-center justify-center bg-white shadow-sm border border-slate-100 text-sm">{cat.icon}</span>
+              <div className="flex flex-col min-w-0">
+                <span className="text-[9px] font-black uppercase tracking-tight text-slate-800 truncate">{cat.name}</span>
+                <span className="text-[10px] font-black text-slate-400">{Math.round(cat.percent)}%</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };

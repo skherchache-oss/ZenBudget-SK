@@ -24,25 +24,20 @@ const getBalanceAtDate = (activeAccount: BudgetAccount | undefined, targetDate: 
   if (!activeAccount) return 0;
   const now = new Date();
   
-  // 1. Transactions réelles jusqu'à la date cible
+  // 1. Transactions réelles (saisies manuellement)
   let balance = activeAccount.transactions.reduce((acc, t) => {
     return new Date(t.date) <= targetDate ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
   }, 0);
 
-  // 2. Projections (Virtuelles)
+  // 2. Charges Fixes Virtuelles (Templates non matérialisés)
   if (includeProjections) {
     const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
     const templates = activeAccount.recurringTemplates || [];
     
-    // On projette de maintenant jusqu'à la date cible
+    // On analyse à partir du début du mois courant jusqu'à targetDate
     let cursor = new Date(now.getFullYear(), now.getMonth(), 1);
-    const limit = targetDate;
 
-    // Sécurité temporelle
-    const maxFuture = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000); 
-    const finalLimit = limit < maxFuture ? limit : maxFuture;
-
-    while (cursor <= finalLimit) {
+    while (cursor <= targetDate) {
       const cM = cursor.getMonth();
       const cY = cursor.getFullYear();
       
@@ -62,12 +57,13 @@ const getBalanceAtDate = (activeAccount: BudgetAccount | undefined, targetDate: 
         const tplDate = new Date(cY, cM, day, 12, 0, 0);
         const vId = `virtual-${tpl.id}-${cM}-${cY}`;
         
-        // On compte si c'est APRÈS 'now' et AVANT 'targetDate'
+        // On compte si c'est APRÈS "maintenant" (car avant c'est supposé réglé ou réel)
         if (tplDate > now && tplDate <= targetDate && !deletedVirtuals.has(vId)) {
           balance += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
         }
       });
       cursor.setMonth(cursor.getMonth() + 1);
+      if (cursor.getFullYear() > now.getFullYear() + 2) break;
     }
   }
   return balance;
@@ -107,20 +103,20 @@ const App: React.FC = () => {
   }, [activeAccount]);
 
   const projectedBalance = useMemo(() => {
-    const cycleDay = activeAccount?.cycleEndDay || 0;
-    const target = getCycleEndDate(currentYear, currentMonth, cycleDay);
+    const target = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
     return getBalanceAtDate(activeAccount, target, true);
   }, [activeAccount, currentMonth, currentYear]);
 
   const carryOver = useMemo(() => {
-    const startOfViewMonth = new Date(currentYear, currentMonth, 1, 0, 0, 0);
-    return getBalanceAtDate(activeAccount, new Date(startOfViewMonth.getTime() - 1), true);
+    const lastDayOfPrevMonth = new Date(currentYear, currentMonth, 0, 23, 59, 59);
+    return getBalanceAtDate(activeAccount, lastDayOfPrevMonth, true);
   }, [activeAccount, currentMonth, currentYear]);
 
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
     const now = new Date();
     
+    // 1. Transactions réelles du mois
     const manuals = activeAccount.transactions.filter(t => {
       const d = new Date(t.date);
       return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
@@ -129,6 +125,7 @@ const App: React.FC = () => {
     const materializedIds = new Set(manuals.map(t => t.templateId).filter(Boolean));
     const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
 
+    // 2. Projections virtuelles du mois sélectionné
     const virtuals: Transaction[] = (activeAccount.recurringTemplates || [])
       .filter(tpl => tpl.isActive && !materializedIds.has(tpl.id))
       .map(tpl => {
@@ -147,7 +144,8 @@ const App: React.FC = () => {
       })
       .filter(v => {
         const vDate = new Date(v.date);
-        return vDate > now && !deletedVirtuals.has(v.id);
+        // On affiche les virtuelles si elles sont dans le futur (ou aujourd'hui) et non supprimées
+        return vDate >= new Date(now.getFullYear(), now.getMonth(), now.getDate()) && !deletedVirtuals.has(v.id);
       });
 
     return [...manuals, ...virtuals].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());

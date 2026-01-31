@@ -84,7 +84,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
   
   const SectionTitle: React.FC<{ icon: string, title: string }> = ({ icon, title }) => (
     <div className="flex items-center gap-3 px-2 mb-3">
-      <div className="w-8 h-8 rounded-full bg-white shadow-md flex items-center justify-center text-base border border-slate-50 shrink-0">
+      <div className="w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center text-lg border border-slate-50 shrink-0">
         {icon}
       </div>
       <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{title}</h2>
@@ -249,14 +249,14 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
 
       {/* ACTIONS FINALES & FEEDBACK */}
       <section className="space-y-4">
-        <div className="bg-indigo-50/40 border border-indigo-100 p-7 rounded-[36px] text-center space-y-5 shadow-sm relative overflow-hidden group">
-          <div className="absolute -right-6 -top-6 w-20 h-20 bg-indigo-100/30 rounded-full blur-2xl group-hover:scale-125 transition-transform" />
-          <p className="text-[12px] font-medium text-slate-600 leading-relaxed italic relative z-10">
+        <div className="bg-indigo-50/40 border border-indigo-100 p-8 rounded-[40px] text-center space-y-5 shadow-sm relative overflow-hidden group">
+          <div className="absolute -right-6 -top-6 w-24 h-24 bg-indigo-100/30 rounded-full blur-2xl group-hover:scale-125 transition-transform" />
+          <p className="text-[12px] font-medium text-slate-600 leading-relaxed italic relative z-10 px-2">
             "ZenBudget évolue grâce à vous ! Si vous avez envie d'aider à améliorer l'appli, envoyez-nous une suggestion ou signalez un bug."
           </p>
           <button 
             onClick={handleFeedback} 
-            className="w-full py-4.5 bg-slate-900 text-white font-black rounded-[24px] uppercase text-[10px] tracking-[0.2em] active:scale-95 transition-all shadow-xl flex items-center justify-center gap-2 relative z-10 hover:bg-slate-800"
+            className="w-full py-4.5 bg-slate-900 text-white font-black rounded-[26px] uppercase text-[10px] tracking-[0.2em] active:scale-95 transition-all shadow-xl flex items-center justify-center gap-2 relative z-10 hover:bg-slate-800"
           >
             <span>Envoyez un retour</span>
             <span className="text-sm">✨</span>
@@ -272,7 +272,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
       </section>
 
       <div className="pt-4 border-t border-slate-50 text-center">
-        <p className="text-[8px] text-slate-200 font-black uppercase tracking-[0.4em]">ZenBudget V4.7 • Premium Design</p>
+        <p className="text-[8px] text-slate-200 font-black uppercase tracking-[0.4em]">ZenBudget V4.8 • Premium Design</p>
       </div>
     </div>
   );
