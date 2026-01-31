@@ -15,96 +15,101 @@ import Settings from './components/Settings';
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>(() => getInitialState());
   const [activeView, setActiveView] = useState<ViewType>('DASHBOARD');
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  
+  // Date de référence pour la vue courante (toujours à midi UTC pour éviter les décalages mobiles)
+  const now = new Date();
+  const [currentMonth, setCurrentMonth] = useState(now.getMonth());
+  const [currentYear, setCurrentYear] = useState(now.getFullYear());
+  
   const [slideDirection, setSlideDirection] = useState<'next' | 'prev' | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [modalInitialDate, setModalInitialDate] = useState<string>(new Date().toISOString());
   const [selectedDay, setSelectedDay] = useState<number | null>(new Date().getDate());
 
+  // Persistance robuste : sauvegarde immédiate sur les changements critiques
   const isInitialMount = useRef(true);
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
     }
-    const timer = setTimeout(() => {
-      saveState(state);
-    }, 500);
-    return () => clearTimeout(timer);
+    saveState(state);
   }, [state]);
 
   const activeAccount = useMemo(() => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
-  // --- UTILS DE DATE ROBUSTES POUR MOBILE ---
-  // On utilise "12:00" pour toutes les dates afin d'éviter les bugs de fuseaux horaires
-  const getNormalizedDate = (year: number, month: number, day: number) => {
-    return new Date(year, month, day, 12, 0, 0);
+  // --- UTILS DE DATE HAUTE PRÉCISION (UTC TIMESTAMP) ---
+  
+  const getUTCMidday = (year: number, month: number, day: number) => {
+    return Date.UTC(year, month, day, 12, 0, 0);
   };
 
-  const getMonthKey = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return `${d.getFullYear()}-${d.getMonth()}`;
+  const getMonthKeyFromTS = (timestamp: number) => {
+    const d = new Date(timestamp);
+    return `${d.getUTCFullYear()}-${d.getUTCMonth()}`;
   };
 
-  // --- MOTEUR DE CALCUL DE SOLDE ---
+  // --- MOTEUR DE PROJECTION INDESTRUCTIBLE ---
+  
   const getProjectedBalanceAtDate = (targetDate: Date) => {
     if (!activeAccount) return 0;
     
-    // 1. Somme des transactions réelles saisies
+    const targetTS = targetDate.getTime();
+    const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
+    const templates = activeAccount.recurringTemplates || [];
+
+    // 1. Calcul du socle : Transactions Réelles (saisies)
     let balance = activeAccount.transactions.reduce((acc, t) => {
-      return new Date(t.date) <= targetDate ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
+      return new Date(t.date).getTime() <= targetTS ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
     }, 0);
 
-    // 2. Ajout des virtuels non matérialisés
-    const templates = activeAccount.recurringTemplates || [];
-    const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
-    
-    // On définit le point de départ du calcul
-    let startYear = 2024;
+    // 2. Injection des charges virtuelles manquantes
+    // On remonte au début de l'année précédente ou à la 1ère transaction pour être sûr
+    let startYear = currentYear - 1;
     let startMonth = 0;
     if (activeAccount.transactions.length > 0) {
-      const first = new Date(Math.min(...activeAccount.transactions.map(t => new Date(t.date).getTime())));
-      startYear = first.getFullYear();
-      startMonth = first.getMonth();
-    } else {
-      const now = new Date();
-      startYear = now.getFullYear();
-      startMonth = now.getMonth();
+      const firstTxDate = new Date(Math.min(...activeAccount.transactions.map(t => new Date(t.date).getTime())));
+      startYear = firstTxDate.getUTCFullYear();
+      startMonth = firstTxDate.getUTCMonth();
     }
 
     let cursorYear = startYear;
     let cursorMonth = startMonth;
-    const targetKey = `${targetDate.getFullYear()}-${targetDate.getMonth()}`;
     let safety = 0;
+    const targetMonthTS = Date.UTC(targetDate.getFullYear(), targetDate.getMonth(), 1);
 
-    while (safety < 48) {
-      const currentKey = `${cursorYear}-${cursorMonth}`;
-      
-      // Ids des templates déjà payés réellement ce mois-ci
-      const materialized = new Set(
+    while (safety < 60) { // Max 5 ans de projection
+      const currentMonthTS = Date.UTC(cursorYear, cursorMonth, 1);
+      const currentMonthKey = `${cursorYear}-${cursorMonth}`;
+
+      // Quelles charges fixes sont déjà pointées (matérialisées) ce mois-ci ?
+      const materializedIds = new Set(
         activeAccount.transactions
-          .filter(t => getMonthKey(t.date) === currentKey && t.templateId)
+          .filter(t => {
+            const d = new Date(t.date);
+            return d.getUTCFullYear() === cursorYear && d.getUTCMonth() === cursorMonth && t.templateId;
+          })
           .map(t => String(t.templateId))
       );
 
       templates.forEach(tpl => {
-        if (!tpl.isActive || materialized.has(String(tpl.id))) return;
+        if (!tpl.isActive || materializedIds.has(String(tpl.id))) return;
 
         const lastDay = new Date(cursorYear, cursorMonth + 1, 0).getDate();
         const day = Math.min(tpl.dayOfMonth, lastDay);
-        const tplDate = getNormalizedDate(cursorYear, cursorMonth, day);
+        const tplTS = getUTCMidday(cursorYear, cursorMonth, day);
         const vId = `virtual-${tpl.id}-${cursorMonth}-${cursorYear}`;
 
-        if (tplDate <= targetDate && !deletedVirtuals.has(vId)) {
+        // On inclut si la date théorique <= target ET que l'utilisateur n'a pas supprimé ce virtuel spécifique
+        if (tplTS <= targetTS && !deletedVirtuals.has(vId)) {
           balance += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
         }
       });
 
-      if (currentKey === targetKey) break;
+      if (currentMonthTS >= targetMonthTS) break;
       cursorMonth++;
       if (cursorMonth > 11) { cursorMonth = 0; cursorYear++; }
       safety++;
@@ -113,52 +118,62 @@ const App: React.FC = () => {
     return balance;
   };
 
-  // --- ÉTATS CALCULÉS ---
+  // --- CALCULS DE SOLDE POUR LA VUE ---
+
   const checkingAccountBalance = useMemo(() => {
     if (!activeAccount) return 0;
-    const now = new Date();
+    const nowTS = Date.now();
     return activeAccount.transactions.reduce((acc, t) => {
-      return new Date(t.date) <= now ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
+      return new Date(t.date).getTime() <= nowTS ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
     }, 0);
   }, [activeAccount]);
 
   const availableBalance = useMemo(() => {
-    const now = new Date();
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    // Solde à la fin du mois réel courant
+    const d = new Date();
+    const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
     return getProjectedBalanceAtDate(endOfMonth);
   }, [activeAccount]);
 
   const projectedBalance = useMemo(() => {
-    const endOfView = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
-    return getProjectedBalanceAtDate(endOfView);
+    // Solde à la fin du mois affiché dans le journal
+    const endOfViewMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
+    return getProjectedBalanceAtDate(endOfViewMonth);
   }, [activeAccount, currentMonth, currentYear]);
 
   const carryOver = useMemo(() => {
+    // Solde à la veille du mois affiché
     const lastDayPrev = new Date(currentYear, currentMonth, 0, 23, 59, 59);
     return getProjectedBalanceAtDate(lastDayPrev);
   }, [activeAccount, currentMonth, currentYear]);
 
-  // --- GÉNÉRATION DU JOURNAL ---
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
     
-    const currentKey = `${currentYear}-${currentMonth}`;
-    const realOnes = activeAccount.transactions.filter(t => getMonthKey(t.date) === currentKey);
+    // 1. Réelles
+    const realOnes = activeAccount.transactions.filter(t => {
+      const d = new Date(t.date);
+      return d.getUTCFullYear() === currentYear && d.getUTCMonth() === currentMonth;
+    });
+
     const materializedIds = new Set(realOnes.map(t => String(t.templateId || "")));
     const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
 
+    // 2. Virtuelles du mois en cours
     const virtuals: Transaction[] = (activeAccount.recurringTemplates || [])
       .filter(tpl => tpl.isActive && !materializedIds.has(String(tpl.id)))
       .map(tpl => {
         const lastDay = new Date(currentYear, currentMonth + 1, 0).getDate();
         const day = Math.min(tpl.dayOfMonth, lastDay);
+        const vId = `virtual-${tpl.id}-${currentMonth}-${currentYear}`;
+        
         return {
-          id: `virtual-${tpl.id}-${currentMonth}-${currentYear}`,
+          id: vId,
           amount: tpl.amount, 
           type: tpl.type, 
           categoryId: tpl.categoryId,
           comment: tpl.comment || (tpl.type === 'INCOME' ? 'Revenu fixe' : 'Charge fixe'),
-          date: getNormalizedDate(currentYear, currentMonth, day).toISOString(),
+          date: new Date(getUTCMidday(currentYear, currentMonth, day)).toISOString(),
           isRecurring: true, 
           templateId: tpl.id
         };
@@ -168,7 +183,8 @@ const App: React.FC = () => {
     return [...realOnes, ...virtuals].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [activeAccount, currentMonth, currentYear]);
 
-  // --- ACTIONS ---
+  // --- HANDLERS ---
+
   const handleMonthChange = (offset: number) => {
     setSlideDirection(offset > 0 ? 'next' : 'prev');
     let nm = currentMonth + offset;
@@ -178,7 +194,6 @@ const App: React.FC = () => {
     setCurrentMonth(nm);
     setCurrentYear(ny);
     setSelectedDay(1);
-    // Force le scroll en haut sur mobile lors du changement de mois
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -196,13 +211,16 @@ const App: React.FC = () => {
       const isVirtual = targetId.startsWith('virtual-');
       const templateId = t.templateId || (isVirtual ? targetId.split('-')[1] : undefined);
 
+      // Si c'est un fixe, on met à jour le template global
       if (t.isRecurring && templateId) {
         nextTpls = nextTpls.map(tpl => String(tpl.id) === String(templateId) ? { ...tpl, amount: t.amount, categoryId: t.categoryId, comment: t.comment, type: t.type } : tpl);
       }
 
       if (targetId && !isVirtual && nextTx.some(i => String(i.id) === targetId)) {
+        // Update d'une transaction réelle existante
         nextTx = nextTx.map(i => String(i.id) === targetId ? ({ ...t, id: targetId, templateId } as Transaction) : i);
       } else {
+        // Création ou Matérialisation d'un virtuel
         if (isVirtual) nextDels.push(targetId);
         nextTx = [{ ...t, id: generateId(), templateId } as Transaction, ...nextTx];
       }
@@ -220,12 +238,21 @@ const App: React.FC = () => {
     setState(prev => {
       const accIdx = prev.accounts.findIndex(a => a.id === prev.activeAccountId);
       if (accIdx === -1) return prev;
+      
       const acc = { ...prev.accounts[accIdx] };
       let nextDels = [...(acc.deletedVirtualIds || [])];
-      if (idStr.startsWith('virtual-')) nextDels.push(idStr);
+      
+      // Si on supprime un virtuel, on l'ajoute à la liste noire persistante
+      if (idStr.startsWith('virtual-')) {
+        nextDels.push(idStr);
+      }
       
       const nextAccounts = [...prev.accounts];
-      nextAccounts[accIdx] = { ...acc, transactions: acc.transactions.filter(t => String(t.id) !== idStr), deletedVirtualIds: nextDels };
+      nextAccounts[accIdx] = { 
+        ...acc, 
+        transactions: acc.transactions.filter(t => String(t.id) !== idStr),
+        deletedVirtualIds: nextDels 
+      };
       return { ...prev, accounts: nextAccounts };
     });
   };
@@ -292,7 +319,12 @@ const App: React.FC = () => {
         )}
       </main>
 
-      <button onClick={() => { setEditingTransaction(null); setModalInitialDate(getNormalizedDate(currentYear, currentMonth, selectedDay || 1).toISOString()); setShowAddModal(true); }} 
+      <button onClick={() => { 
+        setEditingTransaction(null); 
+        const d = new Date(currentYear, currentMonth, selectedDay || 1, 12, 0, 0);
+        setModalInitialDate(d.toISOString()); 
+        setShowAddModal(true); 
+      }} 
         className="fixed bottom-[100px] right-6 w-14 h-14 bg-slate-900 text-white rounded-[22px] shadow-2xl flex items-center justify-center active:scale-90 z-40 border-4 border-white transition-all"><IconPlus className="w-7 h-7" /></button>
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-100 flex justify-around items-center pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] px-6 z-40">
