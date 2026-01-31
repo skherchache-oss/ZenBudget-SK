@@ -38,40 +38,40 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, [transactions]);
 
   const fetchAiAdvice = async () => {
-    // Vérification de la clé API (Vite utilise import.meta.env)
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
+    // Vite utilise import.meta.env pour les variables préfixées par VITE_
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     
-    if (!apiKey || apiKey === "TA_CLE_ICI") {
-      setAiAdvice("ZenTip : Pensez à configurer votre clé API pour des conseils personnalisés.");
+    if (!apiKey) {
+      setAiAdvice("ZenTip : Optimisez vos charges fixes pour augmenter votre épargne.");
       return;
     }
 
     setLoadingAdvice(true);
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
-      // Utilisation du modèle 'gemini-1.5-flash' sans suffixe complexe
+      
+      // On teste 'gemini-1.5-flash', si ça échoue, le catch prendra le relais
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       
-      const prompt = `Tu es un coach financier expert.
-        Données : Solde ${availableBalance}€, Dépenses ${stats.expenses}€, Revenus ${stats.income}€.
-        Donne un conseil de gestion très court (max 60 caractères).
-        Style : Direct et motivant. Pas de guillemets.`;
+      const prompt = `Tu es un expert ZenBudget.
+        Contexte : Solde ${availableBalance}€, Dépenses ${stats.expenses}€.
+        Donne 1 conseil financier très court (max 60 car). Pas de guillemets.`;
 
       const result = await model.generateContent(prompt);
       const text = result.response.text().trim();
       
       if (text) setAiAdvice(text);
-    } catch (err: any) { 
+    } catch (err) { 
       console.error("Erreur Gemini détaillée:", err);
-      // Fallback intelligent si le modèle flash échoue (erreur 404)
-      setAiAdvice("ZenTip : Surveillez vos dépenses variables pour optimiser votre épargne."); 
+      // Fallback au cas où le modèle ou l'API v1beta pose problème
+      setAiAdvice("ZenTip : Surveillez vos dépenses variables pour rester serein."); 
     } finally { 
       setLoadingAdvice(false); 
     }
   };
 
   useEffect(() => {
-    const timer = setTimeout(fetchAiAdvice, 2000);
+    const timer = setTimeout(fetchAiAdvice, 1500);
     return () => clearTimeout(timer);
   }, [availableBalance]);
 
@@ -127,7 +127,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-indigo-600 p-5 rounded-[32px] shadow-lg flex flex-col gap-1">
+        <div className="bg-indigo-600 p-5 rounded-[32px] shadow-lg flex flex-col gap-1 border border-indigo-500/20">
           <span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest leading-none mb-1">Disponible Réel</span>
           <div className="text-2xl font-black text-white">{formatVal(availableBalance)}€</div>
         </div>
