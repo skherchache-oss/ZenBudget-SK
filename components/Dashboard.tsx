@@ -1,7 +1,6 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
-import { MONTHS_FR } from '../constants';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
 import { GoogleGenAI } from "@google/genai";
 
@@ -40,7 +39,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, [transactions]);
 
   const fetchAiAdvice = async () => {
-    const apiKey = process.env.API_KEY;
+    // Sécurité anti-crash : on vérifie l'existence de la clé de manière isolée
+    const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : "";
+    
     if (!apiKey) {
       setAiAdvice("ZenTip : Pensez à isoler vos charges fixes dès le début du mois.");
       return;
@@ -53,17 +54,17 @@ const Dashboard: React.FC<DashboardProps> = ({
       
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Tu es un expert financier. Analyse de trésorerie :
-        - Solde disponible : ${availableBalance}€
-        - Dépenses totales : ${stats.expenses}€
+        contents: `Tu es un expert financier. Analyse de trésorerie pour ZenBudget :
+        - Solde disponible actuel : ${availableBalance}€
+        - Dépenses totales du mois : ${stats.expenses}€
         - Revenus prévus : ${stats.income}€
         
         MISSION :
         Donne un conseil financier PRAGMATIQUE et COURT (max 60 car).
-        Focus : Épargne, charges fixes ou flux de trésorerie.
+        Focus : Épargne, charges fixes ou gestion de flux.
         
         CONTRAINTES :
-        - Style : Pro, direct.
+        - Style : Pro, direct, rassurant.
         - Français uniquement.
         - Graine : ${randomSeed}`,
         config: { temperature: 0.7 }
@@ -81,7 +82,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
 
   useEffect(() => {
-    const timer = setTimeout(fetchAiAdvice, 1000);
+    const timer = setTimeout(fetchAiAdvice, 1200);
     return () => clearTimeout(timer);
   }, [availableBalance]);
 
@@ -98,29 +99,32 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, [transactions, categories, stats.expenses]);
 
   const handleExportCSV = () => {
-    const s = ";"; 
-    const f = (n: number) => n.toFixed(2).replace('.', ',');
-    const rows: string[] = [
-      `ZENBUDGET - EXPORT${s}${activeAccount.name.toUpperCase()}`,
-      "",
-      `Solde Bancaire Actuel${s}${f(checkingAccountBalance)} €`,
-      `Disponible Réel (incl. fixes)${s}${f(availableBalance)} €`,
-      `Projection Fin de Mois${s}${f(projectedBalance)} €`,
-      "",
-      "--- RÉPARTITION PAR CATÉGORIE ---",
-      `Catégorie${s}Montant${s}Part (%)`
-    ];
-    categorySummary.forEach(c => {
-      rows.push(`${c.name}${s}${f(c.value)}${s}${Math.round(c.percent)}%`);
-    });
-    const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url; link.download = `ZenBudget_Stats_${activeAccount.name.replace(/\s+/g, '_')}.csv`; link.click();
+    try {
+      const s = ";"; 
+      const f = (n: number) => n.toFixed(2).replace('.', ',');
+      const rows: string[] = [
+        `ZENBUDGET - EXPORT${s}${activeAccount.name.toUpperCase()}`,
+        "",
+        `Solde Bancaire Actuel${s}${f(checkingAccountBalance)} €`,
+        `Disponible Réel (incl. fixes)${s}${f(availableBalance)} €`,
+        `Projection Fin de Mois${s}${f(projectedBalance)} €`,
+        "",
+        "--- RÉPARTITION PAR CATÉGORIE ---",
+        `Catégorie${s}Montant${s}Part (%)`
+      ];
+      categorySummary.forEach(c => {
+        rows.push(`${c.name}${s}${f(c.value)}${s}${Math.round(c.percent)}%`);
+      });
+      const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url; link.download = `ZenBudget_Stats_${activeAccount.name.replace(/\s+/g, '_')}.csv`; link.click();
+    } catch (e) {
+      console.error("Erreur Export CSV", e);
+    }
   };
 
   const sectionTitleStyle = "text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2 flex items-center gap-2 px-1";
-
   const formatVal = (v: number) => Math.round(v).toLocaleString('fr-FR');
 
   return (
@@ -132,10 +136,10 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
         <button 
           onClick={handleExportCSV} 
-          className="flex items-center gap-2 px-5 py-3 bg-slate-900 rounded-2xl shadow-xl active:scale-95 transition-all text-white"
+          className="flex items-center gap-2 px-5 py-3 bg-slate-900 rounded-2xl shadow-xl active:scale-95 transition-all text-white border border-slate-800"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-          <span className="text-[10px] font-black uppercase tracking-widest">CSV</span>
+          <span className="text-[10px] font-black uppercase tracking-widest">Exporter CSV</span>
         </button>
       </div>
 
@@ -143,7 +147,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         <h2 className={sectionTitleStyle}><span>🏦</span> Solde Bancaire</h2>
         <div className="bg-slate-900 px-6 py-9 rounded-[40px] shadow-2xl relative overflow-hidden flex flex-col justify-center min-h-[130px]">
           <div className="absolute top-0 right-0 p-8 opacity-10"><svg className="w-16 h-16 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2L1 12h3v9h6v-6h4v6h6v-9h3L12 2z"/></svg></div>
-          <span className="text-indigo-400 text-[9px] font-black uppercase tracking-[0.3em] mb-1">Totalité des fonds saisis</span>
+          <span className="text-indigo-400 text-[9px] font-black uppercase tracking-[0.3em] mb-1">Totalité des fonds pointés</span>
           <div className="flex items-baseline gap-2">
             <span className="text-5xl font-black tracking-tighter text-white">{formatVal(checkingAccountBalance)}</span>
             <span className="text-xl font-black text-slate-500">€</span>
@@ -157,12 +161,12 @@ const Dashboard: React.FC<DashboardProps> = ({
           <div className="text-2xl font-black text-white">{formatVal(availableBalance)}€</div>
         </div>
         <div className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm flex flex-col gap-1">
-          <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest">Projection Fin de mois</span>
+          <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest">Projection Fin</span>
           <div className={`text-2xl font-black ${projectedBalance >= 0 ? 'text-slate-900' : 'text-red-500'}`}>{formatVal(projectedBalance)}€</div>
         </div>
       </div>
 
-      <div className="relative group cursor-pointer" onClick={fetchAiAdvice}>
+      <div className="relative group cursor-pointer" onClick={() => !loadingAdvice && fetchAiAdvice()}>
         <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-[30px] blur opacity-20 group-hover:opacity-40 transition-opacity"></div>
         <div className="relative bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm overflow-hidden active:scale-[0.98] transition-all">
           <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-xl shadow-inner shrink-0 relative">
@@ -171,7 +175,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             ) : "💡"}
           </div>
           <div className="flex-1 min-w-0">
-            <span className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-500 block mb-1">Expert ZenBudget</span>
+            <span className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-500 block mb-1">IA ZenBudget</span>
             <p className="text-[11px] font-bold text-slate-700 leading-tight">
               {aiAdvice}
             </p>
