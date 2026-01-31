@@ -1,3 +1,7 @@
-
-/* Fichier de styles pour ZenBudget */
-/* Les styles principaux sont gérés par Tailwind CSS dans index.html */
+/* ZenBudget Styles */
+:root {
+  --app-bg: #f8f9fd;
+}
+body {
+  background-color: var(--app-bg);
+}

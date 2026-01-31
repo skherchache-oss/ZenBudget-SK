@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppState, ViewType, Transaction, Category, BudgetAccount, RecurringTemplate } from './types';
@@ -39,30 +38,32 @@ const App: React.FC = () => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
-  // --- MOTEUR DE PROJECTION PAR MOIS (ROBUSTE) ---
+  // --- MOTEUR DE PROJECTION ROBUSTE ---
 
   const getProjectedBalanceAtDate = (targetDate: Date) => {
     if (!activeAccount) return 0;
     
-    // 1. Transactions réelles jusqu'à la date cible
+    // 1. Solde basé sur les transactions réelles uniquement
     let balance = activeAccount.transactions.reduce((acc, t) => {
-      return new Date(t.date) <= targetDate ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
+      const tDate = new Date(t.date);
+      return tDate <= targetDate ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
     }, 0);
 
     const templates = activeAccount.recurringTemplates || [];
     const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
     const today = new Date();
     
-    // On projette par blocs mensuels pour éviter les erreurs de Date JS
+    // On projette par itération mensuelle pour éviter les bugs de Date JS
     let cursorYear = today.getFullYear();
     let cursorMonth = today.getMonth();
     const targetTS = targetDate.getTime();
 
-    // Limite à 24 mois de projection pour la performance
+    // On projette sur 24 mois maximum
     for (let i = 0; i < 24; i++) {
-      const monthStart = new Date(cursorYear, cursorMonth, 1).getTime();
-      if (monthStart > targetTS) break;
+      const firstOfMonth = new Date(cursorYear, cursorMonth, 1).getTime();
+      if (firstOfMonth > targetTS) break;
 
+      // Matérialisations réelles pour ce mois
       const materializedIds = new Set(
         activeAccount.transactions
           .filter(t => {
@@ -75,13 +76,14 @@ const App: React.FC = () => {
       templates.forEach(tpl => {
         if (!tpl.isActive) return;
         
-        const lastDay = new Date(cursorYear, cursorMonth + 1, 0).getDate();
-        const day = Math.min(tpl.dayOfMonth, lastDay);
+        const lastDayInMonth = new Date(cursorYear, cursorMonth + 1, 0).getDate();
+        const day = Math.min(tpl.dayOfMonth, lastDayInMonth);
         const tplDate = new Date(cursorYear, cursorMonth, day, 12, 0, 0);
         const vId = `virtual-${tpl.id}-${cursorMonth}-${cursorYear}`;
 
+        // Si la date théorique est dans la plage ET non encore payée réellement
         if (tplDate.getTime() <= targetTS && !materializedIds.has(String(tpl.id)) && !deletedVirtuals.has(vId)) {
-          // On n'ajoute dans le passé que si c'est le mois en cours (pour ne pas polluer l'historique lointain)
+          // On ne projette les "oubliés" du passé que pour le mois en cours
           const startOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1).getTime();
           if (tplDate.getTime() >= startOfCurrentMonth) {
             balance += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
@@ -89,12 +91,8 @@ const App: React.FC = () => {
         }
       });
 
-      // Passer au mois suivant proprement
       cursorMonth++;
-      if (cursorMonth > 11) {
-        cursorMonth = 0;
-        cursorYear++;
-      }
+      if (cursorMonth > 11) { cursorMonth = 0; cursorYear++; }
     }
 
     return balance;
@@ -163,10 +161,6 @@ const App: React.FC = () => {
     setCurrentMonth(nm);
     setCurrentYear(ny);
     setSelectedDay(1);
-    if (activeView === 'TRANSACTIONS') {
-        const root = document.getElementById('root');
-        if (root) root.scrollTo({ top: 0, behavior: 'smooth' });
-    }
   };
 
   const handleUpsertTransaction = (t: Omit<Transaction, 'id'> & { id?: string }) => {
@@ -183,7 +177,7 @@ const App: React.FC = () => {
       const isVirtual = targetId.startsWith('virtual-');
       let templateId = t.templateId || (isVirtual ? targetId.split('-')[1] : undefined);
 
-      // SYNCHRO TEMPLATES
+      // FORCE SYNCHRO FIXES
       if (t.isRecurring) {
         if (templateId) {
           nextTpls = nextTpls.map(tpl => String(tpl.id) === String(templateId) ? { 
@@ -289,9 +283,7 @@ const App: React.FC = () => {
               setState(prev => {
                 const nextAccounts = prev.accounts.filter(a => a.id !== id);
                 if (nextAccounts.length === 0) return prev;
-                let nextActiveId = prev.activeAccountId;
-                if (id === prev.activeAccountId) { nextActiveId = nextAccounts[0].id; }
-                return { ...prev, accounts: nextAccounts, activeAccountId: nextActiveId };
+                return { ...prev, accounts: nextAccounts, activeAccountId: id === prev.activeAccountId ? nextAccounts[0].id : prev.activeAccountId };
               });
             }}
             onReset={() => { if (window.confirm("Tout effacer ?")) { localStorage.clear(); window.location.reload(); } }} onLogout={() => {}}
