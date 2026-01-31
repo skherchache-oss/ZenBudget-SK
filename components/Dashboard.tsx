@@ -1,7 +1,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { GoogleGenAI } from "@google/genai";
+// 1. Correction de l'import (Package officiel)
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface DashboardProps {
   transactions: Transaction[];
@@ -38,8 +39,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, [transactions]);
 
   const fetchAiAdvice = async () => {
-    // Utilisation sécurisée de la clé API
-    const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : (window as any).process?.env?.API_KEY;
+    // 2. Correction de l'accès à la clé API pour Vite/Vercel
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
     
     if (!apiKey) {
       setAiAdvice("ZenTip : Optimisez vos charges fixes pour augmenter votre capacité d'épargne.");
@@ -48,21 +49,23 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     setLoadingAdvice(true);
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      // 3. Initialisation correcte du SDK
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       const randomSeed = Math.random().toString(36).substring(7);
       
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Tu es un coach financier pour l'app ZenBudget. 
+      const prompt = `Tu es un coach financier pour l'app ZenBudget. 
         Contexte : Solde dispo (fixes inclus) = ${availableBalance}€, Dépenses du mois = ${stats.expenses}€.
         Donne un conseil court (max 60 car.) sur la gestion de budget ou l'épargne. 
-        Style : Zen, motivant, français. Graine: ${randomSeed}`,
-        config: { temperature: 0.8 }
-      });
+        Style : Zen, motivant, français. Graine: ${randomSeed}`;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text().trim().replace(/^["']|["']$/g, '');
       
-      const text = response.text?.trim().replace(/^["']|["']$/g, '');
       if (text && text.length > 5) setAiAdvice(text);
     } catch (err) { 
+      console.error("Erreur Gemini:", err);
       setAiAdvice("ZenTip : Gardez un œil sur vos dépenses variables ce mois-ci."); 
     } finally { 
       setLoadingAdvice(false); 
