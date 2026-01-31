@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppState, ViewType, Transaction, Category, BudgetAccount, RecurringTemplate } from './types';
 import { getInitialState, saveState, generateId } from './store';
@@ -18,40 +18,34 @@ const App: React.FC = () => {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [selectedDay, setSelectedDay] = useState<number | null>(new Date().getDate());
+  const [slideDirection, setSlideDirection] = useState<'next' | 'prev' | null>(null);
 
   const activeAccount = useMemo(() => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
-  // SAUVEGARDE AUTOMATIQUE
   useEffect(() => {
     saveState(state);
   }, [state]);
 
-  // --- MOTEUR DE CALCUL UNIVERSEL ---
+  // --- MOTEUR DE PROJECTION ---
   const getProjectedBalanceAtDate = (targetDate: Date) => {
     if (!activeAccount) return 0;
-    
     const targetTs = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59).getTime();
-
-    // 1. Calcul du cumul des transactions RÉELLES (passées et futures déjà saisies)
+    
     let balance = activeAccount.transactions.reduce((acc, t) => {
       const tDate = new Date(t.date).getTime();
       return tDate <= targetTs ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
     }, 0);
 
-    // 2. Projection des charges VIRTUELLES (Templates non encore payés)
     const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
     const templates = activeAccount.recurringTemplates || [];
-    
-    // On démarre le scan au début du mois actuel
     let cursor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
 
     while (cursor.getTime() <= targetTs) {
       const cM = cursor.getMonth();
       const cY = cursor.getFullYear();
-
-      // On identifie les templates déjà "matérialisés" par une transaction réelle ce mois-ci
       const paidTemplateIds = new Set(
         activeAccount.transactions
           .filter(t => {
@@ -63,51 +57,38 @@ const App: React.FC = () => {
 
       templates.forEach(tpl => {
         if (!tpl.isActive || paidTemplateIds.has(tpl.id)) return;
-
         const day = Math.min(tpl.dayOfMonth, new Date(cY, cM + 1, 0).getDate());
-        const tplDate = new Date(cY, cM, day, 12, 0, 0);
+        const tplDateTs = new Date(cY, cM, day, 12, 0, 0).getTime();
         const vId = `virtual-${tpl.id}-${cM}-${cY}`;
-
-        // On n'ajoute la charge que si elle est dans la fenêtre de temps et non supprimée
-        if (tplDate.getTime() <= targetTs && !deletedVirtuals.has(vId)) {
+        if (tplDateTs <= targetTs && !deletedVirtuals.has(vId)) {
           balance += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
         }
       });
-
       cursor.setMonth(cursor.getMonth() + 1);
-      if (cursor.getFullYear() > targetDate.getFullYear() + 2) break; // Sécurité 2 ans
+      if (cursor.getFullYear() > targetDate.getFullYear() + 1) break;
     }
     return balance;
   };
 
-  // --- TRANSACTIONS EFFECTIVES DU MOIS ---
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
-    
-    // Transactions réelles du mois
     const realOnes = activeAccount.transactions.filter(t => {
       const d = new Date(t.date);
       return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
     });
-
     const paidIds = new Set(realOnes.map(t => t.templateId).filter(Boolean));
     const delIds = new Set(activeAccount.deletedVirtualIds || []);
 
-    // Génération des virtuelles manquantes
     const virtuals: Transaction[] = (activeAccount.recurringTemplates || [])
       .filter(tpl => tpl.isActive && !paidIds.has(tpl.id))
       .map(tpl => {
         const day = Math.min(tpl.dayOfMonth, new Date(currentYear, currentMonth + 1, 0).getDate());
-        const vId = `virtual-${tpl.id}-${currentMonth}-${currentYear}`;
         return {
-          id: vId,
-          amount: tpl.amount,
-          type: tpl.type,
-          categoryId: tpl.categoryId,
+          id: `virtual-${tpl.id}-${currentMonth}-${currentYear}`,
+          amount: tpl.amount, type: tpl.type, categoryId: tpl.categoryId,
           comment: tpl.comment || "Charge fixe",
           date: new Date(currentYear, currentMonth, day, 12, 0, 0).toISOString(),
-          isRecurring: true,
-          templateId: tpl.id
+          isRecurring: true, templateId: tpl.id
         };
       })
       .filter(v => !delIds.has(v.id));
@@ -115,7 +96,25 @@ const App: React.FC = () => {
     return [...realOnes, ...virtuals].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [activeAccount, currentMonth, currentYear]);
 
-  // --- LOGIQUE DE SAISIE (JOURNAL -> FIXES) ---
+  const balances = useMemo(() => {
+    const today = new Date();
+    return {
+      bank: getProjectedBalanceAtDate(today),
+      available: getProjectedBalanceAtDate(new Date(today.getFullYear(), today.getMonth() + 1, 0)),
+      projected: getProjectedBalanceAtDate(new Date(currentYear, currentMonth + 1, 0))
+    };
+  }, [activeAccount, currentMonth, currentYear]);
+
+  const handleMonthChange = (offset: number) => {
+    setSlideDirection(offset > 0 ? 'next' : 'prev');
+    let m = currentMonth + offset;
+    let y = currentYear;
+    if (m < 0) { m = 11; y--; } else if (m > 11) { m = 0; y++; }
+    setCurrentMonth(m);
+    setCurrentYear(y);
+    setSelectedDay(1);
+  };
+
   const handleUpsert = (t: Omit<Transaction, 'id'> & { id?: string }) => {
     setState(prev => {
       const accIdx = prev.accounts.findIndex(a => a.id === prev.activeAccountId);
@@ -124,23 +123,12 @@ const App: React.FC = () => {
       let newTx = [...acc.transactions];
       let newDel = [...(acc.deletedVirtualIds || [])];
 
-      // 1. Si c'est une récurrente mais qu'aucun template n'existe, on le crée
       let tplId = t.templateId;
       if (t.isRecurring && !tplId) {
         tplId = generateId();
-        const newTemplate: RecurringTemplate = {
-          id: tplId,
-          amount: t.amount,
-          type: t.type,
-          categoryId: t.categoryId,
-          dayOfMonth: new Date(t.date).getDate(),
-          isActive: true,
-          comment: t.comment
-        };
-        newTpls.push(newTemplate);
+        newTpls.push({ id: tplId, amount: t.amount, type: t.type, categoryId: t.categoryId, dayOfMonth: new Date(t.date).getDate(), isActive: true, comment: t.comment });
       }
 
-      // 2. Gestion de la transaction (Virtuelle -> Réelle ou Update)
       if (t.id?.startsWith('virtual-')) {
         newDel.push(t.id);
         newTx.push({ ...t, id: generateId(), templateId: tplId } as Transaction);
@@ -157,44 +145,41 @@ const App: React.FC = () => {
     setShowAddModal(false);
   };
 
-  // --- CALCULS DE SOLDES ---
-  const balances = useMemo(() => {
-    const today = new Date();
-    const endMo = new Date(currentYear, currentMonth + 1, 0);
-    return {
-      bank: getProjectedBalanceAtDate(today),
-      available: getProjectedBalanceAtDate(new Date(today.getFullYear(), today.getMonth() + 1, 0)),
-      projected: getProjectedBalanceAtDate(endMo)
-    };
-  }, [activeAccount, currentMonth, currentYear]);
-
   return (
     <div className="flex flex-col h-screen bg-[#F8F9FD] overflow-hidden">
-      <header className="bg-white border-b p-4 flex justify-between items-center">
-        <IconLogo className="w-8 h-8 text-indigo-600" />
-        <div className="flex items-center gap-2 bg-slate-100 rounded-xl p-1">
-          <button onClick={() => setCurrentMonth(m => m === 0 ? 11 : m - 1)} className="px-2">‹</button>
-          <span className="text-[10px] font-bold uppercase">{MONTHS_FR[currentMonth]} {currentYear}</span>
-          <button onClick={() => setCurrentMonth(m => m === 11 ? 0 : m + 1)} className="px-2">›</button>
+      <header className="bg-white/80 backdrop-blur-md border-b p-4 flex justify-between items-center shrink-0 z-50">
+        <div className="flex items-center gap-2">
+          <IconLogo className="w-8 h-8 text-indigo-600" />
+          <h1 className="text-xl font-black italic">ZenBudget</h1>
+        </div>
+        <div className="flex items-center gap-2 bg-slate-100 rounded-2xl p-1 border border-slate-200">
+          <button onClick={() => handleMonthChange(-1)} className="p-2 text-slate-400">‹</button>
+          <span className="text-[10px] font-black uppercase text-indigo-700 w-24 text-center">{MONTHS_FR[currentMonth]} {currentYear}</span>
+          <button onClick={() => handleMonthChange(1)} className="p-2 text-slate-400">›</button>
         </div>
       </header>
 
-      <main className="flex-1 overflow-y-auto pb-24 px-4">
+      <main className="flex-1 overflow-hidden max-w-2xl w-full mx-auto px-4">
         {activeView === 'DASHBOARD' && (
           <Dashboard 
             transactions={effectiveTransactions} categories={state.categories} 
             activeAccount={activeAccount} checkingAccountBalance={balances.bank}
             availableBalance={balances.available} projectedBalance={balances.projected}
-            onSwitchAccount={() => {}} month={currentMonth} year={currentYear}
-            onViewTransactions={() => setActiveView('TRANSACTIONS')} allAccounts={state.accounts}
-            carryOver={0}
+            onSwitchAccount={(id) => setState(prev => ({...prev, activeAccountId: id}))} 
+            month={currentMonth} year={currentYear} allAccounts={state.accounts}
+            onViewTransactions={() => setActiveView('TRANSACTIONS')} carryOver={0}
           />
         )}
         {activeView === 'TRANSACTIONS' && (
           <TransactionList 
             transactions={effectiveTransactions} categories={state.categories} 
-            onDelete={(id) => {}} onEdit={(t) => { setEditingTransaction(t); setShowAddModal(true); }}
-            // ... autres props
+            month={currentMonth} year={currentYear}
+            onDelete={(id) => setState(prev => ({...prev, accounts: prev.accounts.map(a => a.id === prev.activeAccountId ? {...a, transactions: a.transactions.filter(tx => tx.id !== id), deletedVirtualIds: id.startsWith('virtual-') ? [...(a.deletedVirtualIds || []), id] : a.deletedVirtualIds} : a)}))}
+            onEdit={(t) => { setEditingTransaction(t); setShowAddModal(true); }}
+            selectedDay={selectedDay} onSelectDay={setSelectedDay}
+            totalBalance={balances.projected} carryOver={0}
+            cycleEndDay={activeAccount.cycleEndDay || 0}
+            onMonthChange={handleMonthChange} slideDirection={slideDirection}
           />
         )}
         {activeView === 'RECURRING' && (
@@ -207,11 +192,19 @@ const App: React.FC = () => {
         )}
       </main>
 
-      <nav className="fixed bottom-0 w-full bg-white border-t flex justify-around p-4">
-        <button onClick={() => setActiveView('DASHBOARD')} className={activeView === 'DASHBOARD' ? 'text-indigo-600' : 'text-slate-400'}><IconHome /></button>
-        <button onClick={() => setActiveView('TRANSACTIONS')} className={activeView === 'TRANSACTIONS' ? 'text-indigo-600' : 'text-slate-400'}><IconCalendar /></button>
-        <button onClick={() => setActiveView('RECURRING')} className={activeView === 'RECURRING' ? 'text-indigo-600' : 'text-slate-400'}><IconPlus /></button>
+      <nav className="fixed bottom-0 w-full bg-white/95 backdrop-blur-md border-t flex justify-around p-4 pb-8 z-40">
+        <NavBtn active={activeView === 'DASHBOARD'} onClick={() => setActiveView('DASHBOARD')} icon={<IconHome />} />
+        <NavBtn active={activeView === 'TRANSACTIONS'} onClick={() => setActiveView('TRANSACTIONS')} icon={<IconCalendar />} />
+        <NavBtn active={activeView === 'RECURRING'} onClick={() => setActiveView('RECURRING')} icon={<IconPlus className="rotate-45" />} />
+        <NavBtn active={activeView === 'SETTINGS'} onClick={() => setActiveView('SETTINGS')} icon={<IconSettings />} />
       </nav>
+
+      <button 
+        onClick={() => { setEditingTransaction(null); setShowAddModal(true); }}
+        className="fixed bottom-24 right-6 w-14 h-14 bg-slate-900 text-white rounded-2xl shadow-2xl flex items-center justify-center z-50 border-4 border-white active:scale-90 transition-transform"
+      >
+        <IconPlus className="w-8 h-8" />
+      </button>
 
       {showAddModal && (
         <AddTransactionModal 
@@ -219,11 +212,18 @@ const App: React.FC = () => {
           onClose={() => setShowAddModal(false)} 
           onAdd={handleUpsert} 
           editItem={editingTransaction}
+          initialDate={new Date(currentYear, currentMonth, selectedDay || 1, 12).toISOString()}
         />
       )}
     </div>
   );
 };
+
+const NavBtn = ({ active, onClick, icon }: any) => (
+  <button onClick={onClick} className={`p-2 rounded-xl transition-colors ${active ? 'text-indigo-600 bg-indigo-50' : 'text-slate-400'}`}>
+    <div className="w-6 h-6">{icon}</div>
+  </button>
+);
 
 const container = document.getElementById('root');
 if (container) createRoot(container).render(<App />);
