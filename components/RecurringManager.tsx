@@ -113,7 +113,7 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
   return (
     <div className="space-y-6 pb-32 h-full overflow-y-auto no-scrollbar px-1">
       <div className="flex items-center justify-between px-1 mt-4">
-        <h2 className="text-xl font-black tracking-tighter text-slate-800">Flux Fixes</h2>
+        <h2 className="text-xl font-black tracking-tighter text-slate-800 italic">Flux Fixes</h2>
         <div className="bg-slate-900 rounded-xl px-2.5 py-1.5 flex items-center gap-2 shadow-lg">
            <span className="text-[7px] font-black uppercase tracking-widest text-slate-400">Trésorerie</span>
            <span className={`text-[12px] font-black ${totalBalance >= 0 ? 'text-indigo-400' : 'text-red-400'}`}>{Math.round(totalBalance).toLocaleString('fr-FR')}€</span>
@@ -145,13 +145,15 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
             onEdit={(t) => { setEditingTpl(t); setType(t.type); setAmount(t.amount.toString()); setCategoryId(t.categoryId); setComment(t.comment || ''); setDay(t.dayOfMonth.toString()); setShowAdd(true); }} 
             onStatusToggle={(id) => onUpdate(recurringTemplates.map(t => t.id === id ? { ...t, isActive: !t.isActive } : t))} 
           />
-        )) : <div className="py-12 text-center bg-white/50 rounded-[32px] border border-dashed border-slate-200"><p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Aucune charge fixe enregistrée</p></div>}
+        )) : <div className="py-12 text-center bg-white/50 rounded-[32px] border border-dashed border-slate-200"><p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] italic">Aucun flux fixe programmé</p></div>}
 
         <div ref={formRef} className="pt-4">
           {showAdd ? (
             <div className="bg-white p-6 rounded-[32px] border border-slate-100 shadow-2xl animate-in slide-in-from-bottom duration-300">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="text-[10px] font-black uppercase tracking-[0.15em] text-indigo-600">{editingTpl ? 'Éditer l\'opération' : (type === 'INCOME' ? 'Nouveau revenu récurrent' : 'Nouvelle charge récurrente')}</h3>
+                <h3 className="text-[10px] font-black uppercase tracking-[0.15em] text-indigo-600">
+                  {editingTpl ? 'Modifier' : (type === 'INCOME' ? 'Nouveau revenu fixe' : 'Nouvelle charge fixe')}
+                </h3>
                 <button onClick={cancelEdit} className="text-slate-400 p-2"><svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M6 18L18 6M6 6l12 12" /></svg></button>
               </div>
               <form onSubmit={handleSave} className="space-y-5">
@@ -182,7 +184,7 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
                 </div>
                 <input type="text" placeholder="Note (ex: Loyer, Netflix...)" value={comment} onChange={e => setComment(e.target.value)} className="w-full bg-slate-50 p-4 rounded-xl text-[11px] font-bold outline-none border border-slate-100 focus:ring-1 focus:ring-indigo-100" />
                 <button type="submit" className="w-full py-5 text-[10px] font-black uppercase tracking-widest text-white bg-slate-900 rounded-2xl shadow-xl active:scale-95 transition-all">
-                  {type === 'INCOME' ? 'Enregistrer le revenu récurrent' : 'Enregistrer la charge récurrente'}
+                  {type === 'INCOME' ? 'Enregistrer le revenu' : 'Enregistrer la charge'}
                 </button>
               </form>
             </div>

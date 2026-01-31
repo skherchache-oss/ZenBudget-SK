@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-// Correction de l'import : on utilise le SDK officiel
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface DashboardProps {
@@ -23,7 +22,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   transactions, categories, activeAccount, checkingAccountBalance, availableBalance, projectedBalance 
 }) => {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const [aiAdvice, setAiAdvice] = useState<string>("Analyse financière en cours...");
+  const [aiAdvice, setAiAdvice] = useState<string>("Analyse financière Zen...");
   const [loadingAdvice, setLoadingAdvice] = useState(false);
 
   const stats = useMemo(() => {
@@ -39,34 +38,30 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, [transactions]);
 
   const fetchAiAdvice = async () => {
-    // Sur Vercel, on utilise import.meta.env pour Vite ou process.env pour Webpack
-    const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || "";
+    // Vite utilise import.meta.env pour les variables préfixées par VITE_
+    const apiKey = (import.meta as any).env.VITE_GEMINI_API_KEY || "";
     
     if (!apiKey) {
-      setAiAdvice("ZenTip : Pensez à isoler vos charges fixes dès le début du mois.");
+      setAiAdvice("ZenTip : Pensez à isoler vos charges fixes dès le début.");
       return;
     }
 
     setLoadingAdvice(true);
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Utilisation d'un modèle stable
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       
-      const prompt = `Tu es un expert financier. Analyse de trésorerie pour ZenBudget :
+      const prompt = `Expert Finance Zen. Contexte :
         - Solde disponible actuel : ${availableBalance}€
         - Dépenses totales : ${stats.expenses}€
         - Revenus prévus : ${stats.income}€
-        MISSION : Donne un conseil financier PRAGMATIQUE et COURT (max 60 car).
-        Style : Pro, direct, rassurant. Français uniquement.`;
+        Mission : Conseil financier pragmatique (max 60 car). Style direct et rassurant. Français uniquement.`;
 
       const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text().trim().replace(/^["']|["']$/g, '');
-      
+      const text = result.response.text().trim().replace(/^["']|["']$/g, '');
       if (text) setAiAdvice(text);
     } catch (err) { 
-      console.error("Erreur AI:", err);
-      setAiAdvice("ZenTip : Optimisez vos charges fixes pour augmenter votre épargne."); 
+      setAiAdvice("ZenTip : Gardez un œil sur vos dépenses variables."); 
     } finally { 
       setLoadingAdvice(false); 
     }
@@ -94,13 +89,13 @@ const Dashboard: React.FC<DashboardProps> = ({
       const s = ";"; 
       const f = (n: number) => n.toFixed(2).replace('.', ',');
       const rows: string[] = [
-        `ZENBUDGET - EXPORT${s}${activeAccount.name.toUpperCase()}`,
+        `ZENBUDGET - EXPORT STATS - ${activeAccount.name.toUpperCase()}`,
         "",
-        `Solde Bancaire Actuel${s}${f(checkingAccountBalance)} €`,
-        `Disponible Réel (incl. fixes)${s}${f(availableBalance)} €`,
+        `Solde Réel Pointé${s}${f(checkingAccountBalance)} €`,
+        `Disponible Réel (après fixes)${s}${f(availableBalance)} €`,
         `Projection Fin de Mois${s}${f(projectedBalance)} €`,
         "",
-        "--- RÉPARTITION PAR CATÉGORIE ---",
+        "--- RÉPARTITION ---",
         `Catégorie${s}Montant${s}Part (%)`
       ];
       categorySummary.forEach(c => {
@@ -111,7 +106,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       const link = document.createElement("a");
       link.href = url; link.download = `ZenBudget_Stats_${activeAccount.name.replace(/\s+/g, '_')}.csv`; link.click();
     } catch (e) {
-      console.error("Erreur Export CSV", e);
+      console.error(e);
     }
   };
 
@@ -122,15 +117,15 @@ const Dashboard: React.FC<DashboardProps> = ({
     <div className="flex flex-col h-full space-y-6 overflow-y-auto no-scrollbar pb-32 px-1 fade-in">
       <div className="flex items-center justify-between pt-6">
         <div className="flex flex-col">
-          <h2 className="text-2xl font-black text-slate-800 tracking-tighter leading-none italic">Vue Zen ✨</h2>
-          <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mt-1.5 truncate max-w-[140px]">{activeAccount.name}</p>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tighter leading-none italic">Stats Zen ✨</h2>
+          <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mt-1.5">{activeAccount.name}</p>
         </div>
         <button 
           onClick={handleExportCSV} 
-          className="flex items-center gap-2 px-5 py-3 bg-slate-900 rounded-2xl shadow-xl active:scale-95 transition-all text-white border border-slate-800"
+          className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 rounded-2xl shadow-xl active:scale-95 transition-all text-white border border-slate-800"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-          <span className="text-[10px] font-black uppercase tracking-widest">Exporter CSV</span>
+          <span className="text-[10px] font-black uppercase tracking-widest">CSV</span>
         </button>
       </div>
 
@@ -147,8 +142,8 @@ const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-indigo-600 p-5 rounded-[32px] shadow-lg shadow-indigo-100 flex flex-col gap-1 border border-indigo-500/20">
-          <span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest">Disponible Réel</span>
+        <div className="bg-indigo-600 p-5 rounded-[32px] shadow-lg flex flex-col gap-1 border border-indigo-500/20">
+          <span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest">Dispo. (fixes inclus)</span>
           <div className="text-2xl font-black text-white">{formatVal(availableBalance)}€</div>
         </div>
         <div className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm flex flex-col gap-1">
@@ -158,18 +153,12 @@ const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       <div className="relative group cursor-pointer" onClick={() => !loadingAdvice && fetchAiAdvice()}>
-        <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-[30px] blur opacity-20 group-hover:opacity-40 transition-opacity"></div>
-        <div className="relative bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm overflow-hidden active:scale-[0.98] transition-all">
-          <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center text-xl shadow-inner shrink-0 relative">
-            {loadingAdvice ? (
-              <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-            ) : "💡"}
+        <div className="bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm overflow-hidden active:scale-[0.98] transition-all">
+          <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl shadow-inner shrink-0">
+            {loadingAdvice ? <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div> : "💡"}
           </div>
           <div className="flex-1 min-w-0">
-            <span className="text-[8px] font-black uppercase tracking-[0.2em] text-indigo-500 block mb-1">IA ZenBudget</span>
-            <p className="text-[11px] font-bold text-slate-700 leading-tight">
-              {aiAdvice}
-            </p>
+            <p className="text-[11px] font-bold text-slate-700 leading-tight">{aiAdvice}</p>
           </div>
         </div>
       </div>
@@ -199,7 +188,6 @@ const Dashboard: React.FC<DashboardProps> = ({
             {activeIndex !== null ? (
               <>
                 <span className="text-2xl mb-1">{categorySummary[activeIndex].icon}</span>
-                <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest">{categorySummary[activeIndex].name}</span>
                 <span className="text-lg font-black text-slate-900">{formatVal(categorySummary[activeIndex].value)}€</span>
               </>
             ) : (

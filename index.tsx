@@ -39,112 +39,94 @@ const App: React.FC = () => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
-  // --- MOTEUR DE PROJECTION UNIFIÉ ---
+  // --- MOTEUR DE PROJECTION UNIFIÉ (SOLDE RÉEL + FIXES À VENIR) ---
 
   const getProjectedBalanceAtDate = (targetDate: Date) => {
     if (!activeAccount) return 0;
     
-    // 1. SOLDE RÉEL : Somme de toutes les transactions enregistrées
+    // 1. SOLDE RÉEL : Tout ce qui a été saisi manuellement jusqu'à la date cible
     let balance = activeAccount.transactions.reduce((acc, t) => {
-      return acc + (t.type === 'INCOME' ? t.amount : -t.amount);
+      const tDate = new Date(t.date);
+      return tDate <= targetDate ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
     }, 0);
 
-    // 2. PROJECTION DES FIXES :
-    // On projette tout ce qui n'est pas matérialisé entre "le début du mois actuel" et "la date cible"
+    // 2. PROJECTION DES FIXES NON POINTÉS :
     const templates = activeAccount.recurringTemplates || [];
     const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
-    
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    // On commence l'analyse au 1er du mois en cours pour rattraper les fixes du mois pas encore validés
+    // On parcourt mois par mois depuis le début du mois actuel jusqu'à la date cible
     let cursorYear = today.getFullYear();
     let cursorMonth = today.getMonth();
+    const targetTS = targetDate.getTime();
     
-    // Si on regarde le passé, on ajuste le solde réel et on arrête là
-    if (targetDate.getTime() < today.getTime()) {
-      return activeAccount.transactions.reduce((acc, t) => {
-        return new Date(t.date).getTime() <= targetDate.getTime() ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
-      }, 0);
-    }
+    // On ne projette les fixes que si la cible est aujourd'hui ou dans le futur
+    if (targetTS >= today.getTime()) {
+      let safety = 0;
+      while (safety < 24) { // Max 2 ans de projection
+        const currentMonthStart = new Date(cursorYear, cursorMonth, 1);
+        if (currentMonthStart.getTime() > targetTS) break;
 
-    let safety = 0;
-    const targetMonthStartTS = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1).getTime();
+        // On identifie les templates déjà matérialisés ce mois-ci
+        const materializedIds = new Set(
+          activeAccount.transactions
+            .filter(t => {
+              const d = new Date(t.date);
+              return d.getFullYear() === cursorYear && d.getMonth() === cursorMonth && t.templateId;
+            })
+            .map(t => String(t.templateId))
+        );
 
-    while (safety < 24) { // Projection sur 2 ans max
-      const currentMonthTS = new Date(cursorYear, cursorMonth, 1).getTime();
-      
-      // Transactions réelles déjà liées à un template ce mois-ci
-      const materializedIds = new Set(
-        activeAccount.transactions
-          .filter(t => {
-            const d = new Date(t.date);
-            return d.getFullYear() === cursorYear && d.getMonth() === cursorMonth && t.templateId;
-          })
-          .map(t => String(t.templateId))
-      );
+        templates.forEach(tpl => {
+          if (!tpl.isActive) return;
+          
+          const lastDay = new Date(cursorYear, cursorMonth + 1, 0).getDate();
+          const day = Math.min(tpl.dayOfMonth, lastDay);
+          const tplDate = new Date(cursorYear, cursorMonth, day, 12, 0, 0);
+          const vId = `virtual-${tpl.id}-${cursorMonth}-${cursorYear}`;
 
-      templates.forEach(tpl => {
-        if (!tpl.isActive || materializedIds.has(String(tpl.id))) return;
+          // On ajoute le montant si :
+          // - La date théorique est avant/égal la cible
+          // - Ce n'est pas déjà matérialisé par une vraie transaction (materializedIds)
+          // - L'utilisateur n'a pas explicitement supprimé ce virtuel (deletedVirtuals)
+          if (tplDate.getTime() <= targetTS && !materializedIds.has(String(tpl.id)) && !deletedVirtuals.has(vId)) {
+            balance += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
+          }
+        });
 
-        const lastDay = new Date(cursorYear, cursorMonth + 1, 0).getDate();
-        const day = Math.min(tpl.dayOfMonth, lastDay);
-        const tplDate = new Date(cursorYear, cursorMonth, day, 12, 0, 0);
-        const vId = `virtual-${tpl.id}-${cursorMonth}-${cursorYear}`;
-
-        // RÈGLE CRUCIALE : 
-        // On ajoute le virtuel si :
-        // - Sa date théorique est dans le futur par rapport à "aujourd'hui"
-        // - OU si sa date est passée mais qu'il n'est pas encore matérialisé (car non présent dans materializedIds)
-        // ET qu'il est avant ou égal à la date cible.
-        if (tplDate.getTime() <= targetDate.getTime() && !deletedVirtuals.has(vId)) {
-            // Mais attention : si tplDate <= today, on ne l'ajoute que s'il n'est PAS matérialisé
-            // (déjà géré par materializedIds.has)
-            if (tplDate.getTime() > today.getTime() || !materializedIds.has(String(tpl.id))) {
-                // Pour éviter de recompter ce qui est déjà dans le solde réel (transactions passées), 
-                // on ne compte que les virtuels qui ne sont pas encore devenus réels.
-                balance += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
-            }
-        }
-      });
-
-      if (currentMonthTS >= targetMonthStartTS) break;
-      cursorMonth++;
-      if (cursorMonth > 11) { cursorMonth = 0; cursorYear++; }
-      safety++;
+        cursorMonth++;
+        if (cursorMonth > 11) { cursorMonth = 0; cursorYear++; }
+        safety++;
+      }
     }
 
     return balance;
   };
 
-  // --- CALCULS DE SOLDES POUR L'UI ---
+  // --- CALCULS DES SOLDES POUR L'UI ---
 
   const checkingAccountBalance = useMemo(() => {
     if (!activeAccount) return 0;
-    // Solde pointé = tout ce qui est réel
     return activeAccount.transactions.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
   }, [activeAccount]);
 
   const availableBalance = useMemo(() => {
-    // Solde projeté à la fin du mois réel actuel
-    const d = new Date();
-    const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
     return getProjectedBalanceAtDate(endOfMonth);
-  }, [activeAccount]);
+  }, [activeAccount, now]);
 
   const projectedBalance = useMemo(() => {
-    // Solde projeté à la fin du mois sélectionné dans l'interface
     const endOfView = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
     return getProjectedBalanceAtDate(endOfView);
   }, [activeAccount, currentMonth, currentYear]);
 
   const carryOver = useMemo(() => {
-    // Solde au 1er du mois sélectionné = solde à la veille
     const lastDayPrev = new Date(currentYear, currentMonth, 0, 23, 59, 59);
     return getProjectedBalanceAtDate(lastDayPrev);
   }, [activeAccount, currentMonth, currentYear]);
 
-  // --- GÉNÉRATION DU JOURNAL DU MOIS ---
+  // --- JOURNAL ---
 
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
@@ -179,8 +161,6 @@ const App: React.FC = () => {
 
     return [...realOnes, ...virtuals].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [activeAccount, currentMonth, currentYear]);
-
-  // --- HANDLERS ACTIONS ---
 
   const handleMonthChange = (offset: number) => {
     setSlideDirection(offset > 0 ? 'next' : 'prev');
@@ -253,7 +233,7 @@ const App: React.FC = () => {
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-3">
             <IconLogo className="w-8 h-8" />
-            <h1 className="text-xl font-black tracking-tighter text-slate-900">ZenBudget</h1>
+            <h1 className="text-xl font-black tracking-tighter text-slate-900 italic">ZenBudget</h1>
           </div>
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-sm flex-1 max-w-[180px] justify-between">
              <button onClick={() => handleMonthChange(-1)} className="p-2 hover:bg-white rounded-xl transition-all text-slate-400 active:scale-90"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15 19l-7-7 7-7" /></svg></button>
