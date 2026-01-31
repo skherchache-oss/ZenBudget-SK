@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState } from 'react';
 import { Transaction, Category } from '../types';
 import { MONTHS_FR } from '../constants';
@@ -110,7 +109,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
   const isThisMonth = new Date().getMonth() === month && new Date().getFullYear() === year;
 
   return (
-    <div className="space-y-3 pb-32 h-full">
+    <div className="space-y-3 pb-48 h-full overflow-y-auto no-scrollbar">
       <div className="flex items-center justify-between px-1">
         <h2 className="text-xl font-black tracking-tighter text-slate-800">Journal</h2>
         <div className="bg-slate-900 rounded-xl px-2.5 py-1.5 flex items-center gap-2 shadow-lg">
