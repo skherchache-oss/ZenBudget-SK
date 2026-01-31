@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { RecurringTemplate, TransactionType, Category } from '../types';
 import { generateId } from '../store';
@@ -117,11 +116,9 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
 
   useEffect(() => {
     if (showAdd && formRef.current) {
-      setTimeout(() => {
-        formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 100);
+      formRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-  }, [showAdd, editingTpl]);
+  }, [showAdd]);
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -135,11 +132,15 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
       dayOfMonth: parseInt(day),
       isActive: editingTpl ? editingTpl.isActive : true
     };
+    
+    let nextTemplates;
     if (editingTpl) {
-      onUpdate(recurringTemplates.map(t => t.id === editingTpl.id ? templateData : t));
+      nextTemplates = recurringTemplates.map(t => t.id === editingTpl.id ? templateData : t);
     } else {
-      onUpdate([...recurringTemplates, templateData]);
+      nextTemplates = [...recurringTemplates, templateData];
     }
+    
+    onUpdate(nextTemplates);
     cancelEdit();
   };
 
