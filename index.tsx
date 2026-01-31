@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppState, ViewType, Transaction, Category, BudgetAccount } from './types';
@@ -45,30 +44,25 @@ const App: React.FC = () => {
     return d;
   }, []);
 
-  // Calcul du solde incluant les projections de manière robuste pour tous les mois
   const getBalanceAtDate = (targetDate: Date, includeProjections: boolean) => {
     if (!activeAccount) return 0;
     
-    // 1. Transactions réelles pointées
+    // 1. Transactions réelles
     let balance = activeAccount.transactions.reduce((acc, t) => {
       const tDate = new Date(t.date);
       return tDate <= targetDate ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
     }, 0);
 
-    // 2. Ajout des charges fixes non encore matérialisées
+    // 2. Intégration des charges fixes non encore payées (Virtuelles)
     if (includeProjections) {
       const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
       const templates = activeAccount.recurringTemplates || [];
       
-      // On scanne les mois de "now" jusqu'à la date cible
-      // Si la date cible est dans le passé par rapport au début du mois courant, on commence au mois de targetDate
-      let startYear = Math.min(now.getFullYear(), targetDate.getFullYear());
-      let startMonth = startYear === now.getFullYear() ? now.getMonth() : targetDate.getMonth();
-      
-      let cursor = new Date(startYear, startMonth, 1);
-      const limit = new Date(targetDate.getFullYear(), targetDate.getMonth() + 1, 1);
+      // On scanne depuis 6 mois en arrière pour ne rater aucun impayé
+      const startDate = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+      let cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
 
-      while (cursor < limit) {
+      while (cursor <= targetDate) {
         const cMonth = cursor.getMonth();
         const cYear = cursor.getFullYear();
         
@@ -88,13 +82,13 @@ const App: React.FC = () => {
           const tplDate = new Date(cYear, cMonth, day, 12, 0, 0);
           const vId = `virtual-${tpl.id}-${cMonth}-${cYear}`;
           
-          // Si la date théorique est avant ou égale à targetDate et non supprimée
           if (tplDate <= targetDate && !deletedVirtuals.has(vId)) {
             balance += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
           }
         });
+
         cursor.setMonth(cursor.getMonth() + 1);
-        if (cursor.getFullYear() > now.getFullYear() + 2) break;
+        if (cursor.getFullYear() > now.getFullYear() + 1) break; 
       }
     }
     return balance;
@@ -103,15 +97,13 @@ const App: React.FC = () => {
   const checkingAccountBalance = useMemo(() => getBalanceAtDate(now, false), [activeAccount, now]);
   
   const availableBalance = useMemo(() => {
-    const cycleDay = activeAccount?.cycleEndDay || 0;
-    let target = new Date(now.getFullYear(), now.getMonth(), cycleDay || 28, 23, 59, 59);
-    if (now > target) target.setMonth(target.getMonth() + 1);
-    return getBalanceAtDate(target, true);
+    const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    return getBalanceAtDate(lastDayOfMonth, true);
   }, [activeAccount, now]);
 
   const projectedBalance = useMemo(() => {
-    const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
-    return getBalanceAtDate(lastDayOfMonth, true);
+    const lastDaySelected = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
+    return getBalanceAtDate(lastDaySelected, true);
   }, [activeAccount, currentMonth, currentYear, now]);
 
   const carryOver = useMemo(() => {
@@ -122,7 +114,6 @@ const App: React.FC = () => {
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
     
-    // Transactions saisies pour le mois sélectionné
     const manuals = activeAccount.transactions.filter(t => {
       const d = new Date(t.date);
       return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
@@ -131,7 +122,6 @@ const App: React.FC = () => {
     const materializedIds = new Set(manuals.map(t => t.templateId).filter(Boolean));
     const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
 
-    // Projections virtuelles pour le mois sélectionné (fixes non encore payés)
     const virtuals: Transaction[] = (activeAccount.recurringTemplates || [])
       .filter(tpl => tpl.isActive && !materializedIds.has(tpl.id))
       .map(tpl => {
@@ -150,60 +140,45 @@ const App: React.FC = () => {
       .filter(v => !deletedVirtuals.has(v.id));
 
     return [...manuals, ...virtuals].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [activeAccount, currentMonth, currentYear, now]);
-
-  const handleMonthChange = (offset: number) => {
-    setSlideDirection(offset > 0 ? 'next' : 'prev');
-    let nextMonth = currentMonth + offset;
-    let nextYear = currentYear;
-    if (nextMonth < 0) { nextMonth = 11; nextYear -= 1; }
-    else if (nextMonth > 11) { nextMonth = 0; nextYear += 1; }
-    setCurrentMonth(nextMonth);
-    setCurrentYear(nextYear);
-    setSelectedDay(1);
-  };
+  }, [activeAccount, currentMonth, currentYear]);
 
   const handleUpsertTransaction = (t: Omit<Transaction, 'id'> & { id?: string }) => {
     setState(prev => {
       const accIndex = prev.accounts.findIndex(a => a.id === prev.activeAccountId);
       if (accIndex === -1) return prev;
       const acc = { ...prev.accounts[accIndex] };
-      let nextTransactions = [...acc.transactions];
-      let nextTemplates = [...(acc.recurringTemplates || [])];
-      let nextDeletedVirtuals = [...(acc.deletedVirtualIds || [])];
+      
+      let nextTx = [...acc.transactions];
+      let nextDeleted = [...(acc.deletedVirtualIds || [])];
+      
       const targetId = t.id || editingTransaction?.id;
       const isVirtual = targetId?.toString().startsWith('virtual-');
-      const templateId = t.templateId || (isVirtual ? targetId?.toString().split('-')[1] : undefined);
-      
-      if (t.isRecurring && templateId) {
-        nextTemplates = nextTemplates.map(tpl => tpl.id === templateId ? { ...tpl, amount: t.amount, categoryId: t.categoryId, comment: t.comment, type: t.type } : tpl);
-      }
-      
-      if (targetId && !isVirtual && nextTransactions.some(i => i.id === targetId)) {
-        nextTransactions = nextTransactions.map(i => i.id === targetId ? ({ ...t, id: targetId, templateId } as Transaction) : i);
+
+      if (isVirtual) {
+        nextDeleted.push(targetId!);
+        nextTx = [{ ...t, id: generateId() } as Transaction, ...nextTx];
+      } else if (targetId && nextTx.some(i => i.id === targetId)) {
+        nextTx = nextTx.map(i => i.id === targetId ? ({ ...t, id: targetId } as Transaction) : i);
       } else {
-        if (isVirtual && targetId) nextDeletedVirtuals.push(targetId);
-        nextTransactions = [{ ...t, id: generateId(), templateId } as Transaction, ...nextTransactions];
+        nextTx = [{ ...t, id: generateId() } as Transaction, ...nextTx];
       }
+
       const nextAccounts = [...prev.accounts];
-      nextAccounts[accIndex] = { ...acc, transactions: nextTransactions, recurringTemplates: nextTemplates, deletedVirtualIds: nextDeletedVirtuals };
+      nextAccounts[accIndex] = { ...acc, transactions: nextTx, deletedVirtualIds: nextDeleted };
       return { ...prev, accounts: nextAccounts };
     });
     setShowAddModal(false);
     setEditingTransaction(null);
   };
 
-  const handleDeleteTransaction = (id: string) => {
-    setState(prev => {
-      const accIndex = prev.accounts.findIndex(a => a.id === prev.activeAccountId);
-      if (accIndex === -1) return prev;
-      const acc = { ...prev.accounts[accIndex] };
-      let nextDeletedVirtuals = [...(acc.deletedVirtualIds || [])];
-      if (id.startsWith('virtual-')) nextDeletedVirtuals.push(id);
-      const nextAccounts = [...prev.accounts];
-      nextAccounts[accIndex] = { ...acc, transactions: acc.transactions.filter(t => t.id !== id), deletedVirtualIds: nextDeletedVirtuals };
-      return { ...prev, accounts: nextAccounts };
-    });
+  const handleMonthChange = (offset: number) => {
+    let nextMonth = currentMonth + offset;
+    let nextYear = currentYear;
+    if (nextMonth < 0) { nextMonth = 11; nextYear -= 1; }
+    else if (nextMonth > 11) { nextMonth = 0; nextYear += 1; }
+    setCurrentMonth(nextMonth);
+    setCurrentYear(nextYear);
+    setSlideDirection(offset > 0 ? 'next' : 'prev');
   };
 
   return (
@@ -214,12 +189,9 @@ const App: React.FC = () => {
             <IconLogo className="w-8 h-8 text-indigo-600" />
             <h1 className="text-xl font-black tracking-tighter text-slate-900">ZenBudget</h1>
           </div>
-          
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-sm flex-1 max-w-[180px] justify-between">
              <button onClick={() => handleMonthChange(-1)} className="p-2 hover:bg-white rounded-xl transition-all text-slate-400 active:scale-90"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15 19l-7-7 7-7" /></svg></button>
-             <div className="flex items-center justify-center gap-1.5 px-1 overflow-hidden">
-                <span className="text-[12px] font-black uppercase tracking-widest text-indigo-700 whitespace-nowrap">{MONTHS_FR[currentMonth]} {currentYear}</span>
-             </div>
+             <span className="text-[11px] font-black uppercase tracking-widest text-indigo-700 whitespace-nowrap">{MONTHS_FR[currentMonth]} {currentYear}</span>
              <button onClick={() => handleMonthChange(1)} className="p-2 hover:bg-white rounded-xl transition-all text-slate-400 active:scale-90"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M9 5l7 7-7 7" /></svg></button>
           </div>
         </div>
@@ -237,7 +209,16 @@ const App: React.FC = () => {
         {activeView === 'TRANSACTIONS' && (
           <TransactionList 
             transactions={effectiveTransactions} categories={state.categories} month={currentMonth} year={currentYear}
-            onDelete={handleDeleteTransaction} onEdit={(t) => { setEditingTransaction(t); setShowAddModal(true); }}
+            onDelete={(id) => setState(prev => {
+              const accIndex = prev.accounts.findIndex(a => a.id === prev.activeAccountId);
+              const acc = prev.accounts[accIndex];
+              const nextDeleted = id.startsWith('virtual-') ? [...(acc.deletedVirtualIds || []), id] : acc.deletedVirtualIds;
+              const nextTx = acc.transactions.filter(t => t.id !== id);
+              const nextAccounts = [...prev.accounts];
+              nextAccounts[accIndex] = { ...acc, transactions: nextTx, deletedVirtualIds: nextDeleted };
+              return { ...prev, accounts: nextAccounts };
+            })} 
+            onEdit={(t) => { setEditingTransaction(t); setShowAddModal(true); }}
             onAddAtDate={(date) => { setModalInitialDate(date); setShowAddModal(true); }}
             selectedDay={selectedDay} onSelectDay={setSelectedDay} totalBalance={projectedBalance}
             carryOver={carryOver} cycleEndDay={activeAccount?.cycleEndDay || 0}
@@ -255,18 +236,7 @@ const App: React.FC = () => {
           <Settings 
             state={state} onUpdateCategories={(cats) => setState(prev => ({ ...prev, categories: cats }))} onUpdateBudget={() => {}}
             onUpdateAccounts={(accounts) => setState(prev => ({ ...prev, accounts }))} onSetActiveAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))}
-            onDeleteAccount={(id) => {
-              setState(prev => {
-                const nextAccounts = prev.accounts.filter(a => a.id !== id);
-                if (nextAccounts.length === 0) return prev;
-                let nextActiveId = prev.activeAccountId;
-                if (id === prev.activeAccountId) {
-                  nextActiveId = nextAccounts[0].id;
-                }
-                return { ...prev, accounts: nextAccounts, activeAccountId: nextActiveId };
-              });
-            }}
-            onReset={() => { if (window.confirm("Tout effacer définitivement ?")) { localStorage.clear(); window.location.reload(); } }} onLogout={() => {}}
+            onDeleteAccount={(id) => {}} onReset={() => { localStorage.clear(); window.location.reload(); }} onLogout={() => {}}
           />
         )}
       </main>
@@ -297,14 +267,6 @@ const container = document.getElementById('root');
 if (container) {
   const root = createRoot(container);
   root.render(<App />);
-  
-  setTimeout(() => {
-    const loader = document.getElementById('initial-loader');
-    if (loader) {
-      loader.style.opacity = '0';
-      setTimeout(() => loader.remove(), 300);
-    }
-  }, 100);
 }
 
 export default App;
