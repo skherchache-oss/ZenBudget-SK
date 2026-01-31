@@ -40,25 +40,25 @@ const Dashboard: React.FC<DashboardProps> = ({
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     
     if (!apiKey) {
-      setAiAdvice("ZenTip : Configurez votre clé API Vercel pour activer l'IA.");
+      setAiAdvice("ZenTip : Configurez votre clé API sur Vercel.");
       return;
     }
 
     setLoadingAdvice(true);
     try {
-      // Appel direct à l'API sans passer par le SDK pour éviter les erreurs de version d'URL
+      // CHANGEMENT CRITIQUE : Passage de v1beta à v1 stable
+      // ET CHANGEMENT DE MODÈLE : gemini-pro (plus compatible)
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{
               parts: [{
-                text: `Tu es un expert ZenBudget. Solde ${availableBalance}€, Dépenses ${stats.expenses}€. Donne 1 conseil financier très court (60 car max). Pas de guillemets.`
+                text: `Tu es un coach financier. Solde dispo: ${availableBalance}€. Dépenses: ${stats.expenses}€. Donne un conseil très court (60 car max).`
               }]
-            }],
-            generationConfig: { temperature: 0.7, maxOutputTokens: 100 }
+            }]
           })
         }
       );
@@ -66,16 +66,26 @@ const Dashboard: React.FC<DashboardProps> = ({
       const data = await response.json();
 
       if (data.error) {
+        // Si gemini-pro échoue aussi, on tente une dernière fois avec gemini-1.5-flash mais en v1
+        if (data.error.code === 404) {
+           const retry = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ contents: [{ parts: [{ text: `Conseil budget court pour ${availableBalance}€.` }] }] })
+           });
+           const retryData = await retry.json();
+           const text = retryData.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+           if (text) { setAiAdvice(text); return; }
+        }
         throw new Error(data.error.message);
       }
 
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
       if (text) setAiAdvice(text);
-      else throw new Error("Réponse vide");
 
     } catch (err) { 
-      console.error("Échec IA (Direct Fetch):", err);
-      setAiAdvice("ZenTip : Optimisez vos charges fixes pour plus de liberté."); 
+      console.error("Échec définitif IA:", err);
+      setAiAdvice("ZenTip : Gardez le cap sur vos objectifs d'épargne."); 
     } finally { 
       setLoadingAdvice(false); 
     }
@@ -139,9 +149,9 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* Cartes de solde */}
+      {/* Grille de soldes */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-indigo-600 p-5 rounded-[32px] shadow-lg flex flex-col gap-1 border border-indigo-500/20">
+        <div className="bg-indigo-600 p-5 rounded-[32px] shadow-lg flex flex-col gap-1">
           <span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest leading-none mb-1">Disponible Réel</span>
           <div className="text-2xl font-black text-white">{formatVal(availableBalance)}€</div>
         </div>
