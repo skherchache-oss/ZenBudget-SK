@@ -39,42 +39,42 @@ const App: React.FC = () => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
-  // --- MOTEUR DE PROJECTION CUMULATIF ---
+  // --- MOTEUR DE PROJECTION UNIFIÉ ---
 
   const getProjectedBalanceAtDate = (targetDate: Date) => {
     if (!activeAccount) return 0;
     
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const targetTS = targetDate.getTime();
-    
-    // 1. POINT DE DÉPART : Le solde de TOUTES les transactions réelles saisies à ce jour
+    // 1. SOLDE RÉEL : Somme de toutes les transactions enregistrées
     let balance = activeAccount.transactions.reduce((acc, t) => {
       return acc + (t.type === 'INCOME' ? t.amount : -t.amount);
     }, 0);
 
-    // Si on regarde le passé, on filtre simplement les transactions réelles jusqu'à cette date
-    if (targetTS < today.getTime()) {
+    // 2. PROJECTION DES FIXES :
+    // On projette tout ce qui n'est pas matérialisé entre "le début du mois actuel" et "la date cible"
+    const templates = activeAccount.recurringTemplates || [];
+    const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    // On commence l'analyse au 1er du mois en cours pour rattraper les fixes du mois pas encore validés
+    let cursorYear = today.getFullYear();
+    let cursorMonth = today.getMonth();
+    
+    // Si on regarde le passé, on ajuste le solde réel et on arrête là
+    if (targetDate.getTime() < today.getTime()) {
       return activeAccount.transactions.reduce((acc, t) => {
-        return new Date(t.date).getTime() <= targetTS ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
+        return new Date(t.date).getTime() <= targetDate.getTime() ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
       }, 0);
     }
 
-    // 2. PROJECTION : On ajoute les charges virtuelles manquantes entre AUJOURD'HUI et la TARGET
-    const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
-    const templates = activeAccount.recurringTemplates || [];
-
-    let cursorYear = today.getFullYear();
-    let cursorMonth = today.getMonth();
     let safety = 0;
-    
-    // On boucle jusqu'au mois de la target inclus
-    const lastMonthToProcess = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1).getTime();
+    const targetMonthStartTS = new Date(targetDate.getFullYear(), targetDate.getMonth(), 1).getTime();
 
-    while (safety < 36) {
+    while (safety < 24) { // Projection sur 2 ans max
       const currentMonthTS = new Date(cursorYear, cursorMonth, 1).getTime();
       
-      // On identifie ce qui est déjà "coché" (réel) ce mois-ci pour ne pas doubler
+      // Transactions réelles déjà liées à un template ce mois-ci
       const materializedIds = new Set(
         activeAccount.transactions
           .filter(t => {
@@ -92,16 +92,23 @@ const App: React.FC = () => {
         const tplDate = new Date(cursorYear, cursorMonth, day, 12, 0, 0);
         const vId = `virtual-${tpl.id}-${cursorMonth}-${cursorYear}`;
 
-        // On ajoute à la projection si :
-        // - La date est APRÈS aujourd'hui (car avant c'est censé être dans le solde réel)
-        // - La date est AVANT ou ÉGALE à la cible demandée
-        // - Le virtuel n'a pas été supprimé manuellement
-        if (tplDate.getTime() > today.getTime() && tplDate.getTime() <= targetTS && !deletedVirtuals.has(vId)) {
-          balance += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
+        // RÈGLE CRUCIALE : 
+        // On ajoute le virtuel si :
+        // - Sa date théorique est dans le futur par rapport à "aujourd'hui"
+        // - OU si sa date est passée mais qu'il n'est pas encore matérialisé (car non présent dans materializedIds)
+        // ET qu'il est avant ou égal à la date cible.
+        if (tplDate.getTime() <= targetDate.getTime() && !deletedVirtuals.has(vId)) {
+            // Mais attention : si tplDate <= today, on ne l'ajoute que s'il n'est PAS matérialisé
+            // (déjà géré par materializedIds.has)
+            if (tplDate.getTime() > today.getTime() || !materializedIds.has(String(tpl.id))) {
+                // Pour éviter de recompter ce qui est déjà dans le solde réel (transactions passées), 
+                // on ne compte que les virtuels qui ne sont pas encore devenus réels.
+                balance += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
+            }
         }
       });
 
-      if (currentMonthTS >= lastMonthToProcess) break;
+      if (currentMonthTS >= targetMonthStartTS) break;
       cursorMonth++;
       if (cursorMonth > 11) { cursorMonth = 0; cursorYear++; }
       safety++;
@@ -110,32 +117,34 @@ const App: React.FC = () => {
     return balance;
   };
 
-  // --- CALCULS DE SOLDES UI ---
+  // --- CALCULS DE SOLDES POUR L'UI ---
 
   const checkingAccountBalance = useMemo(() => {
     if (!activeAccount) return 0;
+    // Solde pointé = tout ce qui est réel
     return activeAccount.transactions.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
   }, [activeAccount]);
 
   const availableBalance = useMemo(() => {
-    // Solde à la fin du mois calendaire actuel
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    // Solde projeté à la fin du mois réel actuel
+    const d = new Date();
+    const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
     return getProjectedBalanceAtDate(endOfMonth);
   }, [activeAccount]);
 
   const projectedBalance = useMemo(() => {
-    // Solde à la fin du mois affiché (ex: si on avance en juin)
+    // Solde projeté à la fin du mois sélectionné dans l'interface
     const endOfView = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
     return getProjectedBalanceAtDate(endOfView);
   }, [activeAccount, currentMonth, currentYear]);
 
   const carryOver = useMemo(() => {
-    // Solde au début du mois affiché = solde à la fin du mois précédent
+    // Solde au 1er du mois sélectionné = solde à la veille
     const lastDayPrev = new Date(currentYear, currentMonth, 0, 23, 59, 59);
     return getProjectedBalanceAtDate(lastDayPrev);
   }, [activeAccount, currentMonth, currentYear]);
 
-  // --- RENDER DU JOURNAL ---
+  // --- GÉNÉRATION DU JOURNAL DU MOIS ---
 
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
@@ -171,7 +180,7 @@ const App: React.FC = () => {
     return [...realOnes, ...virtuals].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [activeAccount, currentMonth, currentYear]);
 
-  // --- HANDLERS ---
+  // --- HANDLERS ACTIONS ---
 
   const handleMonthChange = (offset: number) => {
     setSlideDirection(offset > 0 ? 'next' : 'prev');
