@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { AppState, BudgetAccount } from '../types';
 import { IconPlus } from './Icons';
@@ -174,7 +173,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
             <div className="px-5 pb-5 space-y-6">
               <div className="bg-slate-50 p-5 rounded-2xl space-y-5">
                 <p className="text-[11px] font-bold text-slate-600 leading-relaxed italic">
-                  ZenBudget est une méthode de gestion financière basée sur la sérénité. Elle ne se contente pas de lister vos transactions, elle calcule votre véritable capacité de dépense sans stress.
+                  ZenBudget est une méthode de gestion financière basée sur la sérénité. Elle calcule votre véritable capacité de dépense en tenant compte de vos engagements futurs.
                 </p>
 
                 <div className="space-y-3">
@@ -183,6 +182,16 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
                     <p><b>1. Revenus :</b> Enregistrez vos rentrées (Salaires, aides...).</p>
                     <p><b>2. Fixes :</b> ZenBudget déduit vos charges programmées dès le début du cycle, même si elles n'ont pas encore été payées.</p>
                     <p><b>3. Variables :</b> Vos dépenses quotidiennes ajustent votre solde projeté en temps réel.</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-3 border-t border-slate-200/60">
+                  <h4 className="text-[11px] font-black uppercase text-slate-800 tracking-wider">Lexique Zen</h4>
+                  <div className="space-y-3 text-[11px] text-slate-500 font-medium leading-relaxed">
+                    <p><b>Solde Bancaire :</b> Somme réelle disponible sur votre compte aujourd'hui (opérations saisies ou pointées).</p>
+                    <p><b>Disponible Réel :</b> Ce qu'il vous reste vraiment pour finir le cycle après déduction de TOUS vos flux fixes prévus.</p>
+                    <p><b>Projection Fin :</b> Estimation de votre solde au dernier jour du cycle si vous ne dépensez rien d'autre d'ici là.</p>
+                    <p><b>Flux Fixes :</b> Vos charges ou revenus récurrents (loyer, abonnements, salaire...). ZenBudget les automatise.</p>
                   </div>
                 </div>
               </div>

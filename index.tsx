@@ -38,6 +38,7 @@ const App: React.FC = () => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
+  // --- MOTEUR DE PROJECTION ---
   const getProjectedBalanceAtDate = (targetDate: Date) => {
     if (!activeAccount) return 0;
     
@@ -160,16 +161,16 @@ const App: React.FC = () => {
       const inputId = String(t.id || "");
       const isVirtual = inputId.startsWith('virtual-');
       
-      // Extraction cruciale : on doit retrouver le templateId d'origine
+      // Extraction cruciale du templateId pour garantir la mise à jour du modèle parent
       let templateId = t.templateId;
       if (!templateId && isVirtual) {
-        templateId = inputId.split('-')[1];
+        templateId = inputId.split('-')[1]; // Format: virtual-TPLID-MM-YYYY
       }
 
       const tDate = new Date(t.date);
       const day = tDate.getDate();
 
-      // 1. MISE À JOUR DU MODÈLE (Synchronisation globale)
+      // 1. MISE À JOUR DU MODÈLE (FIXE) -> Impacte tous les mois futurs projetés
       if (t.isRecurring) {
         if (templateId) {
           nextTpls = nextTpls.map(tpl => String(tpl.id) === String(templateId) ? {
@@ -190,7 +191,7 @@ const App: React.FC = () => {
         }
       }
 
-      // 2. GESTION DE L'OPÉRATION DANS LE JOURNAL
+      // 2. GESTION DE LA TRANSACTION RÉELLE DANS LE JOURNAL
       const targetTxId = isVirtual ? generateId() : (t.id || generateId());
       const finalTxData: Transaction = {
         ...t,
@@ -199,14 +200,14 @@ const App: React.FC = () => {
       };
 
       if (isVirtual) {
-        // On matérialise l'occurrence virtuelle
+        // Matérialisation de l'occurrence virtuelle pour le mois en cours
         nextTx = [finalTxData, ...nextTx];
         nextDels.push(inputId);
       } else if (t.id && nextTx.some(tx => String(tx.id) === String(t.id))) {
-        // Modification d'une transaction réelle existante
+        // Mise à jour d'une transaction manuelle
         nextTx = nextTx.map(tx => String(tx.id) === String(t.id) ? finalTxData : tx);
       } else {
-        // Nouvelle transaction manuelle
+        // Nouvelle transaction
         nextTx = [finalTxData, ...nextTx];
       }
 
