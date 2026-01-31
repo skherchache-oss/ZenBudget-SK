@@ -1,8 +1,8 @@
-
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { GoogleGenAI } from "@google/genai";
+// Correction de l'import : on utilise le SDK officiel
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface DashboardProps {
   transactions: Transaction[];
@@ -39,8 +39,8 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, [transactions]);
 
   const fetchAiAdvice = async () => {
-    // Sécurité anti-crash : on vérifie l'existence de la clé de manière isolée
-    const apiKey = typeof process !== 'undefined' ? process.env.API_KEY : "";
+    // Sur Vercel, on utilise import.meta.env pour Vite ou process.env pour Webpack
+    const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY || "";
     
     if (!apiKey) {
       setAiAdvice("ZenTip : Pensez à isoler vos charges fixes dès le début du mois.");
@@ -49,32 +49,23 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     setLoadingAdvice(true);
     try {
-      const ai = new GoogleGenAI({ apiKey });
-      const randomSeed = Math.random().toString(36).substring(7);
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); // Utilisation d'un modèle stable
       
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: `Tu es un expert financier. Analyse de trésorerie pour ZenBudget :
+      const prompt = `Tu es un expert financier. Analyse de trésorerie pour ZenBudget :
         - Solde disponible actuel : ${availableBalance}€
-        - Dépenses totales du mois : ${stats.expenses}€
+        - Dépenses totales : ${stats.expenses}€
         - Revenus prévus : ${stats.income}€
-        
-        MISSION :
-        Donne un conseil financier PRAGMATIQUE et COURT (max 60 car).
-        Focus : Épargne, charges fixes ou gestion de flux.
-        
-        CONTRAINTES :
-        - Style : Pro, direct, rassurant.
-        - Français uniquement.
-        - Graine : ${randomSeed}`,
-        config: { temperature: 0.7 }
-      });
+        MISSION : Donne un conseil financier PRAGMATIQUE et COURT (max 60 car).
+        Style : Pro, direct, rassurant. Français uniquement.`;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text().trim().replace(/^["']|["']$/g, '');
       
-      const text = response.text?.trim().replace(/^["']|["']$/g, '');
-      if (text && text.length > 5) {
-        setAiAdvice(text);
-      }
+      if (text) setAiAdvice(text);
     } catch (err) { 
+      console.error("Erreur AI:", err);
       setAiAdvice("ZenTip : Optimisez vos charges fixes pour augmenter votre épargne."); 
     } finally { 
       setLoadingAdvice(false); 
