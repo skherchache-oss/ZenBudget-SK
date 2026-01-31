@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface DashboardProps {
   transactions: Transaction[];
@@ -38,33 +37,45 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, [transactions]);
 
   const fetchAiAdvice = async () => {
-    // Vite utilise import.meta.env pour les variables préfixées par VITE_
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     
     if (!apiKey) {
-      setAiAdvice("ZenTip : Optimisez vos charges fixes pour augmenter votre épargne.");
+      setAiAdvice("ZenTip : Configurez votre clé API Vercel pour activer l'IA.");
       return;
     }
 
     setLoadingAdvice(true);
     try {
-      const genAI = new GoogleGenerativeAI(apiKey);
-      
-      // On teste 'gemini-1.5-flash', si ça échoue, le catch prendra le relais
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-      
-      const prompt = `Tu es un expert ZenBudget.
-        Contexte : Solde ${availableBalance}€, Dépenses ${stats.expenses}€.
-        Donne 1 conseil financier très court (max 60 car). Pas de guillemets.`;
+      // Appel direct à l'API sans passer par le SDK pour éviter les erreurs de version d'URL
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{
+              parts: [{
+                text: `Tu es un expert ZenBudget. Solde ${availableBalance}€, Dépenses ${stats.expenses}€. Donne 1 conseil financier très court (60 car max). Pas de guillemets.`
+              }]
+            }],
+            generationConfig: { temperature: 0.7, maxOutputTokens: 100 }
+          })
+        }
+      );
 
-      const result = await model.generateContent(prompt);
-      const text = result.response.text().trim();
-      
+      const data = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error.message);
+      }
+
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
       if (text) setAiAdvice(text);
+      else throw new Error("Réponse vide");
+
     } catch (err) { 
-      console.error("Erreur Gemini détaillée:", err);
-      // Fallback au cas où le modèle ou l'API v1beta pose problème
-      setAiAdvice("ZenTip : Surveillez vos dépenses variables pour rester serein."); 
+      console.error("Échec IA (Direct Fetch):", err);
+      setAiAdvice("ZenTip : Optimisez vos charges fixes pour plus de liberté."); 
     } finally { 
       setLoadingAdvice(false); 
     }
@@ -110,6 +121,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="flex flex-col h-full space-y-6 overflow-y-auto no-scrollbar pb-32 px-1 fade-in">
+      {/* Header */}
       <div className="flex items-center justify-between pt-6">
         <div className="flex flex-col">
           <h2 className="text-2xl font-black text-slate-800 tracking-tighter italic">Stats Zen ✨</h2>
@@ -118,6 +130,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         <button onClick={handleExportCSV} className="px-4 py-2.5 bg-slate-900 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all">Exporter CSV</button>
       </div>
 
+      {/* Solde Principal */}
       <div className="bg-slate-900 px-6 py-9 rounded-[40px] shadow-2xl relative overflow-hidden flex flex-col justify-center min-h-[130px]">
         <span className="text-indigo-400 text-[9px] font-black uppercase tracking-[0.3em] mb-1">Solde Bancaire Pointé</span>
         <div className="flex items-baseline gap-2">
@@ -126,6 +139,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
+      {/* Cartes de solde */}
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-indigo-600 p-5 rounded-[32px] shadow-lg flex flex-col gap-1 border border-indigo-500/20">
           <span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest leading-none mb-1">Disponible Réel</span>
@@ -137,6 +151,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
+      {/* Bulle IA */}
       <div className="bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm cursor-pointer active:scale-[0.98] transition-all" onClick={() => !loadingAdvice && fetchAiAdvice()}>
         <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center shrink-0">
           {loadingAdvice ? <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" /> : "💡"}
@@ -144,6 +159,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         <p className="text-[11px] font-bold text-slate-700 leading-tight">{aiAdvice}</p>
       </div>
 
+      {/* Graphique */}
       <div className="bg-white/80 backdrop-blur-xl rounded-[40px] p-6 border border-white shadow-xl">
         <h2 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 px-1">Répartition des charges</h2>
         <div className="h-[240px] w-full relative">
