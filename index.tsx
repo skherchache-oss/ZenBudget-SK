@@ -39,104 +39,107 @@ const App: React.FC = () => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
-  // Date de référence normalisée à midi pour éviter les bugs de fuseau horaire mobile
-  const now = useMemo(() => {
-    const d = new Date();
-    d.setHours(12, 0, 0, 0);
-    return d;
-  }, []);
-
   /**
-   * Helper pour comparer des dates sans les heures/minutes (comparaison au jour près)
+   * HELPERS DE DATE ROBUSTES
+   * On utilise des nombres pour les comparaisons (YYYYMMDD) pour éviter les bugs d'objets Date sur mobile.
    */
-  const isBeforeOrEqual = (date1: Date, date2: Date) => {
-    const d1 = new Date(date1); d1.setHours(23, 59, 59, 999);
-    const d2 = new Date(date2); d2.setHours(23, 59, 59, 999);
-    return d1.getTime() <= d2.getTime();
+  const getDateNumber = (date: Date | string) => {
+    const d = new Date(date);
+    if (isNaN(d.getTime())) return 0;
+    return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
   };
 
   /**
-   * getProjectedBalanceAtDate: Moteur de calcul robuste
+   * getProjectedBalanceAtDate : Moteur de calcul linéaire
    */
   const getProjectedBalanceAtDate = (targetDate: Date) => {
     if (!activeAccount) return 0;
     
-    // 1. Transactions réelles (saisies manuellement)
+    const targetNum = getDateNumber(targetDate);
+    const now = new Date();
+    const currentMonthNum = now.getFullYear() * 100 + (now.getMonth() + 1);
+    const targetMonthNum = targetDate.getFullYear() * 100 + (targetDate.getMonth() + 1);
+
+    // 1. Base : Toutes les transactions réelles jusqu'à la date cible
     let balance = activeAccount.transactions.reduce((acc, t) => {
-      const txDate = new Date(t.date);
-      return isBeforeOrEqual(txDate, targetDate) ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
+      return getDateNumber(t.date) <= targetNum ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
     }, 0);
 
-    // 2. Projections virtuelles
-    const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
+    // 2. Projections : On n'ajoute les virtuels QUE pour le mois en cours et les mois futurs
     const templates = activeAccount.recurringTemplates || [];
+    const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
     
-    // On commence les projections au mois de la première transaction ou au mois actuel
-    let cursor = new Date(now.getFullYear(), now.getMonth(), 1, 12, 0, 0);
-    if (activeAccount.transactions.length > 0) {
-      const firstTxDate = new Date(Math.min(...activeAccount.transactions.map(t => new Date(t.date).getTime())));
-      cursor = new Date(firstTxDate.getFullYear(), firstTxDate.getMonth(), 1, 12, 0, 0);
-    }
+    // On boucle du mois actuel jusqu'au mois cible
+    let cursorYear = now.getFullYear();
+    let cursorMonth = now.getMonth();
+    
+    // Protection anti-boucle (max 24 mois de projection)
+    for (let i = 0; i < 24; i++) {
+      const cursorMonthNum = cursorYear * 100 + (cursorMonth + 1);
+      if (cursorMonthNum > targetMonthNum) break;
 
-    // Protection contre les boucles infinies sur mobile
-    let iterations = 0;
-    const maxIterations = 60; // 5 ans de projection max
-
-    while (isBeforeOrEqual(cursor, targetDate) && iterations < maxIterations) {
-      const cM = cursor.getMonth();
-      const cY = cursor.getFullYear();
-      
+      // Quelles charges fixes ont été payées "réellement" ce mois-ci ?
       const materializedIds = new Set(
         activeAccount.transactions
           .filter(t => {
             const d = new Date(t.date);
-            return d.getMonth() === cM && d.getFullYear() === cY;
+            return d.getMonth() === cursorMonth && d.getFullYear() === cursorYear && t.templateId;
           })
-          .map(t => t.templateId).filter(Boolean)
+          .map(t => String(t.templateId))
       );
 
       templates.forEach(tpl => {
-        if (!tpl.isActive || materializedIds.has(tpl.id)) return;
-        
-        const lastDay = new Date(cY, cM + 1, 0).getDate();
+        if (!tpl.isActive) return;
+        if (materializedIds.has(String(tpl.id))) return; // Déjà payé réellement
+
+        const vId = `virtual-${tpl.id}-${cursorMonth}-${cursorYear}`;
+        if (deletedVirtuals.has(vId)) return; // Supprimé par l'utilisateur
+
+        // Calcul de la date théorique de ce virtuel
+        const lastDay = new Date(cursorYear, cursorMonth + 1, 0).getDate();
         const day = Math.min(tpl.dayOfMonth, lastDay);
-        const tplDate = new Date(cY, cM, day, 12, 0, 0);
-        const vId = `virtual-${tpl.id}-${cM}-${cY}`;
-        
-        if (isBeforeOrEqual(tplDate, targetDate) && !deletedVirtuals.has(vId)) {
+        const tplNum = cursorYear * 10000 + (cursorMonth + 1) * 100 + day;
+
+        // Si la date du virtuel est dans le passé ou le futur (jusqu'à targetDate)
+        // Mais on ne compte pas les virtuels des mois passés (avant maintenant) 
+        // car on part du principe que le solde réel les inclut ou qu'ils sont "perdus".
+        if (tplNum <= targetNum && cursorMonthNum >= currentMonthNum) {
           balance += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
         }
       });
-      
-      cursor.setMonth(cursor.getMonth() + 1);
-      iterations++;
+
+      cursorMonth++;
+      if (cursorMonth > 11) {
+        cursorMonth = 0;
+        cursorYear++;
+      }
     }
-    
+
     return balance;
   };
 
   const checkingAccountBalance = useMemo(() => {
     if (!activeAccount) return 0;
+    const todayNum = getDateNumber(new Date());
     return activeAccount.transactions.reduce((acc, t) => {
-      const txDate = new Date(t.date);
-      return isBeforeOrEqual(txDate, now) ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
+      return getDateNumber(t.date) <= todayNum ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
     }, 0);
-  }, [activeAccount, now]);
+  }, [activeAccount]);
 
   const availableBalance = useMemo(() => {
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-    return getProjectedBalanceAtDate(endOfMonth);
-  }, [activeAccount, now]);
+    const now = new Date();
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    return getProjectedBalanceAtDate(end);
+  }, [activeAccount]);
 
   const projectedBalance = useMemo(() => {
-    const endOfTargetMonth = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
-    return getProjectedBalanceAtDate(endOfTargetMonth);
+    const end = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
+    return getProjectedBalanceAtDate(end);
   }, [activeAccount, currentMonth, currentYear]);
 
   const carryOver = useMemo(() => {
-    // Report = Solde à la fin du mois précédent
-    const endOfPrevMonth = new Date(currentYear, currentMonth, 0, 23, 59, 59);
-    return getProjectedBalanceAtDate(endOfPrevMonth);
+    const lastDayPrev = new Date(currentYear, currentMonth, 0, 23, 59, 59);
+    return getProjectedBalanceAtDate(lastDayPrev);
   }, [activeAccount, currentMonth, currentYear]);
 
   const effectiveTransactions = useMemo(() => {
@@ -147,11 +150,11 @@ const App: React.FC = () => {
       return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
     });
 
-    const materializedIds = new Set(manuals.map(t => t.templateId).filter(Boolean));
+    const materializedIds = new Set(manuals.map(t => String(t.templateId || "")));
     const deletedVirtuals = new Set(activeAccount.deletedVirtualIds || []);
 
     const virtuals: Transaction[] = (activeAccount.recurringTemplates || [])
-      .filter(tpl => tpl.isActive && !materializedIds.has(tpl.id))
+      .filter(tpl => tpl.isActive && !materializedIds.has(String(tpl.id)))
       .map(tpl => {
         const lastDay = new Date(currentYear, currentMonth + 1, 0).getDate();
         const day = Math.min(tpl.dayOfMonth, lastDay);
@@ -187,19 +190,21 @@ const App: React.FC = () => {
       let nextTx = [...acc.transactions];
       let nextTpl = [...(acc.recurringTemplates || [])];
       let nextDel = [...(acc.deletedVirtualIds || [])];
+      
       const targetId = t.id || editingTransaction?.id;
-      const isVirtual = targetId?.toString().startsWith('virtual-');
-      const templateId = t.templateId || (isVirtual ? targetId?.toString().split('-')[1] : undefined);
+      const idStr = String(targetId || "");
+      const isVirtual = idStr.startsWith('virtual-');
+      const templateId = t.templateId || (isVirtual ? idStr.split('-')[1] : undefined);
       
       if (t.isRecurring && templateId) {
-        nextTpl = nextTpl.map(tpl => tpl.id === templateId ? { ...tpl, amount: t.amount, categoryId: t.categoryId, comment: t.comment, type: t.type } : tpl);
+        nextTpl = nextTpl.map(tpl => String(tpl.id) === String(templateId) ? { ...tpl, amount: t.amount, categoryId: t.categoryId, comment: t.comment, type: t.type } : tpl);
       }
       
       if (targetId && !isVirtual && nextTx.some(i => i.id === targetId)) {
-        nextTx = nextTx.map(i => i.id === targetId ? ({ ...t, id: targetId, templateId } as Transaction) : i);
+        nextTx = nextTx.map(i => i.id === targetId ? ({ ...t, id: targetId, templateId: templateId } as Transaction) : i);
       } else {
-        if (isVirtual && targetId) nextDel.push(targetId);
-        nextTx = [{ ...t, id: generateId(), templateId } as Transaction, ...nextTx];
+        if (isVirtual && targetId) nextDel.push(idStr);
+        nextTx = [{ ...t, id: generateId(), templateId: templateId } as Transaction, ...nextTx];
       }
       const nextAccounts = [...prev.accounts];
       nextAccounts[accIndex] = { ...acc, transactions: nextTx, recurringTemplates: nextTpl, deletedVirtualIds: nextDel };
@@ -215,7 +220,7 @@ const App: React.FC = () => {
       if (accIndex === -1) return prev;
       const acc = { ...prev.accounts[accIndex] };
       let nextDel = [...(acc.deletedVirtualIds || [])];
-      if (id.toString().startsWith('virtual-')) nextDel.push(id);
+      if (String(id).startsWith('virtual-')) nextDel.push(id);
       const nextAccounts = [...prev.accounts];
       nextAccounts[accIndex] = { ...acc, transactions: acc.transactions.filter(t => t.id !== id), deletedVirtualIds: nextDel };
       return { ...prev, accounts: nextAccounts };
