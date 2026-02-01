@@ -182,7 +182,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
                     <p><b>1. Initialisation :</b> Pour un démarrage parfait, saisissez votre solde bancaire réel à la date d'aujourd'hui. Ce point d'ancrage permet à ZenBudget de synchroniser immédiatement vos projections avec votre réalité financière.</p>
                     <p><b>2. Revenus :</b> Enregistrez vos rentrées (Salaires, aides...).</p>
                     <p><b>3. Fixes :</b> ZenBudget déduit vos charges programmées dès le début du cycle, même si elles n'ont pas encore été payées.</p>
-                    <p><b>4. Variables :</b> Vos d'épenses quotidiennes ajustent votre solde projeté en temps réel.</p>
+                    <p><b>4. Variables :</b> Vos dépenses quotidiennes ajustent votre solde projeté en temps réel.</p>
                   </div>
                 </div>
 

@@ -27,6 +27,18 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
+// Formatteur spécifique pour le calendrier afin d'optimiser l'espace
+const formatCurrencyCalendar = (amount: number) => {
+  const absAmount = Math.abs(amount);
+  // Si le montant est supérieur à 999, on cache les décimales pour gagner de la place
+  const showDecimals = absAmount < 1000;
+  return new Intl.NumberFormat('fr-FR', {
+    style: 'decimal',
+    minimumFractionDigits: showDecimals ? 2 : 0,
+    maximumFractionDigits: showDecimals ? 2 : 0,
+  }).format(amount);
+};
+
 const TransactionItem: React.FC<{ 
   t: Transaction; 
   category?: Category; 
@@ -145,13 +157,13 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
                   const isToday = isThisMonth && new Date().getDate() === day;
                   const dayT = transactions.filter(t => new Date(t.date).getDate() === day);
                   return (
-                    <button key={day} onClick={() => onSelectDay(day)} className={`h-15 rounded-[16px] flex flex-col items-center justify-between py-2 transition-all border ${isSelected ? 'bg-slate-900 border-slate-900 text-white z-10 scale-105' : (isToday ? 'bg-indigo-50 border-indigo-200 text-indigo-900' : 'bg-white border-slate-50')}`}>
-                      <span className={`text-[13px] font-semibold ${isSelected ? 'text-white' : 'text-slate-600'}`}>{day}</span>
-                      <div className="flex flex-col items-center gap-0 w-full px-0.5">
-                        <span className={`text-[11px] font-black tracking-tighter truncate w-full text-center ${isSelected ? 'text-indigo-300' : (balance >= 0 ? 'text-indigo-600' : 'text-red-500')}`}>
-                          {formatCurrency(balance)}
+                    <button key={day} onClick={() => onSelectDay(day)} className={`h-16 rounded-[16px] flex flex-col items-center justify-between py-2 transition-all border relative overflow-hidden ${isSelected ? 'bg-slate-900 border-slate-900 text-white z-10 scale-105' : (isToday ? 'bg-indigo-50 border-indigo-200 text-indigo-900' : 'bg-white border-slate-50')}`}>
+                      <span className={`text-[13px] font-semibold leading-none ${isSelected ? 'text-white' : 'text-slate-400'}`}>{day}</span>
+                      <div className="flex flex-col items-center justify-center w-full px-0.5 flex-1 mt-1">
+                        <span className={`text-[12px] font-black tracking-tighter truncate w-full text-center leading-none ${isSelected ? 'text-indigo-300' : (balance >= 0 ? 'text-indigo-600' : 'text-red-500')}`}>
+                          {formatCurrencyCalendar(balance)}
                         </span>
-                        <div className="flex gap-0.5 mt-1">
+                        <div className="flex gap-0.5 mt-1.5">
                           {dayT.some(t => t.type === 'INCOME') && <div className="w-1 h-1 rounded-full bg-emerald-400" />}
                           {dayT.some(t => t.type === 'EXPENSE') && <div className="w-1 h-1 rounded-full bg-red-400" />}
                         </div>
