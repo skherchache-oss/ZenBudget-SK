@@ -179,9 +179,10 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
                 <div className="space-y-3">
                   <h4 className="text-[11px] font-black uppercase text-indigo-600 tracking-wider">Le cycle Zen</h4>
                   <div className="space-y-3 text-[11px] text-slate-500 font-medium leading-relaxed">
-                    <p><b>1. Revenus :</b> Enregistrez vos rentrées (Salaires, aides...).</p>
-                    <p><b>2. Fixes :</b> ZenBudget déduit vos charges programmées dès le début du cycle, même si elles n'ont pas encore été payées.</p>
-                    <p><b>3. Variables :</b> Vos dépenses quotidiennes ajustent votre solde projeté en temps réel.</p>
+                    <p><b>1. Démarrage :</b> Pour un démarrage correct, mettez à jour votre solde bancaire le jour ou la date où vous lancez l'appli pour que tout se mette à jour correctement.</p>
+                    <p><b>2. Revenus :</b> Enregistrez vos rentrées (Salaires, aides...).</p>
+                    <p><b>3. Fixes :</b> ZenBudget déduit vos charges programmées dès le début du cycle, même si elles n'ont pas encore été payées.</p>
+                    <p><b>4. Variables :</b> Vos dépenses quotidiennes ajustent votre solde projeté en temps réel.</p>
                   </div>
                 </div>
 
