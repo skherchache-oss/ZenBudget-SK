@@ -38,10 +38,11 @@ const App: React.FC = () => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
-  // --- MOTEUR DE PROJECTION ---
+  // --- MOTEUR DE PROJECTION (Le coeur de ZenBudget) ---
   const getProjectedBalanceAtDate = (targetDate: Date) => {
     if (!activeAccount) return 0;
     
+    // 1. Somme des transactions réelles jusqu'à la date cible
     let balance = activeAccount.transactions.reduce((acc, t) => {
       const tDate = new Date(t.date);
       return tDate <= targetDate ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
@@ -55,6 +56,7 @@ const App: React.FC = () => {
     let cursorMonth = today.getMonth();
     const targetTS = targetDate.getTime();
 
+    // 2. Projection des charges fixes non encore matérialisées
     for (let i = 0; i < 24; i++) {
       const firstOfCursorMonth = new Date(cursorYear, cursorMonth, 1);
       if (firstOfCursorMonth.getTime() > targetTS) break;
@@ -78,6 +80,7 @@ const App: React.FC = () => {
 
         if (tplDate.getTime() <= targetTS && !materializedIds.has(String(tpl.id)) && !deletedVirtuals.has(vId)) {
           const startOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1).getTime();
+          // On ne projette que ce qui est futur ou du mois en cours
           if (tplDate.getTime() >= startOfCurrentMonth) {
             balance += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
           }
@@ -95,11 +98,26 @@ const App: React.FC = () => {
     return activeAccount.transactions.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
   }, [activeAccount]);
 
+  // DISPONIBLE RÉEL : Solde projeté jusqu'à la fin du cycle budgétaire actuel
   const availableBalance = useMemo(() => {
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
-    return getProjectedBalanceAtDate(endOfMonth);
-  }, [activeAccount]);
+    const cycleDay = activeAccount?.cycleEndDay || 0;
+    let targetMonth = now.getMonth();
+    let targetYear = now.getFullYear();
+    
+    // Si on a dépassé le jour du cycle, la fin du cycle actuel est le mois prochain
+    if (cycleDay > 0 && now.getDate() >= cycleDay) {
+        targetMonth++;
+        if (targetMonth > 11) { targetMonth = 0; targetYear++; }
+    }
+    
+    const endOfCycle = cycleDay === 0 
+        ? new Date(targetYear, targetMonth + 1, 0, 23, 59, 59)
+        : new Date(targetYear, targetMonth, cycleDay, 0, 0, 0);
+        
+    return getProjectedBalanceAtDate(endOfCycle);
+  }, [activeAccount, now]);
 
+  // PROJECTION FIN : Solde au dernier jour du mois calendaire affiché
   const projectedBalance = useMemo(() => {
     const endOfView = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
     return getProjectedBalanceAtDate(endOfView);
@@ -160,16 +178,15 @@ const App: React.FC = () => {
       const inputId = String(t.id || "");
       const isVirtual = inputId.startsWith('virtual-');
       
-      // Extraction du templateId d'origine
       let templateId = t.templateId;
       if (!templateId && isVirtual) {
         templateId = inputId.split('-')[1];
       }
 
-      // 1. SYNC AVEC LE MODÈLE (POUR TOUS LES MOIS FUTURS)
+      // 1. GESTION DE LA RÉCURRENCE (PERSISTANCE FUTUR)
       if (t.isRecurring) {
         if (templateId) {
-          // Mise à jour de l'existant
+          // Mise à jour du template existant -> Impacte tous les mois futurs
           nextTpls = nextTpls.map(tpl => String(tpl.id) === String(templateId) ? {
             ...tpl, 
             amount: t.amount, 
@@ -179,7 +196,7 @@ const App: React.FC = () => {
             dayOfMonth: new Date(t.date).getDate()
           } : tpl);
         } else {
-          // Nouveau flux fixe
+          // Création d'un nouveau template
           const newTplId = generateId();
           nextTpls.push({
             id: newTplId, amount: t.amount, categoryId: t.categoryId, comment: t.comment, type: t.type,
@@ -187,19 +204,18 @@ const App: React.FC = () => {
           });
           templateId = newTplId;
         }
-      } else if (templateId && !isVirtual) {
-        // Si on désactive la récurrence sur un item qui l'était
+      } else if (templateId) {
+        // L'utilisateur a décoché "Fixe" : on supprime le template source
         nextTpls = nextTpls.filter(tpl => String(tpl.id) !== String(templateId));
         templateId = undefined;
       }
 
-      // 2. MISE À JOUR DU JOURNAL RÉEL
-      // Si c'était virtuel, on le matérialise (l'id virtuel disparaît naturellement via materializedIds)
+      // 2. MISE À JOUR DU RÉEL
       const targetId = isVirtual ? generateId() : (t.id || generateId());
       const finalTx: Transaction = { ...t, id: targetId, templateId: templateId };
 
       if (isVirtual) {
-        nextTx = [finalTx, ...nextTx];
+        nextTx = [finalTx, ...nextTx]; // Matérialisation
       } else if (t.id && nextTx.some(tx => String(tx.id) === String(t.id))) {
         nextTx = nextTx.map(tx => String(tx.id) === String(t.id) ? finalTx : tx);
       } else {
@@ -223,9 +239,7 @@ const App: React.FC = () => {
       
       let nextTx = [...acc.transactions];
       let nextTpls = [...(acc.recurringTemplates || [])];
-      let nextDels = [...(acc.deletedVirtualIds || [])];
 
-      // Trouver si c'est lié à un template
       let templateIdToDelete: string | undefined;
       
       if (idStr.startsWith('virtual-')) {
@@ -236,13 +250,13 @@ const App: React.FC = () => {
         nextTx = nextTx.filter(t => String(t.id) !== idStr);
       }
 
-      // Si c'est un flux fixe, on supprime le modèle pour tous les mois futurs
+      // SUPPRESSION CASCADE : On supprime le modèle pour que ça disparaisse de TOUS les mois futurs
       if (templateIdToDelete) {
         nextTpls = nextTpls.filter(tpl => String(tpl.id) !== String(templateIdToDelete));
       }
 
       const nextAccounts = [...prev.accounts];
-      nextAccounts[accIdx] = { ...acc, transactions: nextTx, recurringTemplates: nextTpls, deletedVirtualIds: nextDels };
+      nextAccounts[accIdx] = { ...acc, transactions: nextTx, recurringTemplates: nextTpls };
       return { ...prev, accounts: nextAccounts };
     });
   };
