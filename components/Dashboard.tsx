@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-// Package correct pour éviter l'erreur Rollup/Vercel
+// Correction pour Vercel : Utilisation du package officiel
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface DashboardProps {
@@ -20,7 +20,7 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
-  transactions, categories, activeAccount, checkingAccountBalance, availableBalance, projectedBalance 
+  transactions, categories, activeAccount, checkingAccountBalance, availableBalance, projectedBalance, month, year 
 }) => {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [aiAdvice, setAiAdvice] = useState<string>("Analyse financière Zen...");
@@ -39,7 +39,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, [transactions]);
 
   const fetchAiAdvice = async () => {
-    // Vite utilise import.meta.env pour les variables d'environnement
+    // Correction de l'accès aux variables d'environnement pour Vite/Vercel
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
     
     if (!apiKey) {
@@ -64,7 +64,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       
       if (text && text.length > 5) setAiAdvice(text);
     } catch (err) { 
-      setAiAdvice("ZenTip : Gardez un œil sur vos dépenses variables ce mois-ci."); 
+      setAiAdvice("ZenTip : Gardez un œil sur vos d'épenses variables ce mois-ci."); 
     } finally { 
       setLoadingAdvice(false); 
     }
@@ -91,24 +91,48 @@ const Dashboard: React.FC<DashboardProps> = ({
     try {
       const s = ";"; 
       const f = (n: number) => n.toFixed(2).replace('.', ',');
+      const formatDate = (dateStr: string) => {
+        const d = new Date(dateStr);
+        return d.toLocaleDateString('fr-FR');
+      };
+
       const rows: string[] = [
-        `ZENBUDGET - EXPORT STATS - ${activeAccount.name.toUpperCase()}`,
+        `ZENBUDGET - EXPORT COMPLET - ${activeAccount.name.toUpperCase()}`,
+        `Période : ${month + 1}/${year}`,
         "",
-        `Solde Bancaire (Aujourd'hui)${s}${f(checkingAccountBalance)} €`,
+        `Solde Bancaire Actuel${s}${f(checkingAccountBalance)} €`,
         `Disponible (fixes inclus)${s}${f(availableBalance)} €`,
         `Projection Fin de Mois${s}${f(projectedBalance)} €`,
         "",
-        "--- RÉPARTITION ---",
+        "--- RÉSUMÉ PAR CATÉGORIE ---",
         `Catégorie${s}Montant${s}Part (%)`
       ];
+
       categorySummary.forEach(c => {
         rows.push(`${c.name}${s}${f(c.value)}${s}${Math.round(c.percent)}%`);
       });
+
+      rows.push("", "--- DÉTAIL DES OPÉRATIONS ---");
+      rows.push(`Date${s}Catégorie${s}Note/Libellé${s}Type${s}Montant`);
+
+      const sortedTxs = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+      sortedTxs.forEach(t => {
+        const cat = categories.find(c => c.id === t.categoryId);
+        const typeLabel = t.type === 'INCOME' ? 'Revenu' : 'Dépense';
+        const prefix = t.type === 'INCOME' ? '' : '-';
+        rows.push(`${formatDate(t.date)}${s}${cat?.name || 'Autre'}${s}${t.comment || ''}${s}${typeLabel}${s}${prefix}${f(t.amount)}`);
+      });
+
       const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href = url; link.download = `ZenBudget_Stats.csv`; link.click();
-    } catch (e) { console.error(e); }
+      link.href = url; 
+      link.download = `ZenBudget_Export_${month + 1}_${year}.csv`; 
+      link.click();
+    } catch (e) { 
+      console.error("Export error:", e); 
+    }
   };
 
   const formatVal = (v: number) => {
@@ -127,19 +151,18 @@ const Dashboard: React.FC<DashboardProps> = ({
           <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mt-1.5">{activeAccount.name}</p>
         </div>
         
-        {/* Bouton Export Classique avec Texte et Icône Standard */}
+        {/* Bouton Export avec Icône Téléchargement Standard */}
         <button 
           onClick={handleExportCSV} 
-          className="px-4 py-2.5 bg-slate-900 rounded-2xl shadow-xl active:scale-95 text-white border border-slate-800 text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-transform"
+          className="px-4 py-2.5 bg-slate-900 rounded-2xl shadow-xl active:scale-95 text-white border border-slate-800 flex items-center gap-2 transition-all"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
-          <span>Export CSV</span>
+          <span className="text-[10px] font-black uppercase tracking-widest">Export CSV</span>
         </button>
       </div>
 
-      {/* Carte du Solde Bancaire Aujourd'hui */}
       <div className="bg-slate-900 px-6 py-9 rounded-[40px] shadow-2xl relative overflow-hidden flex flex-col justify-center min-h-[130px]">
         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
         <span className="text-indigo-400 text-[9px] font-black uppercase tracking-[0.3em] mb-1">Solde Bancaire Aujourd'hui</span>
@@ -171,7 +194,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* Conseil IA */}
       <div className="bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm overflow-hidden active:scale-[0.98] transition-all cursor-pointer" onClick={() => !loadingAdvice && fetchAiAdvice()}>
         <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl shrink-0">
           {loadingAdvice ? <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div> : "💡"}
@@ -179,7 +201,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         <p className="text-[11px] font-bold text-slate-700 leading-tight">{aiAdvice}</p>
       </div>
 
-      {/* Graphique de répartition */}
       <div className="bg-white/80 backdrop-blur-xl rounded-[40px] p-6 border border-white shadow-xl">
         <h2 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Répartition des dépenses</h2>
         

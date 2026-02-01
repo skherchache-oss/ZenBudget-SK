@@ -27,15 +27,16 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
-// Formatteur spécifique pour le calendrier afin d'optimiser l'espace
+// Formatteur spécifique pour le calendrier afin d'optimiser l'espace horizontal
 const formatCurrencyCalendar = (amount: number) => {
   const absAmount = Math.abs(amount);
-  // Si le montant est supérieur à 999, on cache les décimales pour gagner de la place
-  const showDecimals = absAmount < 1000;
+  // Stratégie UX : Si le montant est ≥ 1000, on supprime les décimales pour gagner de la place
+  const hideDecimals = absAmount >= 1000;
+  
   return new Intl.NumberFormat('fr-FR', {
     style: 'decimal',
-    minimumFractionDigits: showDecimals ? 2 : 0,
-    maximumFractionDigits: showDecimals ? 2 : 0,
+    minimumFractionDigits: hideDecimals ? 0 : 2,
+    maximumFractionDigits: hideDecimals ? 0 : 2,
   }).format(amount);
 };
 
@@ -142,13 +143,13 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
       <div className={slideDirection === 'next' ? 'slide-next' : slideDirection === 'prev' ? 'slide-prev' : 'fade-in'}>
         {viewMode === 'CALENDAR' ? (
           <div className="space-y-4 animate-in fade-in duration-500">
-            <div className="bg-white/70 backdrop-blur-xl rounded-[28px] p-3.5 shadow-xl border border-white">
+            <div className="bg-white/70 backdrop-blur-xl rounded-[28px] p-3 shadow-xl border border-white">
               <div className="grid grid-cols-7 mb-2">
                 {['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map((d, i) => (
                   <div key={i} className="text-center text-[8px] font-black uppercase text-slate-800 py-1">{d}</div>
                 ))}
               </div>
-              <div className="grid grid-cols-7 gap-1.5">
+              <div className="grid grid-cols-7 gap-1">
                 {Array.from({ length: startOffset }).map((_, i) => <div key={`empty-${i}`} />)}
                 {Array.from({ length: daysInMonth }).map((_, i) => {
                   const day = i + 1;
@@ -157,8 +158,8 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
                   const isToday = isThisMonth && new Date().getDate() === day;
                   const dayT = transactions.filter(t => new Date(t.date).getDate() === day);
                   return (
-                    <button key={day} onClick={() => onSelectDay(day)} className={`h-16 rounded-[16px] flex flex-col items-center justify-between py-2 transition-all border relative overflow-hidden ${isSelected ? 'bg-slate-900 border-slate-900 text-white z-10 scale-105' : (isToday ? 'bg-indigo-50 border-indigo-200 text-indigo-900' : 'bg-white border-slate-50')}`}>
-                      <span className={`text-[13px] font-semibold leading-none ${isSelected ? 'text-white' : 'text-slate-400'}`}>{day}</span>
+                    <button key={day} onClick={() => onSelectDay(day)} className={`h-16 rounded-[14px] flex flex-col items-center justify-between py-2 transition-all border relative overflow-hidden ${isSelected ? 'bg-slate-900 border-slate-900 text-white z-10 scale-[1.03]' : (isToday ? 'bg-indigo-50 border-indigo-200 text-indigo-900' : 'bg-white border-slate-50')}`}>
+                      <span className={`text-[12px] font-black leading-none ${isSelected ? 'text-white' : 'text-slate-400'}`}>{day}</span>
                       <div className="flex flex-col items-center justify-center w-full px-0.5 flex-1 mt-1">
                         <span className={`text-[12px] font-black tracking-tighter truncate w-full text-center leading-none ${isSelected ? 'text-indigo-300' : (balance >= 0 ? 'text-indigo-600' : 'text-red-500')}`}>
                           {formatCurrencyCalendar(balance)}
