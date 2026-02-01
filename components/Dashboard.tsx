@@ -1,7 +1,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { GoogleGenAI } from "@google/genai";
+// Correction de l'import ici :
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface DashboardProps {
   transactions: Transaction[];
@@ -47,9 +48,10 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     setLoadingAdvice(true);
     try {
-      const ai = new GoogleGenAI(apiKey);
+      // Utilisation de GoogleGenerativeAI avec le nom de classe correct
+      const genAI = new GoogleGenerativeAI(apiKey);
       const randomSeed = Math.random().toString(36).substring(7);
-      const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       
       const prompt = `Tu es un coach financier pour l'app ZenBudget. 
         Contexte : Solde dispo (fixes inclus) = ${availableBalance}€, Dépenses du mois = ${stats.expenses}€.
@@ -130,20 +132,13 @@ const Dashboard: React.FC<DashboardProps> = ({
           onClick={handleExportCSV} 
           className="px-4 py-2 bg-slate-900 rounded-2xl shadow-xl active:scale-95 text-white border border-slate-800 text-[10px] font-black uppercase tracking-widest flex items-center gap-2"
         >
-          <svg 
-            className="w-4 h-4" 
-            fill="none" 
-            viewBox="0 0 24 24" 
-            stroke="currentColor" 
-            strokeWidth={2.5}
-          >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
           <span>Export CSV</span>
         </button>
       </div>
 
-      {/* Carte du Solde Bancaire Aujourd'hui */}
       <div className="bg-slate-900 px-6 py-9 rounded-[40px] shadow-2xl relative overflow-hidden flex flex-col justify-center min-h-[130px]">
         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
         <span className="text-indigo-400 text-[9px] font-black uppercase tracking-[0.3em] mb-1">Solde Bancaire Aujourd'hui</span>
@@ -164,7 +159,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* Synthèse des flux Entrées/Sorties */}
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-white p-4 rounded-[28px] border border-slate-50 shadow-sm flex flex-col justify-center">
           <span className="text-emerald-500 text-[8px] font-black uppercase tracking-widest mb-1 block">Entrées (Mois)</span>
@@ -176,7 +170,6 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* Conseil IA */}
       <div className="bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm overflow-hidden active:scale-[0.98] transition-all cursor-pointer" onClick={() => !loadingAdvice && fetchAiAdvice()}>
         <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl shrink-0">
           {loadingAdvice ? <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div> : "💡"}
@@ -184,9 +177,8 @@ const Dashboard: React.FC<DashboardProps> = ({
         <p className="text-[11px] font-bold text-slate-700 leading-tight">{aiAdvice}</p>
       </div>
 
-      {/* Graphique de répartition */}
       <div className="bg-white/80 backdrop-blur-xl rounded-[40px] p-6 border border-white shadow-xl">
-        <h2 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Répartition des d'épenses</h2>
+        <h2 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Répartition des dépenses</h2>
         
         <div className="h-[240px] w-full relative">
           <ResponsiveContainer width="100%" height="100%">
