@@ -148,7 +148,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
                     <button key={day} onClick={() => onSelectDay(day)} className={`h-15 rounded-[16px] flex flex-col items-center justify-between py-2 transition-all border ${isSelected ? 'bg-slate-900 border-slate-900 text-white z-10 scale-105' : (isToday ? 'bg-indigo-50 border-indigo-200 text-indigo-900' : 'bg-white border-slate-50')}`}>
                       <span className={`text-[13px] font-semibold ${isSelected ? 'text-white' : 'text-slate-600'}`}>{day}</span>
                       <div className="flex flex-col items-center gap-0 w-full px-0.5">
-                        <span className={`text-[9px] font-black tracking-tighter truncate w-full text-center ${isSelected ? 'text-indigo-300' : (balance >= 0 ? 'text-indigo-600' : 'text-red-500')}`}>
+                        <span className={`text-[11px] font-black tracking-tighter truncate w-full text-center ${isSelected ? 'text-indigo-300' : (balance >= 0 ? 'text-indigo-600' : 'text-red-500')}`}>
                           {formatCurrency(balance)}
                         </span>
                         <div className="flex gap-0.5 mt-1">

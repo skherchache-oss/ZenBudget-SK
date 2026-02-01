@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { GoogleGenAI } from "@google/genai";
 
 interface DashboardProps {
   transactions: Transaction[];
@@ -37,29 +38,31 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, [transactions]);
 
   const fetchAiAdvice = async () => {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY || (typeof process !== 'undefined' ? process.env.API_KEY : null);
+    
     if (!apiKey) {
-      setAiAdvice("ZenTip : Optimisez vos charges fixes pour plus de sérénité.");
+      setAiAdvice("ZenTip : Optimisez vos charges fixes pour augmenter votre capacité d'épargne.");
       return;
     }
 
     setLoadingAdvice(true);
     try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: `Coach ZenBudget. Dispo: ${availableBalance}€. Conseil court (60 car max).` }] }]
-          })
-        }
-      );
-      const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-      if (text) setAiAdvice(text.replace(/["']/g, ""));
+      const ai = new GoogleGenAI(apiKey);
+      const randomSeed = Math.random().toString(36).substring(7);
+      const model = ai.getGenerativeModel({ model: "gemini-1.5-flash" });
+      
+      const prompt = `Tu es un coach financier pour l'app ZenBudget. 
+        Contexte : Solde dispo (fixes inclus) = ${availableBalance}€, Dépenses du mois = ${stats.expenses}€.
+        Donne un conseil court (max 60 car.) sur la gestion de budget ou l'épargne. 
+        Style : Zen, motivant, français. Graine: ${randomSeed}`;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text().trim().replace(/^["']|["']$/g, '');
+      
+      if (text && text.length > 5) setAiAdvice(text);
     } catch (err) { 
-      setAiAdvice("ZenTip : Gardez un œil sur vos dépenses ce mois-ci."); 
+      setAiAdvice("ZenTip : Gardez un œil sur vos dépenses variables ce mois-ci."); 
     } finally { 
       setLoadingAdvice(false); 
     }
@@ -82,31 +85,36 @@ const Dashboard: React.FC<DashboardProps> = ({
     }).sort((a, b) => b.value - a.value);
   }, [transactions, categories, stats.expenses]);
 
+  const handleExportCSV = () => {
+    try {
+      const s = ";"; 
+      const f = (n: number) => n.toFixed(2).replace('.', ',');
+      const rows: string[] = [
+        `ZENBUDGET - EXPORT STATS - ${activeAccount.name.toUpperCase()}`,
+        "",
+        `Solde Bancaire (Aujourd'hui)${s}${f(checkingAccountBalance)} €`,
+        `Disponible (fixes inclus)${s}${f(availableBalance)} €`,
+        `Projection Fin de Mois${s}${f(projectedBalance)} €`,
+        "",
+        "--- RÉPARTITION ---",
+        `Catégorie${s}Montant${s}Part (%)`
+      ];
+      categorySummary.forEach(c => {
+        rows.push(`${c.name}${s}${f(c.value)}${s}${Math.round(c.percent)}%`);
+      });
+      const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url; link.download = `ZenBudget_Stats.csv`; link.click();
+    } catch (e) { console.error(e); }
+  };
+
   const formatVal = (v: number) => {
     return new Intl.NumberFormat('fr-FR', {
       style: 'decimal',
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(v);
-  };
-
-  const handleExportCSV = () => {
-    try {
-      const s = ";"; 
-      const f = (n: number) => n.toFixed(2).replace('.', ',');
-      const rows = [
-        `ZENBUDGET - ${activeAccount.name.toUpperCase()}`,
-        `Solde Bancaire${s}${f(checkingAccountBalance)} €`,
-        `Disponible${s}${f(availableBalance)} €`,
-        "",
-        "Catégorie;Montant;Part"
-      ];
-      categorySummary.forEach(c => rows.push(`${c.name}${s}${f(c.value)}${s}${Math.round(c.percent)}%`));
-      const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url; link.download = `ZenBudget_Stats.csv`; link.click();
-    } catch (e) { console.error(e); }
   };
 
   return (
@@ -116,43 +124,76 @@ const Dashboard: React.FC<DashboardProps> = ({
           <h2 className="text-2xl font-black text-slate-800 tracking-tighter italic">Stats Zen ✨</h2>
           <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mt-1.5">{activeAccount.name}</p>
         </div>
-        <button onClick={handleExportCSV} className="px-4 py-2.5 bg-slate-900 rounded-2xl text-white text-[10px] font-black uppercase tracking-widest active:scale-95 transition-all">Exporter</button>
+        
+        {/* Bouton Export avec Icône Téléchargement Standard */}
+        <button 
+          onClick={handleExportCSV} 
+          className="px-4 py-2 bg-slate-900 rounded-2xl shadow-xl active:scale-95 text-white border border-slate-800 text-[10px] font-black uppercase tracking-widest flex items-center gap-2"
+        >
+          <svg 
+            className="w-4 h-4" 
+            fill="none" 
+            viewBox="0 0 24 24" 
+            stroke="currentColor" 
+            strokeWidth={2.5}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          <span>Export CSV</span>
+        </button>
       </div>
 
+      {/* Carte du Solde Bancaire Aujourd'hui */}
       <div className="bg-slate-900 px-6 py-9 rounded-[40px] shadow-2xl relative overflow-hidden flex flex-col justify-center min-h-[130px]">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
         <span className="text-indigo-400 text-[9px] font-black uppercase tracking-[0.3em] mb-1">Solde Bancaire Aujourd'hui</span>
         <div className="flex items-baseline gap-2">
-          <span className="text-4xl font-black text-white tracking-tighter">{formatVal(checkingAccountBalance)}</span>
+          <span className="text-4xl font-black tracking-tighter text-white">{formatVal(checkingAccountBalance)}</span>
           <span className="text-xl font-black text-slate-500">€</span>
         </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-indigo-600 p-5 rounded-[32px] shadow-lg flex flex-col gap-1">
-          <span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest leading-none mb-1">Disponible Réel</span>
+        <div className="bg-indigo-600 p-5 rounded-[32px] shadow-lg flex flex-col gap-1 border border-indigo-500/20">
+          <span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest mb-1 leading-none">Disponible Réel (incl. fixes)</span>
           <div className="text-xl font-black text-white">{formatVal(availableBalance)}€</div>
         </div>
         <div className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm flex flex-col gap-1">
-          <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest leading-none mb-1">Projection Fin</span>
+          <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest mb-1 leading-none">Projection Fin</span>
           <div className={`text-xl font-black ${projectedBalance >= 0 ? 'text-slate-900' : 'text-red-500'}`}>{formatVal(projectedBalance)}€</div>
         </div>
       </div>
 
-      <div className="bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm active:scale-[0.98] transition-all cursor-pointer" onClick={() => !loadingAdvice && fetchAiAdvice()}>
+      {/* Synthèse des flux Entrées/Sorties */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="bg-white p-4 rounded-[28px] border border-slate-50 shadow-sm flex flex-col justify-center">
+          <span className="text-emerald-500 text-[8px] font-black uppercase tracking-widest mb-1 block">Entrées (Mois)</span>
+          <div className="text-[15px] font-black text-slate-800">+{formatVal(stats.income)}€</div>
+        </div>
+        <div className="bg-white p-4 rounded-[28px] border border-slate-50 shadow-sm flex flex-col justify-center">
+          <span className="text-red-400 text-[8px] font-black uppercase tracking-widest mb-1 block">Sorties (Mois)</span>
+          <div className="text-[15px] font-black text-slate-800">-{formatVal(stats.expenses)}€</div>
+        </div>
+      </div>
+
+      {/* Conseil IA */}
+      <div className="bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm overflow-hidden active:scale-[0.98] transition-all cursor-pointer" onClick={() => !loadingAdvice && fetchAiAdvice()}>
         <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl shrink-0">
-          {loadingAdvice ? <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" /> : "💡"}
+          {loadingAdvice ? <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div> : "💡"}
         </div>
         <p className="text-[11px] font-bold text-slate-700 leading-tight">{aiAdvice}</p>
       </div>
 
+      {/* Graphique de répartition */}
       <div className="bg-white/80 backdrop-blur-xl rounded-[40px] p-6 border border-white shadow-xl">
-        <h2 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Répartition des dépenses</h2>
+        <h2 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Répartition des d'épenses</h2>
+        
         <div className="h-[240px] w-full relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={categorySummary} innerRadius={75} outerRadius={100} paddingAngle={8} dataKey="value" onMouseEnter={(_, i) => setActiveIndex(i)} onMouseLeave={() => setActiveIndex(null)} stroke="none">
-                {categorySummary.map((entry, i) => (
-                  <Cell key={`cell-${i}`} fill={entry.color} opacity={activeIndex === null || activeIndex === i ? 1 : 0.3} />
+              <Pie data={categorySummary} innerRadius={75} outerRadius={100} paddingAngle={8} dataKey="value" onMouseEnter={(_, index) => setActiveIndex(index)} onMouseLeave={() => setActiveIndex(null)} stroke="none">
+                {categorySummary.map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={entry.color} opacity={activeIndex === null || activeIndex === index ? 1 : 0.3} />
                 ))}
               </Pie>
             </PieChart>
@@ -161,21 +202,21 @@ const Dashboard: React.FC<DashboardProps> = ({
             {activeIndex !== null ? (
               <>
                 <span className="text-2xl mb-1">{categorySummary[activeIndex].icon}</span>
-                <span className="text-lg font-black text-slate-900">{Math.round(categorySummary[activeIndex].value)}€</span>
+                <span className="text-lg font-black text-slate-900">{formatVal(categorySummary[activeIndex].value)}€</span>
               </>
             ) : (
               <>
                 <span className="text-[10px] font-black uppercase text-slate-400">Total</span>
-                <span className="text-2xl font-black text-slate-900">{Math.round(stats.expenses)}€</span>
+                <span className="text-2xl font-black text-slate-900">{formatVal(stats.expenses)}€</span>
               </>
             )}
           </div>
         </div>
 
         <div className="mt-8 space-y-3">
-          {categorySummary.map((cat) => (
-            <div key={cat.id} className="flex items-center gap-3 p-3 bg-slate-50/50 rounded-2xl border border-slate-100/50 group transition-all">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0" style={{ backgroundColor: `${cat.color}15` }}>
+          {categorySummary.length > 0 ? categorySummary.map((cat) => (
+            <div key={cat.id} className="flex items-center gap-3 p-3 bg-slate-50/50 rounded-2xl border border-slate-100/50 group hover:bg-white hover:shadow-md transition-all">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-inner shrink-0" style={{ backgroundColor: `${cat.color}15` }}>
                 {cat.icon}
               </div>
               <div className="flex-1 min-w-0">
@@ -184,12 +225,18 @@ const Dashboard: React.FC<DashboardProps> = ({
                   <span className="text-[12px] font-black text-slate-900">{formatVal(cat.value)}€</span>
                 </div>
                 <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${cat.percent}%`, backgroundColor: cat.color }} />
+                  <div className="h-full rounded-full transition-all duration-1000 ease-out" style={{ width: `${cat.percent}%`, backgroundColor: cat.color }} />
                 </div>
               </div>
-              <div className="text-[9px] font-black text-slate-400 w-8 text-right">{Math.round(cat.percent)}%</div>
+              <div className="text-[9px] font-black text-slate-400 w-8 text-right">
+                {Math.round(cat.percent)}%
+              </div>
             </div>
-          ))}
+          )) : (
+            <div className="text-center py-6">
+              <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">Aucune dépense enregistrée</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
