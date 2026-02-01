@@ -38,11 +38,11 @@ const App: React.FC = () => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
-  // --- MOTEUR DE PROJECTION (Le coeur de ZenBudget) ---
+  // --- MOTEUR DE PROJECTION (Précision Décimale Totale) ---
   const getProjectedBalanceAtDate = (targetDate: Date) => {
     if (!activeAccount) return 0;
     
-    // 1. Somme des transactions réelles jusqu'à la date cible
+    // On commence par le solde de base (toutes les transactions réelles passées)
     let balance = activeAccount.transactions.reduce((acc, t) => {
       const tDate = new Date(t.date);
       return tDate <= targetDate ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
@@ -56,8 +56,8 @@ const App: React.FC = () => {
     let cursorMonth = today.getMonth();
     const targetTS = targetDate.getTime();
 
-    // 2. Projection des charges fixes non encore matérialisées
-    for (let i = 0; i < 24; i++) {
+    // Projection des fixes non encore matérialisés
+    for (let i = 0; i < 12; i++) {
       const firstOfCursorMonth = new Date(cursorYear, cursorMonth, 1);
       if (firstOfCursorMonth.getTime() > targetTS) break;
 
@@ -79,8 +79,8 @@ const App: React.FC = () => {
         const vId = `virtual-${tpl.id}-${cursorMonth}-${cursorYear}`;
 
         if (tplDate.getTime() <= targetTS && !materializedIds.has(String(tpl.id)) && !deletedVirtuals.has(vId)) {
+          // On ne projette que ce qui est futur (ou aujourd'hui) par rapport au début du mois
           const startOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1).getTime();
-          // On ne projette que ce qui est futur ou du mois en cours
           if (tplDate.getTime() >= startOfCurrentMonth) {
             balance += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
           }
@@ -93,18 +93,16 @@ const App: React.FC = () => {
     return balance;
   };
 
+  // Le solde bancaire "Pointé" correspond désormais au solde projeté à l'instant T (aujourd'hui)
   const checkingAccountBalance = useMemo(() => {
-    if (!activeAccount) return 0;
-    return activeAccount.transactions.reduce((acc, t) => acc + (t.type === 'INCOME' ? t.amount : -t.amount), 0);
+    return getProjectedBalanceAtDate(new Date());
   }, [activeAccount]);
 
-  // DISPONIBLE RÉEL : Solde projeté jusqu'à la fin du cycle budgétaire actuel
   const availableBalance = useMemo(() => {
     const cycleDay = activeAccount?.cycleEndDay || 0;
     let targetMonth = now.getMonth();
     let targetYear = now.getFullYear();
     
-    // Si on a dépassé le jour du cycle, la fin du cycle actuel est le mois prochain
     if (cycleDay > 0 && now.getDate() >= cycleDay) {
         targetMonth++;
         if (targetMonth > 11) { targetMonth = 0; targetYear++; }
@@ -117,7 +115,6 @@ const App: React.FC = () => {
     return getProjectedBalanceAtDate(endOfCycle);
   }, [activeAccount, now]);
 
-  // PROJECTION FIN : Solde au dernier jour du mois calendaire affiché
   const projectedBalance = useMemo(() => {
     const endOfView = new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
     return getProjectedBalanceAtDate(endOfView);
@@ -177,26 +174,15 @@ const App: React.FC = () => {
       
       const inputId = String(t.id || "");
       const isVirtual = inputId.startsWith('virtual-');
-      
-      let templateId = t.templateId;
-      if (!templateId && isVirtual) {
-        templateId = inputId.split('-')[1];
-      }
+      let templateId = t.templateId || (isVirtual ? inputId.split('-')[1] : undefined);
 
-      // 1. GESTION DE LA RÉCURRENCE (PERSISTANCE FUTUR)
       if (t.isRecurring) {
         if (templateId) {
-          // Mise à jour du template existant -> Impacte tous les mois futurs
           nextTpls = nextTpls.map(tpl => String(tpl.id) === String(templateId) ? {
-            ...tpl, 
-            amount: t.amount, 
-            categoryId: t.categoryId, 
-            comment: t.comment, 
-            type: t.type,
+            ...tpl, amount: t.amount, categoryId: t.categoryId, comment: t.comment, type: t.type,
             dayOfMonth: new Date(t.date).getDate()
           } : tpl);
         } else {
-          // Création d'un nouveau template
           const newTplId = generateId();
           nextTpls.push({
             id: newTplId, amount: t.amount, categoryId: t.categoryId, comment: t.comment, type: t.type,
@@ -205,21 +191,17 @@ const App: React.FC = () => {
           templateId = newTplId;
         }
       } else if (templateId) {
-        // L'utilisateur a décoché "Fixe" : on supprime le template source
         nextTpls = nextTpls.filter(tpl => String(tpl.id) !== String(templateId));
         templateId = undefined;
       }
 
-      // 2. MISE À JOUR DU RÉEL
       const targetId = isVirtual ? generateId() : (t.id || generateId());
       const finalTx: Transaction = { ...t, id: targetId, templateId: templateId };
 
-      if (isVirtual) {
-        nextTx = [finalTx, ...nextTx]; // Matérialisation
-      } else if (t.id && nextTx.some(tx => String(tx.id) === String(t.id))) {
-        nextTx = nextTx.map(tx => String(tx.id) === String(t.id) ? finalTx : tx);
-      } else {
+      if (isVirtual || !t.id) {
         nextTx = [finalTx, ...nextTx];
+      } else {
+        nextTx = nextTx.map(tx => String(tx.id) === String(t.id) ? finalTx : tx);
       }
 
       const nextAccounts = [...prev.accounts];
@@ -239,7 +221,6 @@ const App: React.FC = () => {
       
       let nextTx = [...acc.transactions];
       let nextTpls = [...(acc.recurringTemplates || [])];
-
       let templateIdToDelete: string | undefined;
       
       if (idStr.startsWith('virtual-')) {
@@ -250,7 +231,6 @@ const App: React.FC = () => {
         nextTx = nextTx.filter(t => String(t.id) !== idStr);
       }
 
-      // SUPPRESSION CASCADE : On supprime le modèle pour que ça disparaisse de TOUS les mois futurs
       if (templateIdToDelete) {
         nextTpls = nextTpls.filter(tpl => String(tpl.id) !== String(templateIdToDelete));
       }

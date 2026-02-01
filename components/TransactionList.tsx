@@ -22,9 +22,9 @@ interface TransactionListProps {
 const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('fr-FR', {
     style: 'decimal',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  }).format(Math.round(amount));
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount);
 };
 
 const TransactionItem: React.FC<{ 
@@ -66,7 +66,7 @@ const TransactionItem: React.FC<{
           <div className="flex items-center gap-1.5"><span className="text-[13px] font-black text-slate-800 truncate uppercase tracking-tight">{category?.name}</span>{t.isRecurring && <span className="text-amber-500 text-[10px]">⚡️</span>}</div>
           <div className="text-[10px] text-slate-400 font-medium truncate">{t.comment || 'Note vide'}</div>
         </div>
-        <div className={`text-[14px] font-black shrink-0 ${t.type === 'INCOME' ? 'text-emerald-600' : 'text-slate-900'} ${isVirtual ? 'opacity-60' : ''}`}>
+        <div className={`text-[13px] font-black shrink-0 ${t.type === 'INCOME' ? 'text-emerald-600' : 'text-slate-900'} ${isVirtual ? 'opacity-60' : ''}`}>
           {t.type === 'INCOME' ? '+' : '-'}{formatCurrency(t.amount)}€
         </div>
       </div>
@@ -148,7 +148,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
                     <button key={day} onClick={() => onSelectDay(day)} className={`h-15 rounded-[16px] flex flex-col items-center justify-between py-2 transition-all border ${isSelected ? 'bg-slate-900 border-slate-900 text-white z-10 scale-105' : (isToday ? 'bg-indigo-50 border-indigo-200 text-indigo-900' : 'bg-white border-slate-50')}`}>
                       <span className={`text-[13px] font-semibold ${isSelected ? 'text-white' : 'text-slate-600'}`}>{day}</span>
                       <div className="flex flex-col items-center gap-0 w-full px-0.5">
-                        <span className={`text-[10px] font-black tracking-tighter truncate w-full text-center ${isSelected ? 'text-indigo-300' : (balance >= 0 ? 'text-indigo-600' : 'text-red-500')}`}>
+                        <span className={`text-[9px] font-black tracking-tighter truncate w-full text-center ${isSelected ? 'text-indigo-300' : (balance >= 0 ? 'text-indigo-600' : 'text-red-500')}`}>
                           {formatCurrency(balance)}
                         </span>
                         <div className="flex gap-0.5 mt-1">
