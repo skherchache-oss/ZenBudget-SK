@@ -45,16 +45,16 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     setLoadingAdvice(true);
     try {
-      // FIX : Ajout de /models/ avant gemini-1.5-flash
+      // FIX CRUCIAL : Passage sur gemini-1.5-flash-latest qui est souvent le seul reconnu en v1beta
       const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             contents: [{
               parts: [{
-                text: `Tu es un coach financier Zen. Donne un conseil très court (max 60 car.) en français. Pas de guillemets. Aléatoire: ${Math.random()}`
+                text: "Donne un conseil financier court (60 car max) en français avec un emoji zen."
               }]
             }]
           })
@@ -67,13 +67,13 @@ const Dashboard: React.FC<DashboardProps> = ({
         setAiAdvice(data.candidates[0].content.parts[0].text.trim());
       } else if (data.error) {
         console.error("Détail Erreur Google:", data.error);
-        setAiAdvice("ZenTip : La régularité est la clé de la sérénité. 🌿");
+        setAiAdvice("Le calme est la clé d'un bon budget. 🌿");
       } else {
         throw new Error("Format inconnu");
       }
     } catch (err) { 
       console.error("Erreur IA détaillée:", err);
-      setAiAdvice("ZenTip : Prenez soin de votre budget, il vous le rendra. ✨"); 
+      setAiAdvice("ZenTip : Respirez, vos finances sont sous contrôle. ✨"); 
     } finally { 
       setLoadingAdvice(false); 
     }
