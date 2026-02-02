@@ -38,11 +38,10 @@ const App: React.FC = () => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
 
-  // --- MOTEUR DE PROJECTION (Précision Décimale Totale) ---
+  // --- MOTEUR DE PROJECTION ---
   const getProjectedBalanceAtDate = (targetDate: Date) => {
     if (!activeAccount) return 0;
     
-    // On commence par le solde de base (toutes les transactions réelles passées)
     let balance = activeAccount.transactions.reduce((acc, t) => {
       const tDate = new Date(t.date);
       return tDate <= targetDate ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
@@ -56,7 +55,6 @@ const App: React.FC = () => {
     let cursorMonth = today.getMonth();
     const targetTS = targetDate.getTime();
 
-    // Projection des fixes non encore matérialisés
     for (let i = 0; i < 12; i++) {
       const firstOfCursorMonth = new Date(cursorYear, cursorMonth, 1);
       if (firstOfCursorMonth.getTime() > targetTS) break;
@@ -79,7 +77,6 @@ const App: React.FC = () => {
         const vId = `virtual-${tpl.id}-${cursorMonth}-${cursorYear}`;
 
         if (tplDate.getTime() <= targetTS && !materializedIds.has(String(tpl.id)) && !deletedVirtuals.has(vId)) {
-          // On ne projette que ce qui est futur (ou aujourd'hui) par rapport au début du mois
           const startOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1).getTime();
           if (tplDate.getTime() >= startOfCurrentMonth) {
             balance += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
@@ -93,9 +90,10 @@ const App: React.FC = () => {
     return balance;
   };
 
-  // Le solde bancaire "Pointé" correspond désormais au solde projeté à l'instant T (aujourd'hui)
   const checkingAccountBalance = useMemo(() => {
-    return getProjectedBalanceAtDate(new Date());
+    // Correction : Inclure toutes les transactions jusqu'à la fin de la journée d'aujourd'hui
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+    return getProjectedBalanceAtDate(endOfToday);
   }, [activeAccount]);
 
   const availableBalance = useMemo(() => {
@@ -110,7 +108,7 @@ const App: React.FC = () => {
     
     const endOfCycle = cycleDay === 0 
         ? new Date(targetYear, targetMonth + 1, 0, 23, 59, 59)
-        : new Date(targetYear, targetMonth, cycleDay, 0, 0, 0);
+        : new Date(targetYear, targetMonth, cycleDay, 23, 59, 59);
         
     return getProjectedBalanceAtDate(endOfCycle);
   }, [activeAccount, now]);

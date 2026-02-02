@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-// Correction pour Vercel : Utilisation du package officiel
+// Package officiel corrigé pour éviter l'erreur de build Vercel
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface DashboardProps {
@@ -39,7 +39,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, [transactions]);
 
   const fetchAiAdvice = async () => {
-    // Correction de l'accès aux variables d'environnement pour Vite/Vercel
+    // Utilisation de import.meta.env pour Vite/Vercel
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
     
     if (!apiKey) {
@@ -50,6 +50,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     setLoadingAdvice(true);
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
+      // Utilisation du modèle stable gemini-1.5-flash
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       const randomSeed = Math.random().toString(36).substring(7);
       
@@ -64,7 +65,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       
       if (text && text.length > 5) setAiAdvice(text);
     } catch (err) { 
-      setAiAdvice("ZenTip : Gardez un œil sur vos d'épenses variables ce mois-ci."); 
+      setAiAdvice("ZenTip : Gardez un œil sur vos dépenses variables ce mois-ci."); 
     } finally { 
       setLoadingAdvice(false); 
     }
@@ -112,7 +113,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         rows.push(`${c.name}${s}${f(c.value)}${s}${Math.round(c.percent)}%`);
       });
 
-      rows.push("", "--- DÉTAIL DES OPÉRATIONS ---");
+      rows.push("", "--- DÉTAIL DES OPÉRATIONS (ENTRÉES ET SORTIES) ---");
       rows.push(`Date${s}Catégorie${s}Note/Libellé${s}Type${s}Montant`);
 
       const sortedTxs = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
@@ -151,15 +152,21 @@ const Dashboard: React.FC<DashboardProps> = ({
           <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mt-1.5">{activeAccount.name}</p>
         </div>
         
-        {/* Bouton Export avec Icône Téléchargement Standard */}
+        {/* Bouton Export avec Icône Standard Fleche Bas */}
         <button 
           onClick={handleExportCSV} 
-          className="px-4 py-2.5 bg-slate-900 rounded-2xl shadow-xl active:scale-95 text-white border border-slate-800 flex items-center gap-2 transition-all"
+          className="w-11 h-11 bg-slate-900 rounded-2xl shadow-xl active:scale-95 text-white border border-slate-800 flex items-center justify-center transition-all group"
+          title="Exporter le détail complet en CSV"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <svg 
+            className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" 
+            fill="none" 
+            viewBox="0 0 24 24" 
+            stroke="currentColor" 
+            strokeWidth={2.5}
+          >
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
-          <span className="text-[10px] font-black uppercase tracking-widest">Export CSV</span>
         </button>
       </div>
 
@@ -230,7 +237,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         <div className="mt-8 space-y-3">
-          {categorySummary.length > 0 ? categorySummary.map((cat) => (
+          {categorySummary.length > 0 ? categorySummary.map((cat, idx) => (
             <div key={cat.id} className="flex items-center gap-3 p-3 bg-slate-50/50 rounded-2xl border border-slate-100/50 group hover:bg-white hover:shadow-md transition-all">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-inner shrink-0" style={{ backgroundColor: `${cat.color}15` }}>
                 {cat.icon}
