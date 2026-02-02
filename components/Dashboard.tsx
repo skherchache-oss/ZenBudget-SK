@@ -47,33 +47,32 @@ const Dashboard: React.FC<DashboardProps> = ({
     setLoadingAdvice(true);
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
-      // CORRECTION ICI : Utilisation de "gemini-1.5-flash-latest" qui est plus stable sur les endpoints v1beta
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+      // Retour au nom de modèle standard sans "-latest" pour éviter la 404
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
-      const randomSeed = Math.random().toString(36).substring(7);
-      
-      // On simplifie l'appel pour éviter les erreurs de structure
-      const result = await model.generateContent([
-        `Tu es un coach financier Zen. Donne un conseil court (max 60 car.) en français. 
-         Contexte: Solde ${availableBalance}€, Dépenses ${stats.expenses}€. Graine: ${randomSeed}`
-      ]);
-      
+      const prompt = `Tu es un coach financier Zen. Donne un conseil très court (max 60 car.) en français. 
+         Solde: ${availableBalance}€. Hasard: ${Math.random()}`;
+
+      // Appel direct sans tableau pour tester la compatibilité v1beta
+      const result = await model.generateContent(prompt);
       const response = await result.response;
       const text = response.text().trim().replace(/^["']|["']$/g, '');
       
-      if (text && text.length > 5) setAiAdvice(text);
+      if (text) setAiAdvice(text);
     } catch (err) { 
-      console.error("Erreur IA détaillée:", err);
-      setAiAdvice("ZenTip : Gardez un œil sur vos dépenses variables ce mois-ci."); 
+      console.error("Détail Erreur IA:", err);
+      // Phrase de secours légèrement différente pour confirmer que le catch fonctionne
+      setAiAdvice("Prenez un moment pour respirer et apprécier vos progrès. 🌿"); 
     } finally { 
       setLoadingAdvice(false); 
     }
   };
 
   useEffect(() => {
-    const timer = setTimeout(fetchAiAdvice, 1500);
+    // Petit délai pour laisser les données se stabiliser au montage
+    const timer = setTimeout(fetchAiAdvice, 1000);
     return () => clearTimeout(timer);
-  }, [availableBalance, activeAccount.id]);
+  }, [activeAccount.id]);
 
   const categorySummary = useMemo(() => {
     const map: Record<string, number> = {};
@@ -94,48 +93,28 @@ const Dashboard: React.FC<DashboardProps> = ({
       const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('fr-FR');
 
       const rows: string[] = [
-        `ZENBUDGET - EXPORT COMPLET - ${activeAccount.name.toUpperCase()}`,
+        `ZENBUDGET - ${activeAccount.name.toUpperCase()}`,
         `Période : ${month + 1}/${year}`,
         "",
-        `Solde Bancaire Actuel${s}${f(checkingAccountBalance)} €`,
-        `Disponible (fixes inclus)${s}${f(availableBalance)} €`,
-        `Projection Fin de Mois${s}${f(projectedBalance)} €`,
-        "",
-        "--- RÉSUMÉ PAR CATÉGORIE ---",
-        `Catégorie${s}Montant${s}Part (%)`
+        `Solde Bancaire${s}${f(checkingAccountBalance)} €`,
+        "Date;Categorie;Note;Type;Montant"
       ];
 
-      categorySummary.forEach(c => {
-        rows.push(`${c.name}${s}${f(c.value)}${s}${Math.round(c.percent)}%`);
-      });
-
-      rows.push("", "--- DÉTAIL DES OPÉRATIONS ---");
-      rows.push(`Date${s}Catégorie${s}Note${s}Type${s}Montant`);
-
-      const sortedTxs = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      sortedTxs.forEach(t => {
+      transactions.forEach(t => {
         const cat = categories.find(c => c.id === t.categoryId);
-        const typeLabel = t.type === 'INCOME' ? 'Revenu' : 'Dépense';
-        const prefix = t.type === 'INCOME' ? '' : '-';
-        rows.push(`${formatDate(t.date)}${s}${cat?.name || 'Autre'}${s}${t.comment || ''}${s}${typeLabel}${s}${prefix}${f(t.amount)}`);
+        rows.push(`${formatDate(t.date)}${s}${cat?.name || 'Autre'}${s}${t.comment || ''}${s}${t.type}${s}${f(t.amount)}`);
       });
 
       const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url; 
-      link.download = `ZenBudget_Export_${month + 1}_${year}.csv`; 
+      link.download = `ZenBudget_${activeAccount.name}.csv`; 
       link.click();
     } catch (e) { console.error(e); }
   };
 
-  const formatVal = (v: number) => {
-    return new Intl.NumberFormat('fr-FR', {
-      style: 'decimal',
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(v);
-  };
+  const formatVal = (v: number) => new Intl.NumberFormat('fr-FR', { style: 'decimal', minimumFractionDigits: 2 }).format(v);
 
   const handleSwitchAccount = () => {
     if (allAccounts.length <= 1) return;
@@ -149,26 +128,19 @@ const Dashboard: React.FC<DashboardProps> = ({
       <div className="flex items-center justify-between pt-6">
         <div className="flex flex-col">
           <h2 className="text-2xl font-black text-slate-800 tracking-tighter italic">Bilan Zen ✨</h2>
-          <button 
-            onClick={handleSwitchAccount}
-            className="flex items-center gap-1.5 mt-1 text-left active:opacity-60 transition-opacity group"
-            disabled={allAccounts.length <= 1}
-          >
+          <button onClick={handleSwitchAccount} className="flex items-center gap-1.5 mt-1 text-left active:opacity-60 transition-opacity">
             <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500">{activeAccount.name}</p>
             {allAccounts.length > 1 && (
-              <svg className="w-2.5 h-2.5 text-indigo-400 group-hover:translate-y-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+              <svg className="w-2.5 h-2.5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}>
+                <path d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
               </svg>
             )}
           </button>
         </div>
         
-        <button 
-          onClick={handleExportCSV} 
-          className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 rounded-2xl shadow-xl active:scale-95 text-white border border-slate-800 transition-all group"
-        >
+        <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 rounded-2xl shadow-xl active:scale-95 text-white border border-slate-800 transition-all group">
           <svg className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
           <span className="text-[10px] font-black uppercase tracking-widest">Export CSV</span>
         </button>
@@ -185,7 +157,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-indigo-600 p-5 rounded-[32px] shadow-lg flex flex-col gap-1 border border-indigo-500/20">
-          <span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest mb-1 leading-none">Disponible Réel (incl. fixes)</span>
+          <span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest mb-1 leading-none">Disponible Réel</span>
           <div className="text-xl font-black text-white">{formatVal(availableBalance)}€</div>
         </div>
         <div className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm flex flex-col gap-1">
@@ -194,23 +166,11 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white p-4 rounded-[28px] border border-slate-50 shadow-sm flex flex-col justify-center">
-          <span className="text-emerald-500 text-[8px] font-black uppercase tracking-widest mb-1 block">Entrées (Mois)</span>
-          <div className="text-[15px] font-black text-slate-800">+{formatVal(stats.income)}€</div>
-        </div>
-        <div className="bg-white p-4 rounded-[28px] border border-slate-50 shadow-sm flex flex-col justify-center">
-          <span className="text-red-400 text-[8px] font-black uppercase tracking-widest mb-1 block">Sorties (Mois)</span>
-          <div className="text-[15px] font-black text-slate-800">-{formatVal(stats.expenses)}€</div>
-        </div>
-      </div>
-
-      {/* Conseil IA */}
       <div 
-        className="bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm overflow-hidden active:scale-[0.98] transition-all cursor-pointer" 
+        className="bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm active:scale-[0.98] transition-all cursor-pointer group" 
         onClick={() => !loadingAdvice && fetchAiAdvice()}
       >
-        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl shrink-0">
+        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl shrink-0 group-hover:bg-indigo-50 transition-colors">
           {loadingAdvice ? <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div> : "💡"}
         </div>
         <p className="text-[11px] font-bold text-slate-700 leading-tight">{aiAdvice}</p>
