@@ -42,24 +42,23 @@ const Dashboard: React.FC<DashboardProps> = ({
 
     setLoadingAdvice(true);
     try {
-      // URL STABLE V1 avec le préfixe models/ obligatoire
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: "Donne un conseil financier zen très court (60 car max) en français sans guillemets." }] }]
-          })
-        }
-      );
+      const url = `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: "Donne un conseil financier zen très court (60 car max) en français sans guillemets." }]
+          }]
+        })
+      });
 
       const data = await response.json();
 
       if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
         setAiAdvice(data.candidates[0].content.parts[0].text.trim());
       } else {
-        // Si l'API renvoie une erreur (comme la 404), on ne met pas de message d'erreur moche
         setAiAdvice("La simplicité apporte la paix d'esprit. 🌿");
       }
     } catch (err) {
@@ -115,8 +114,14 @@ const Dashboard: React.FC<DashboardProps> = ({
       <div className="flex items-center justify-between pt-6">
         <div className="flex flex-col">
           <h2 className="text-2xl font-black text-slate-800 tracking-tighter italic">Bilan Zen ✨</h2>
-          <button onClick={() => onSwitchAccount(allAccounts[(allAccounts.findIndex(a => a.id === activeAccount.id) + 1) % allAccounts.length].id)} className="flex items-center gap-1.5 mt-1 text-left active:opacity-60 transition-opacity">
+          <button onClick={() => allAccounts.length > 1 && onSwitchAccount(allAccounts[(allAccounts.findIndex(a => a.id === activeAccount.id) + 1) % allAccounts.length].id)} className="flex items-center gap-1.5 mt-1 text-left active:opacity-60 transition-opacity">
             <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500">{activeAccount.name}</p>
+            {/* Flèche discrète si plusieurs comptes */}
+            {allAccounts.length > 1 && (
+              <svg className="w-3 h-3 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            )}
           </button>
         </div>
         <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 rounded-2xl shadow-xl active:scale-95 text-white border border-slate-800 transition-all">
