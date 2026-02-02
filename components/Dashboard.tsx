@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-// Package officiel corrigé pour éviter l'erreur de build Vercel
+// Package officiel corrigé pour le déploiement Vercel
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface DashboardProps {
@@ -20,7 +20,7 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
-  transactions, categories, activeAccount, checkingAccountBalance, availableBalance, projectedBalance, month, year 
+  transactions, categories, activeAccount, allAccounts, onSwitchAccount, checkingAccountBalance, availableBalance, projectedBalance, month, year 
 }) => {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [aiAdvice, setAiAdvice] = useState<string>("Analyse financière Zen...");
@@ -50,7 +50,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     setLoadingAdvice(true);
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
-      // Utilisation du modèle stable gemini-1.5-flash
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
       const randomSeed = Math.random().toString(36).substring(7);
       
@@ -74,7 +73,7 @@ const Dashboard: React.FC<DashboardProps> = ({
   useEffect(() => {
     const timer = setTimeout(fetchAiAdvice, 1500);
     return () => clearTimeout(timer);
-  }, [availableBalance]);
+  }, [availableBalance, activeAccount.id]);
 
   const categorySummary = useMemo(() => {
     const map: Record<string, number> = {};
@@ -144,29 +143,47 @@ const Dashboard: React.FC<DashboardProps> = ({
     }).format(v);
   };
 
+  const handleSwitchAccount = () => {
+    if (allAccounts.length <= 1) return;
+    const currentIndex = allAccounts.findIndex(a => a.id === activeAccount.id);
+    const nextIndex = (currentIndex + 1) % allAccounts.length;
+    onSwitchAccount(allAccounts[nextIndex].id);
+  };
+
   return (
     <div className="flex flex-col h-full space-y-6 overflow-y-auto no-scrollbar pb-32 px-1 fade-in">
       <div className="flex items-center justify-between pt-6">
         <div className="flex flex-col">
-          <h2 className="text-2xl font-black text-slate-800 tracking-tighter italic">Stats Zen ✨</h2>
-          <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500 mt-1.5">{activeAccount.name}</p>
+          <h2 className="text-2xl font-black text-slate-800 tracking-tighter italic">Bilan Zen ✨</h2>
+          <button 
+            onClick={handleSwitchAccount}
+            className="flex items-center gap-1.5 mt-1 text-left active:opacity-60 transition-opacity group"
+            disabled={allAccounts.length <= 1}
+          >
+            <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500">{activeAccount.name}</p>
+            {allAccounts.length > 1 && (
+              <svg className="w-2.5 h-2.5 text-indigo-400 group-hover:translate-y-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+              </svg>
+            )}
+          </button>
         </div>
         
-        {/* Bouton Export avec Icône Standard Fleche Bas */}
+        {/* Nouveau bouton Export avec icône lambda flèche bas + texte */}
         <button 
           onClick={handleExportCSV} 
-          className="w-11 h-11 bg-slate-900 rounded-2xl shadow-xl active:scale-95 text-white border border-slate-800 flex items-center justify-center transition-all group"
-          title="Exporter le détail complet en CSV"
+          className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 rounded-2xl shadow-xl active:scale-95 text-white border border-slate-800 transition-all group"
         >
           <svg 
-            className="w-5 h-5 group-hover:translate-y-0.5 transition-transform" 
+            className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" 
             fill="none" 
             viewBox="0 0 24 24" 
             stroke="currentColor" 
-            strokeWidth={2.5}
+            strokeWidth={3}
           >
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
+          <span className="text-[10px] font-black uppercase tracking-widest">Export CSV</span>
         </button>
       </div>
 
