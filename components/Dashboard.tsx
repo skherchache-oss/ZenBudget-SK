@@ -40,30 +40,30 @@ const Dashboard: React.FC<DashboardProps> = ({
   const fetchAiAdvice = async () => {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     if (!apiKey) {
-      setAiAdvice("ZenTip : Optimisez vos charges fixes pour augmenter votre capacité d'épargne.");
+      setAiAdvice("ZenTip : Optimisez vos charges fixes pour augmenter votre épargne.");
       return;
     }
 
     setLoadingAdvice(true);
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
-      const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash",
-        generationConfig: { temperature: 1.0 }
-      });
+      // CORRECTION ICI : Utilisation de "gemini-1.5-flash-latest" qui est plus stable sur les endpoints v1beta
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
       const randomSeed = Math.random().toString(36).substring(7);
-      const prompt = `Tu es un coach financier pour l'app ZenBudget. 
-        Contexte : Solde dispo = ${availableBalance}€, Dépenses = ${stats.expenses}€.
-        Donne un conseil court (max 60 car.) sur la gestion de budget ou l'épargne. 
-        Style : Zen, motivant, français. Graine: ${randomSeed}`;
-
-      const result = await model.generateContent(prompt);
+      
+      // On simplifie l'appel pour éviter les erreurs de structure
+      const result = await model.generateContent([
+        `Tu es un coach financier Zen. Donne un conseil court (max 60 car.) en français. 
+         Contexte: Solde ${availableBalance}€, Dépenses ${stats.expenses}€. Graine: ${randomSeed}`
+      ]);
+      
       const response = await result.response;
       const text = response.text().trim().replace(/^["']|["']$/g, '');
       
       if (text && text.length > 5) setAiAdvice(text);
     } catch (err) { 
+      console.error("Erreur IA détaillée:", err);
       setAiAdvice("ZenTip : Gardez un œil sur vos dépenses variables ce mois-ci."); 
     } finally { 
       setLoadingAdvice(false); 
@@ -163,11 +163,9 @@ const Dashboard: React.FC<DashboardProps> = ({
           </button>
         </div>
         
-        {/* Nouveau Bouton Export Demandé */}
         <button 
           onClick={handleExportCSV} 
-          className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 rounded-2xl shadow-xl active:scale-95 text-white border border-slate-800 flex items-center justify-center transition-all group"
-          title="Exporter le détail complet en CSV"
+          className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 rounded-2xl shadow-xl active:scale-95 text-white border border-slate-800 transition-all group"
         >
           <svg className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -207,21 +205,19 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
+      {/* Conseil IA */}
       <div 
-        className="bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm overflow-hidden active:scale-[0.98] transition-all cursor-pointer group" 
+        className="bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm overflow-hidden active:scale-[0.98] transition-all cursor-pointer" 
         onClick={() => !loadingAdvice && fetchAiAdvice()}
       >
         <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl shrink-0">
           {loadingAdvice ? <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div> : "💡"}
         </div>
-        <div className="flex flex-col">
-          <p className="text-[11px] font-bold text-slate-700 leading-tight">{aiAdvice}</p>
-        </div>
+        <p className="text-[11px] font-bold text-slate-700 leading-tight">{aiAdvice}</p>
       </div>
 
       <div className="bg-white/80 backdrop-blur-xl rounded-[40px] p-6 border border-white shadow-xl">
         <h2 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Répartition des dépenses</h2>
-        
         <div className="h-[240px] w-full relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
@@ -233,44 +229,9 @@ const Dashboard: React.FC<DashboardProps> = ({
             </PieChart>
           </ResponsiveContainer>
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            {activeIndex !== null ? (
-              <>
-                <span className="text-2xl mb-1">{categorySummary[activeIndex].icon}</span>
-                <span className="text-lg font-black text-slate-900">{formatVal(categorySummary[activeIndex].value)}€</span>
-              </>
-            ) : (
-              <>
-                <span className="text-[10px] font-black uppercase text-slate-400">Total</span>
-                <span className="text-2xl font-black text-slate-900">{formatVal(stats.expenses)}€</span>
-              </>
-            )}
+            <span className="text-[10px] font-black uppercase text-slate-400">Total</span>
+            <span className="text-2xl font-black text-slate-900">{formatVal(stats.expenses)}€</span>
           </div>
-        </div>
-
-        <div className="mt-8 space-y-3">
-          {categorySummary.length > 0 ? categorySummary.map((cat, idx) => (
-            <div key={cat.id} className="flex items-center gap-3 p-3 bg-slate-50/50 rounded-2xl border border-slate-100/50 group hover:bg-white hover:shadow-md transition-all">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-inner shrink-0" style={{ backgroundColor: `${cat.color}15` }}>
-                {cat.icon}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] font-black text-slate-800 uppercase tracking-tight truncate">{cat.name}</span>
-                  <span className="text-[12px] font-black text-slate-900">{formatVal(cat.value)}€</span>
-                </div>
-                <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-1000 ease-out" style={{ width: `${cat.percent}%`, backgroundColor: cat.color }} />
-                </div>
-              </div>
-              <div className="text-[9px] font-black text-slate-400 w-8 text-right">
-                {Math.round(cat.percent)}%
-              </div>
-            </div>
-          )) : (
-            <div className="text-center py-6">
-              <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest italic">Aucune dépense enregistrée</p>
-            </div>
-          )}
         </div>
       </div>
     </div>
