@@ -39,43 +39,38 @@ const Dashboard: React.FC<DashboardProps> = ({
   const fetchAiAdvice = async () => {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     if (!apiKey) {
-      setAiAdvice("ZenTip : Configurez votre clé API pour des conseils personnalisés.");
+      setAiAdvice("ZenTip : Configurez votre clé API.");
       return;
     }
 
     setLoadingAdvice(true);
     try {
-      // FIX CRUCIAL : Passage sur gemini-1.5-flash-latest qui est souvent le seul reconnu en v1beta
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: "Donne un conseil financier court (60 car max) en français avec un emoji zen."
-              }]
-            }]
-          })
-        }
-      );
+      // URL la plus stable et universelle pour Gemini 1.5 Flash
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+      
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{ text: "Donne un conseil financier zen très court (60 car max) en français." }]
+          }]
+        })
+      });
 
       const data = await response.json();
-      
+
       if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
         setAiAdvice(data.candidates[0].content.parts[0].text.trim());
       } else if (data.error) {
+        // On affiche l'erreur uniquement en console pour ne pas polluer l'interface
         console.error("Détail Erreur Google:", data.error);
-        setAiAdvice("Le calme est la clé d'un bon budget. 🌿");
-      } else {
-        throw new Error("Format inconnu");
+        setAiAdvice("La simplicité est la base de la sérénité. 🌿");
       }
-    } catch (err) { 
-      console.error("Erreur IA détaillée:", err);
-      setAiAdvice("ZenTip : Respirez, vos finances sont sous contrôle. ✨"); 
-    } finally { 
-      setLoadingAdvice(false); 
+    } catch (err) {
+      setAiAdvice("Respirez, vos finances sont sous contrôle. ✨");
+    } finally {
+      setLoadingAdvice(false);
     }
   };
 
@@ -100,8 +95,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     try {
       const s = ";"; 
       const f = (n: number) => n.toFixed(2).replace('.', ',');
-      const formatDate = (dateStr: string) => new Date(dateStr).toLocaleDateString('fr-FR');
-      const rows: string[] = [
+      const rows = [
         `ZENBUDGET - ${activeAccount.name.toUpperCase()}`,
         `Période : ${month + 1}/${year}`,
         "",
@@ -109,21 +103,19 @@ const Dashboard: React.FC<DashboardProps> = ({
         "",
         "Date;Categorie;Note;Type;Montant"
       ];
-      const sortedTxs = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-      sortedTxs.forEach(t => {
+      transactions.forEach(t => {
         const cat = categories.find(c => c.id === t.categoryId);
-        rows.push(`${formatDate(t.date)}${s}${cat?.name || 'Autre'}${s}${t.comment || ''}${s}${t.type}${s}${f(t.amount)}`);
+        rows.push(`${new Date(t.date).toLocaleDateString('fr-FR')}${s}${cat?.name || 'Autre'}${s}${t.comment || ''}${s}${t.type}${s}${f(t.amount)}`);
       });
       const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: 'text/csv;charset=utf-8;' });
-      const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href = url; link.download = `ZenBudget_${activeAccount.name}.csv`; link.click();
+      link.href = URL.createObjectURL(blob);
+      link.download = `ZenBudget_${activeAccount.name}.csv`;
+      link.click();
     } catch (e) { console.error(e); }
   };
 
-  const formatVal = (v: number) => {
-    return new Intl.NumberFormat('fr-FR', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v);
-  };
+  const formatVal = (v: number) => new Intl.NumberFormat('fr-FR', { style: 'decimal', minimumFractionDigits: 2 }).format(v);
 
   return (
     <div className="flex flex-col h-full space-y-6 overflow-y-auto no-scrollbar pb-32 px-1 fade-in">
@@ -150,14 +142,8 @@ const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-indigo-600 p-5 rounded-[32px] shadow-lg">
-          <span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest block mb-1">Disponible Réel</span>
-          <div className="text-xl font-black text-white">{formatVal(availableBalance)}€</div>
-        </div>
-        <div className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm">
-          <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block mb-1">Projection Fin</span>
-          <div className={`text-xl font-black ${projectedBalance >= 0 ? 'text-slate-900' : 'text-red-500'}`}>{formatVal(projectedBalance)}€</div>
-        </div>
+        <div className="bg-indigo-600 p-5 rounded-[32px] shadow-lg"><span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest block mb-1">Disponible Réel</span><div className="text-xl font-black text-white">{formatVal(availableBalance)}€</div></div>
+        <div className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm"><span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block mb-1">Projection Fin</span><div className={`text-xl font-black ${projectedBalance >= 0 ? 'text-slate-900' : 'text-red-500'}`}>{formatVal(projectedBalance)}€</div></div>
       </div>
 
       <div className="bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm active:scale-[0.98] transition-all cursor-pointer" onClick={() => !loadingAdvice && fetchAiAdvice()}>
@@ -173,9 +159,7 @@ const Dashboard: React.FC<DashboardProps> = ({
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie data={categorySummary} innerRadius={75} outerRadius={100} paddingAngle={8} dataKey="value" onMouseEnter={(_, index) => setActiveIndex(index)} onMouseLeave={() => setActiveIndex(null)} stroke="none">
-                {categorySummary.map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={entry.color} opacity={activeIndex === null || activeIndex === index ? 1 : 0.3} />
-                ))}
+                {categorySummary.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} opacity={activeIndex === null || activeIndex === index ? 1 : 0.3} />)}
               </Pie>
             </PieChart>
           </ResponsiveContainer>
