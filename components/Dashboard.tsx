@@ -40,37 +40,40 @@ const Dashboard: React.FC<DashboardProps> = ({
   const fetchAiAdvice = async () => {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     if (!apiKey) {
-      setAiAdvice("ZenTip : Optimisez vos charges fixes pour augmenter votre épargne.");
+      setAiAdvice("ZenTip : Configurez votre clé API pour des conseils personnalisés.");
       return;
     }
 
     setLoadingAdvice(true);
     try {
       const genAI = new GoogleGenerativeAI(apiKey);
-      // Retour au nom de modèle standard sans "-latest" pour éviter la 404
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      
+      // Utilisation du nom de modèle le plus standard pour éviter la 404
+      const model = genAI.getGenerativeModel({ 
+        model: "gemini-1.5-flash" 
+      });
 
-      const prompt = `Tu es un coach financier Zen. Donne un conseil très court (max 60 car.) en français. 
-         Solde: ${availableBalance}€. Hasard: ${Math.random()}`;
+      const prompt = `Tu es un coach financier Zen. 
+        Donne un conseil différent à chaque fois, très court (max 60 car.). 
+        Inclus un emoji zen. Pas de guillemets. Style varié. 
+        ID unique pour varier : ${Math.random()}`;
 
-      // Appel direct sans tableau pour tester la compatibilité v1beta
       const result = await model.generateContent(prompt);
       const response = await result.response;
-      const text = response.text().trim().replace(/^["']|["']$/g, '');
+      const text = response.text().trim();
       
       if (text) setAiAdvice(text);
     } catch (err) { 
-      console.error("Détail Erreur IA:", err);
-      // Phrase de secours légèrement différente pour confirmer que le catch fonctionne
-      setAiAdvice("Prenez un moment pour respirer et apprécier vos progrès. 🌿"); 
+      console.error("Erreur IA détaillée:", err);
+      // Fallback si l'API est indisponible
+      setAiAdvice("ZenTip : Respirez, l'essentiel est de rester régulier. 🌿"); 
     } finally { 
       setLoadingAdvice(false); 
     }
   };
 
   useEffect(() => {
-    // Petit délai pour laisser les données se stabiliser au montage
-    const timer = setTimeout(fetchAiAdvice, 1000);
+    const timer = setTimeout(fetchAiAdvice, 1500);
     return () => clearTimeout(timer);
   }, [activeAccount.id]);
 
@@ -97,10 +100,12 @@ const Dashboard: React.FC<DashboardProps> = ({
         `Période : ${month + 1}/${year}`,
         "",
         `Solde Bancaire${s}${f(checkingAccountBalance)} €`,
+        "",
         "Date;Categorie;Note;Type;Montant"
       ];
 
-      transactions.forEach(t => {
+      const sortedTxs = [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      sortedTxs.forEach(t => {
         const cat = categories.find(c => c.id === t.categoryId);
         rows.push(`${formatDate(t.date)}${s}${cat?.name || 'Autre'}${s}${t.comment || ''}${s}${t.type}${s}${f(t.amount)}`);
       });
@@ -128,7 +133,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       <div className="flex items-center justify-between pt-6">
         <div className="flex flex-col">
           <h2 className="text-2xl font-black text-slate-800 tracking-tighter italic">Bilan Zen ✨</h2>
-          <button onClick={handleSwitchAccount} className="flex items-center gap-1.5 mt-1 text-left active:opacity-60 transition-opacity">
+          <button onClick={handleSwitchAccount} className="flex items-center gap-1.5 mt-1 text-left active:opacity-60 transition-opacity group">
             <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500">{activeAccount.name}</p>
             {allAccounts.length > 1 && (
               <svg className="w-2.5 h-2.5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}>
@@ -138,7 +143,10 @@ const Dashboard: React.FC<DashboardProps> = ({
           </button>
         </div>
         
-        <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 rounded-2xl shadow-xl active:scale-95 text-white border border-slate-800 transition-all group">
+        <button 
+          onClick={handleExportCSV} 
+          className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 rounded-2xl shadow-xl active:scale-95 text-white border border-slate-800 transition-all group"
+        >
           <svg className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
             <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
