@@ -38,37 +38,32 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   const fetchAiAdvice = async () => {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
-      setAiAdvice("ZenTip : Configurez votre clé API.");
-      return;
-    }
+    if (!apiKey) return;
 
     setLoadingAdvice(true);
     try {
-      // URL la plus stable et universelle pour Gemini 1.5 Flash
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-      
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{ text: "Donne un conseil financier zen très court (60 car max) en français." }]
-          }]
-        })
-      });
+      // URL STABLE V1 avec le préfixe models/ obligatoire
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: "Donne un conseil financier zen très court (60 car max) en français sans guillemets." }] }]
+          })
+        }
+      );
 
       const data = await response.json();
 
       if (data.candidates && data.candidates[0]?.content?.parts[0]?.text) {
         setAiAdvice(data.candidates[0].content.parts[0].text.trim());
-      } else if (data.error) {
-        // On affiche l'erreur uniquement en console pour ne pas polluer l'interface
-        console.error("Détail Erreur Google:", data.error);
-        setAiAdvice("La simplicité est la base de la sérénité. 🌿");
+      } else {
+        // Si l'API renvoie une erreur (comme la 404), on ne met pas de message d'erreur moche
+        setAiAdvice("La simplicité apporte la paix d'esprit. 🌿");
       }
     } catch (err) {
-      setAiAdvice("Respirez, vos finances sont sous contrôle. ✨");
+      setAiAdvice("Respirez, votre budget est sous contrôle. ✨");
     } finally {
       setLoadingAdvice(false);
     }
@@ -97,9 +92,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       const f = (n: number) => n.toFixed(2).replace('.', ',');
       const rows = [
         `ZENBUDGET - ${activeAccount.name.toUpperCase()}`,
-        `Période : ${month + 1}/${year}`,
-        "",
-        `Solde Bancaire${s}${f(checkingAccountBalance)} €`,
+        `Solde : ${f(checkingAccountBalance)} €`,
         "",
         "Date;Categorie;Note;Type;Montant"
       ];
@@ -134,7 +127,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
       <div className="bg-slate-900 px-6 py-9 rounded-[40px] shadow-2xl relative overflow-hidden flex flex-col justify-center min-h-[130px]">
         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
-        <span className="text-indigo-400 text-[9px] font-black uppercase tracking-[0.3em] mb-1">Solde Bancaire Aujourd'hui</span>
+        <span className="text-indigo-400 text-[9px] font-black uppercase tracking-[0.3em] mb-1">Solde Bancaire</span>
         <div className="flex items-baseline gap-2">
           <span className="text-4xl font-black tracking-tighter text-white">{formatVal(checkingAccountBalance)}</span>
           <span className="text-xl font-black text-slate-500">€</span>
@@ -142,8 +135,14 @@ const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-indigo-600 p-5 rounded-[32px] shadow-lg"><span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest block mb-1">Disponible Réel</span><div className="text-xl font-black text-white">{formatVal(availableBalance)}€</div></div>
-        <div className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm"><span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block mb-1">Projection Fin</span><div className={`text-xl font-black ${projectedBalance >= 0 ? 'text-slate-900' : 'text-red-500'}`}>{formatVal(projectedBalance)}€</div></div>
+        <div className="bg-indigo-600 p-5 rounded-[32px] shadow-lg">
+          <span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest block mb-1">Disponible Réel</span>
+          <div className="text-xl font-black text-white">{formatVal(availableBalance)}€</div>
+        </div>
+        <div className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm">
+          <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block mb-1">Projection Fin</span>
+          <div className={`text-xl font-black ${projectedBalance >= 0 ? 'text-slate-900' : 'text-red-500'}`}>{formatVal(projectedBalance)}€</div>
+        </div>
       </div>
 
       <div className="bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm active:scale-[0.98] transition-all cursor-pointer" onClick={() => !loadingAdvice && fetchAiAdvice()}>
@@ -154,7 +153,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       <div className="bg-white/80 backdrop-blur-xl rounded-[40px] p-6 border border-white shadow-xl">
-        <h2 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Répartition des dépenses</h2>
+        <h2 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Répartition</h2>
         <div className="h-[240px] w-full relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
