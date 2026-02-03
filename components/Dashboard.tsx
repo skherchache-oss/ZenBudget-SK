@@ -147,10 +147,10 @@ const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        <div className="bg-indigo-600 p-5 rounded-[32px] shadow-lg relative">
-          <span className="text-indigo-200 text-[8px] font-black uppercase tracking-widest block mb-1">Disponible Réel</span>
+        <div className={`p-5 rounded-[32px] shadow-lg relative transition-colors duration-500 ${availableBalance < 0 ? 'bg-red-500' : 'bg-indigo-600'}`}>
+          <span className={`${availableBalance < 0 ? 'text-red-100' : 'text-indigo-200'} text-[8px] font-black uppercase tracking-widest block mb-1`}>Disponible Réel</span>
           <div className="text-xl font-black text-white">{formatVal(availableBalance)}€</div>
-          {isVigilance && <div className="absolute top-3 right-3 w-2 h-2 bg-amber-400 rounded-full animate-pulse" />}
+          {(isVigilance || availableBalance < 0) && <div className="absolute top-3 right-3 w-2 h-2 bg-white rounded-full animate-pulse" />}
         </div>
         <div className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm relative">
           <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block mb-1">Projection Fin</span>
@@ -159,6 +159,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
+      {/* ... Suite du Dashboard identique ... */}
       <div className="grid grid-cols-2 gap-3">
         <div className="bg-white p-4 rounded-[28px] border border-slate-50 shadow-sm">
           <span className="text-emerald-500 text-[8px] font-black uppercase tracking-widest mb-1 block">Entrées</span>
@@ -202,7 +203,6 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
         </div>
 
-        {/* LISTE DES CATÉGORIES BIEN PRÉSENTE ICI */}
         <div className="mt-8 space-y-3">
           {categorySummary.length > 0 ? categorySummary.map((cat) => (
             <div key={cat.id} className="flex items-center gap-3 p-3 bg-slate-50/50 rounded-2xl border border-slate-100/50 group hover:bg-white hover:shadow-md transition-all">

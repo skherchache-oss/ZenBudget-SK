@@ -141,13 +141,12 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
 
   const handleFeedback = () => {
     const subject = encodeURIComponent("Suggestion ZenBudget 🚀");
-    const body = encodeURIComponent("Bonjour,\n\nJ'ai une idée ou un bug à signaler pour ZenBudget : ");
+    const body = encodeURIComponent("Bonjour !\n\nJe contribue à l'évolution de ZenBudget avec ce retour :\n\n");
     window.location.href = `mailto:s.kherchache@gmail.com?subject=${subject}&body=${body}`;
   };
 
   return (
     <div className="space-y-7 pb-32 overflow-y-auto no-scrollbar h-full px-1 fade-in">
-      {/* MON ESPACE */}
       <section className="mt-4">
         <SectionTitle icon="✨" title="Mon Espace" />
         <div className="bg-white p-5 rounded-[28px] border border-slate-50 flex items-center justify-between shadow-sm">
@@ -161,7 +160,6 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
         </div>
       </section>
 
-      {/* ZENBUDGET : GESTION INTUITIVE */}
       <section>
         <SectionTitle icon="📖" title="Gestion intuitive" />
         <div className="bg-white rounded-[28px] border border-slate-50 overflow-hidden shadow-sm">
@@ -173,26 +171,29 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
             <div className="px-5 pb-5 space-y-6">
               <div className="bg-slate-50 p-5 rounded-2xl space-y-5">
                 <p className="text-[11px] font-bold text-slate-600 leading-relaxed italic">
-                  ZenBudget est une méthode de gestion financière basée sur la sérénité. Elle calcule votre véritable capacité de dépense en tenant compte de vos engagements futurs.
+                  ZenBudget simplifie votre charge mentale en calculant votre véritable capacité de dépense.
                 </p>
 
-                <div className="space-y-3">
-                  <h4 className="text-[11px] font-black uppercase text-indigo-600 tracking-wider">Le cycle Zen</h4>
-                  <div className="space-y-3 text-[11px] text-slate-500 font-medium leading-relaxed">
-                    <p><b>1. Initialisation :</b> Pour un démarrage parfait, saisissez votre solde bancaire réel à la date d'aujourd'hui. Ce point d'ancrage permet à ZenBudget de synchroniser immédiatement vos projections avec votre réalité financière.</p>
-                    <p><b>2. Revenus :</b> Enregistrez vos rentrées (Salaires, aides...).</p>
-                    <p><b>3. Fixes :</b> ZenBudget déduit vos charges programmées dès le début du cycle, même si elles n'ont pas encore été payées.</p>
-                    <p><b>4. Variables :</b> Vos dépenses quotidiennes ajustent votre solde projeté en temps réel.</p>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <h4 className="text-[11px] font-black uppercase text-indigo-600 tracking-wider flex items-center gap-2">
+                      <span>1. L'Ancrage</span> ⚓
+                    </h4>
+                    <p className="text-[11px] text-slate-500 font-medium leading-relaxed">Rendez-vous dans l'onglet <b>Journal</b> (Calendrier) et cliquez sur la <b>date du jour</b> pour saisir votre solde bancaire réel. C'est votre point de départ.</p>
                   </div>
-                </div>
 
-                <div className="space-y-3 pt-3 border-t border-slate-200/60">
-                  <h4 className="text-[11px] font-black uppercase text-slate-800 tracking-wider">Lexique Zen</h4>
-                  <div className="space-y-3 text-[11px] text-slate-500 font-medium leading-relaxed">
-                    <p><b>Solde Bancaire :</b> Somme réelle disponible sur votre compte aujourd'hui (opérations saisies ou pointées).</p>
-                    <p><b>Disponible Réel :</b> Ce qu'il vous reste vraiment pour finir le cycle après déduction de TOUS vos flux fixes prévus.</p>
-                    <p><b>Projection Fin :</b> Estimation de votre solde au dernier jour du cycle si vous ne dépensez rien d'autre d'ici là.</p>
-                    <p><b>Flux Fixes :</b> Vos charges ou revenus récurrents (loyer, abonnements, salaire...). ZenBudget les automatise.</p>
+                  <div className="space-y-2">
+                    <h4 className="text-[11px] font-black uppercase text-indigo-600 tracking-wider flex items-center gap-2">
+                      <span>2. La Vision</span> 👓
+                    </h4>
+                    <p className="text-[11px] text-slate-500 font-medium leading-relaxed">L'app déduit immédiatement vos charges fixes à venir (loyer, abonnements, ...). Vous voyez ce qu'il vous reste vraiment pour finir le mois.</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h4 className="text-[11px] font-black uppercase text-indigo-600 tracking-wider flex items-center gap-2">
+                      <span>3. La Sérénité</span> 🧘‍♂️
+                    </h4>
+                    <p className="text-[11px] text-slate-500 font-medium leading-relaxed">Votre "Disponible Réel" s'ajuste en temps réel. Si le chiffre est bleu, vous êtes serein. S'il diminue, l'app vous permet d'ajuster vos dépenses pour finir le cycle sereinement.</p>
                   </div>
                 </div>
               </div>
@@ -201,7 +202,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
         </div>
       </section>
 
-      {/* MES COMPTES */}
+      {/* ... Suite de Settings identique ... */}
       <section>
         <SectionTitle icon="💳" title="Mes Comptes" />
         <div className="space-y-1">
@@ -233,7 +234,6 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
         </div>
       </section>
 
-      {/* CYCLE BUDGÉTAIRE */}
       <section>
         <SectionTitle icon="📅" title="Cycle Budgétaire" />
         <div className="bg-white p-5 rounded-[28px] border border-slate-50 shadow-sm space-y-4">
@@ -250,14 +250,10 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
                 className={`w-11 h-11 text-center rounded-xl text-[11px] font-black outline-none border-2 transition-all ${customDay && ![25, 26, 28].includes(parseInt(customDay)) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-slate-50 border-dashed border-slate-200 text-slate-500'}`}
               />
             </div>
-            {customDay && ![25, 26, 28].includes(parseInt(customDay)) && (
-              <span className="text-[9px] font-black text-indigo-500 uppercase ml-1 animate-in slide-in-from-left">Le {customDay}</span>
-            )}
           </div>
         </div>
       </section>
 
-      {/* ACTIONS FINALES & FEEDBACK */}
       <section className="space-y-4">
         <div className="bg-indigo-50/40 border border-indigo-100 p-8 rounded-[40px] text-center space-y-5 shadow-sm relative overflow-hidden group">
           <div className="absolute -right-6 -top-6 w-24 h-24 bg-indigo-100/30 rounded-full blur-2xl group-hover:scale-125 transition-transform" />
