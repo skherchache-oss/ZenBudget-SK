@@ -34,15 +34,13 @@ const App: React.FC = () => {
   const isInitialMount = useRef(true);
   const isResetting = useRef(false);
   
-  // Persistance automatique ultra-sécurisée avec verrouillage pour le reset
+  // Persistance automatique avec protection contre la ré-écriture post-reset
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
     }
-    // Verrouillage absolu : si un reset est en cours, on arrête définitivement toute écriture
     if (isResetting.current) return;
-    
     saveState(state);
   }, [state]);
 
@@ -90,9 +88,23 @@ const App: React.FC = () => {
     return balance;
   };
 
+  // Calcul du jour de fin de cycle (paye)
+  const cycleEndDate = useMemo(() => {
+    const day = activeAccount?.cycleEndDay || 0;
+    if (day === 0) return new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
+    const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    return new Date(currentYear, currentMonth, Math.min(day, lastDayOfMonth), 23, 59, 59);
+  }, [activeAccount?.cycleEndDay, currentMonth, currentYear]);
+
   const projectedBalance = useMemo(() => 
     getBalanceAtDate(new Date(currentYear, currentMonth + 1, 0, 23, 59, 59), true), 
     [activeAccount, currentMonth, currentYear]
+  );
+
+  // Disponible Réel = Solde projeté au jour du cycle budgétaire
+  const availableBalance = useMemo(() => 
+    getBalanceAtDate(cycleEndDate, true),
+    [activeAccount, currentMonth, currentYear, cycleEndDate]
   );
   
   const carryOver = useMemo(() => 
@@ -167,10 +179,14 @@ const App: React.FC = () => {
   const handleReset = () => {
     if (window.confirm("🗑️ RÉINITIALISATION COMPLÈTE\n\nCette action effacera TOUT votre budget (comptes, transactions, flux fixes).\n\nContinuer ?")) {
       isResetting.current = true;
-      localStorage.removeItem('zenbudget_state_v3');
-      localStorage.clear();
-      // On utilise window.location.href pour être certain de vider la mémoire React avant le reload
-      window.location.href = window.location.pathname + "?reset=" + Date.now();
+      try {
+        window.localStorage.clear();
+        window.localStorage.removeItem('zenbudget_state_v3');
+        // Rechargement forcé pour vider la mémoire React
+        window.location.href = window.location.origin + window.location.pathname + "?reset=" + Date.now();
+      } catch (e) {
+        window.location.reload();
+      }
     }
   };
 
@@ -195,7 +211,7 @@ const App: React.FC = () => {
               onSwitchAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))} month={currentMonth} year={currentYear} 
               onViewTransactions={() => setActiveView('TRANSACTIONS')} 
               checkingAccountBalance={getBalanceAtDate(now, true)} 
-              availableBalance={getBalanceAtDate(now, true)} 
+              availableBalance={availableBalance} 
               projectedBalance={projectedBalance} carryOver={carryOver} 
             />
           )}
@@ -263,7 +279,7 @@ const App: React.FC = () => {
         <NavBtn active={activeView === 'DASHBOARD'} onClick={() => setActiveView('DASHBOARD')} icon={<IconHome />} label="Stats" />
         <NavBtn active={activeView === 'TRANSACTIONS'} onClick={() => setActiveView('TRANSACTIONS')} icon={<IconCalendar />} label="Journal" />
         <NavBtn active={activeView === 'RECURRING'} onClick={() => setActiveView('RECURRING')} icon={<IconPlus className="rotate-45" />} label="Fixes" />
-        <NavBtn active={activeView === 'SETTINGS'} onClick={() => setActiveView('SETTINGS')} icon={<IconSettings />} label="Réglages" />
+        <NavBtn active={activeView === 'SETTINGS'} icon={<IconSettings />} onClick={() => setActiveView('SETTINGS')} label="Réglages" />
       </nav>
 
       {showAddModal && <AddTransactionModal categories={state.categories} onClose={() => { setShowAddModal(false); setEditingTransaction(null); }} onAdd={handleUpsertTransaction} initialDate={modalInitialDate} editItem={editingTransaction} />}
