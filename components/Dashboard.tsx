@@ -72,26 +72,47 @@ const Dashboard: React.FC<DashboardProps> = ({
         color: cat?.color || '#94a3b8', 
         icon: cat?.icon || '📦', 
         percent: (data.value / total) * 100,
-        notes: Array.from(new Set(data.notes)).slice(0, 3) // Max 3 notes uniques
+        notes: Array.from(new Set(data.notes)).slice(0, 3)
       };
     }).sort((a, b) => b.value - a.value);
   }, [transactions, categories, stats.expenses]);
 
   const handleExportCSV = () => {
-    const headers = ["Date", "Categorie", "Commentaire", "Type", "Montant"];
-    const rows = transactions.map(t => [
+    // 1. Création du résumé global
+    const summaryRows = [
+      ["RESUME DU COMPTE", activeAccount.name],
+      ["Periode", `${month + 1}/${year}`],
+      ["Solde Bancaire", checkingAccountBalance.toFixed(2)],
+      ["Disponible Reel", availableBalance.toFixed(2)],
+      ["Total Revenus (+)", stats.income.toFixed(2)],
+      ["Total Depenses (-)", stats.expenses.toFixed(2)],
+      ["", ""], // Ligne vide
+      ["DETAILS DES TRANSACTIONS"],
+      ["Date", "Categorie", "Commentaire", "Type", "Montant"]
+    ];
+
+    // 2. Ajout des transactions
+    const transactionRows = transactions.map(t => [
       new Date(t.date).toLocaleDateString('fr-FR'),
       categories.find(c => c.id === t.categoryId)?.name || 'Inconnue',
       t.comment || '',
-      t.type,
+      t.type === 'INCOME' ? 'Entree' : 'Sortie',
       t.amount.toFixed(2)
     ]);
-    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+
+    // 3. Fusion et conversion avec gestion du point-virgule (mieux pour Excel FR)
+    const csvString = [...summaryRows, ...transactionRows]
+      .map(row => row.join(";"))
+      .join("\n");
+
+    // 4. Utilisation du BOM (\ufeff) pour forcer l'encodage UTF-8 (corrige les accents)
+    const blob = new Blob(["\ufeff" + csvString], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.setAttribute("download", `export_zenbudget_${month + 1}_${year}.csv`);
+    link.setAttribute("download", `ZenBudget_${activeAccount.name.replace(/\s+/g, '_')}_${month + 1}.csv`);
+    document.body.appendChild(link);
     link.click();
+    document.body.removeChild(link);
   };
 
   const handleApplyCarryOver = (e: React.MouseEvent) => {
@@ -117,12 +138,16 @@ const Dashboard: React.FC<DashboardProps> = ({
           <h2 className="text-2xl font-black text-slate-800 tracking-tighter italic">Bilan Zen ✨</h2>
           <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500">{activeAccount.name}</p>
         </div>
-        <button onClick={handleExportCSV} className="p-2 bg-white border border-slate-100 rounded-xl shadow-sm text-slate-400 hover:text-indigo-600 active:scale-95 transition-all">
+        <button 
+          onClick={handleExportCSV} 
+          className="p-3 bg-white border border-slate-100 rounded-2xl shadow-sm text-indigo-600 active:scale-95 transition-all flex items-center gap-2"
+        >
+          <span className="text-[10px] font-black uppercase">Export</span>
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
         </button>
       </div>
 
-      {/* Widget Principal */}
+      {/* Solde Principal */}
       <div className="bg-slate-900 px-6 py-9 rounded-[40px] shadow-2xl relative overflow-hidden min-h-[130px] flex flex-col justify-center">
         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
         <span className="text-indigo-400 text-[9px] font-black uppercase tracking-[0.3em] mb-1">Solde Bancaire Actuel</span>
@@ -147,7 +172,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* IA */}
+      {/* Widget IA */}
       <div className="bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm cursor-pointer" onClick={() => !loadingAdvice && fetchAiAdvice()}>
         <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl">
           {loadingAdvice ? "..." : "💡"}
@@ -155,7 +180,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         <p className="text-[11px] font-bold text-slate-700 leading-tight">{aiAdvice}</p>
       </div>
 
-      {/* Liste des Dépenses par Catégories */}
+      {/* Graphique et Répartition */}
       <div className="bg-white/80 backdrop-blur-xl rounded-[40px] p-6 border border-white shadow-xl">
         <h2 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6 text-center">Répartition & Détails</h2>
         
@@ -191,7 +216,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
               </div>
               
-              {/* Affichage des notes */}
               {cat.notes.length > 0 && (
                 <div className="ml-16 flex flex-wrap gap-2">
                   {cat.notes.map((note, i) => (
