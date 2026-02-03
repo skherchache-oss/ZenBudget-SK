@@ -20,8 +20,8 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
-  transactions, categories, activeAccount, 
-  checkingAccountBalance, availableBalance, projectedBalance, carryOver,
+  transactions, categories, activeAccount, allAccounts,
+  onSwitchAccount, checkingAccountBalance, availableBalance, projectedBalance, carryOver,
   onAddTransaction, month, year 
 }) => {
   const [aiAdvice, setAiAdvice] = useState<string>("Analyse financière Zen...");
@@ -78,7 +78,6 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, [transactions, categories, stats.expenses]);
 
   const handleExportCSV = () => {
-    // 1. Création du résumé global
     const summaryRows = [
       ["RESUME DU COMPTE", activeAccount.name],
       ["Periode", `${month + 1}/${year}`],
@@ -86,12 +85,11 @@ const Dashboard: React.FC<DashboardProps> = ({
       ["Disponible Reel", availableBalance.toFixed(2)],
       ["Total Revenus (+)", stats.income.toFixed(2)],
       ["Total Depenses (-)", stats.expenses.toFixed(2)],
-      ["", ""], // Ligne vide
+      ["", ""],
       ["DETAILS DES TRANSACTIONS"],
       ["Date", "Categorie", "Commentaire", "Type", "Montant"]
     ];
 
-    // 2. Ajout des transactions
     const transactionRows = transactions.map(t => [
       new Date(t.date).toLocaleDateString('fr-FR'),
       categories.find(c => c.id === t.categoryId)?.name || 'Inconnue',
@@ -100,19 +98,12 @@ const Dashboard: React.FC<DashboardProps> = ({
       t.amount.toFixed(2)
     ]);
 
-    // 3. Fusion et conversion avec gestion du point-virgule (mieux pour Excel FR)
-    const csvString = [...summaryRows, ...transactionRows]
-      .map(row => row.join(";"))
-      .join("\n");
-
-    // 4. Utilisation du BOM (\ufeff) pour forcer l'encodage UTF-8 (corrige les accents)
+    const csvString = [...summaryRows, ...transactionRows].map(row => row.join(";")).join("\n");
     const blob = new Blob(["\ufeff" + csvString], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.setAttribute("download", `ZenBudget_${activeAccount.name.replace(/\s+/g, '_')}_${month + 1}.csv`);
-    document.body.appendChild(link);
     link.click();
-    document.body.removeChild(link);
   };
 
   const handleApplyCarryOver = (e: React.MouseEvent) => {
@@ -133,22 +124,43 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="flex flex-col h-full space-y-6 overflow-y-auto no-scrollbar pb-32 px-1 fade-in">
-      <div className="pt-6 flex justify-between items-end">
-        <div>
+      <div className="pt-6 flex justify-between items-start">
+        <div className="flex flex-col">
           <h2 className="text-2xl font-black text-slate-800 tracking-tighter italic">Bilan Zen ✨</h2>
-          <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500">{activeAccount.name}</p>
+          
+          {/* Sélecteur de compte discret */}
+          <div className="relative inline-block mt-1">
+            <select 
+              value={activeAccount.id}
+              onChange={(e) => onSwitchAccount(e.target.value)}
+              className="appearance-none bg-transparent pr-8 text-[10px] font-black uppercase tracking-widest text-indigo-500 cursor-pointer focus:outline-none border-none p-0"
+              disabled={allAccounts.length <= 1}
+            >
+              {allAccounts.map(acc => (
+                <option key={acc.id} value={acc.id}>{acc.name}</option>
+              ))}
+            </select>
+            {allAccounts.length > 1 && (
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 pointer-events-none">
+                <svg className="w-3 h-3 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" />
+                </svg>
+              </div>
+            )}
+          </div>
         </div>
+
         <button 
           onClick={handleExportCSV} 
-          className="p-3 bg-white border border-slate-100 rounded-2xl shadow-sm text-indigo-600 active:scale-95 transition-all flex items-center gap-2"
+          className="p-3 bg-white border border-slate-50 rounded-2xl shadow-sm text-indigo-600 active:scale-95 transition-all flex items-center gap-2"
         >
-          <span className="text-[10px] font-black uppercase">Export</span>
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+          <span className="text-[9px] font-black uppercase">CSV</span>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
         </button>
       </div>
 
-      {/* Solde Principal */}
-      <div className="bg-slate-900 px-6 py-9 rounded-[40px] shadow-2xl relative overflow-hidden min-h-[130px] flex flex-col justify-center">
+      {/* Widget Solde */}
+      <div className="bg-slate-900 px-6 py-9 rounded-[40px] shadow-2xl relative overflow-hidden flex flex-col justify-center">
         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
         <span className="text-indigo-400 text-[9px] font-black uppercase tracking-[0.3em] mb-1">Solde Bancaire Actuel</span>
         <div className="text-4xl font-black tracking-tighter text-white">{formatVal(checkingAccountBalance)} €</div>
@@ -174,7 +186,7 @@ const Dashboard: React.FC<DashboardProps> = ({
 
       {/* Widget IA */}
       <div className="bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm cursor-pointer" onClick={() => !loadingAdvice && fetchAiAdvice()}>
-        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl">
+        <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl shrink-0">
           {loadingAdvice ? "..." : "💡"}
         </div>
         <p className="text-[11px] font-bold text-slate-700 leading-tight">{aiAdvice}</p>
@@ -215,11 +227,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </div>
                 </div>
               </div>
-              
               {cat.notes.length > 0 && (
                 <div className="ml-16 flex flex-wrap gap-2">
                   {cat.notes.map((note, i) => (
-                    <span key={i} className="text-[9px] font-medium px-2 py-1 bg-slate-50 text-slate-500 rounded-lg border border-slate-100">
+                    <span key={i} className="text-[9px] font-medium px-2 py-1 bg-slate-50 text-slate-500 rounded-lg border border-slate-100 italic truncate max-w-[150px]">
                       {note}
                     </span>
                   ))}
