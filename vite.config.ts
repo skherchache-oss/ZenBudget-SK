@@ -7,6 +7,14 @@ export default defineConfig({
   },
   plugins: [react()],
   root: './',
+  // Ajout pour stabiliser les librairies qui cherchent des variables globales Node
+  define: {
+    'global': 'window',
+  },
+  optimizeDeps: {
+    // Force Vite à pré-bundler Google GenAI pour éviter les erreurs d'externalisation
+    include: ['@google/genai'],
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: true, // Vide le dossier dist avant chaque build
