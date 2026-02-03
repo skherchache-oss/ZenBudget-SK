@@ -1,7 +1,6 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-// Import correspondant à ton importmap pour Vercel
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface DashboardProps {
@@ -29,17 +28,30 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [loadingAdvice, setLoadingAdvice] = useState(false);
 
   const fetchAiAdvice = async () => {
-    const API_KEY = (window as any).process?.env?.NEXT_PUBLIC_GEMINI_API_KEY || "";
-    if (!API_KEY || loadingAdvice) return;
+    // Récupération de la clé avec le nom correct
+    const API_KEY = 
+      (import.meta as any).env?.VITE_GEMINI_API_KEY || 
+      (window as any).process?.env?.VITE_GEMINI_API_KEY ||
+      "";
+
+    if (!API_KEY) {
+      console.warn("Clé VITE_GEMINI_API_KEY introuvable.");
+      setAiAdvice("Clé API non détectée. Vérifiez Vercel. ✨");
+      return;
+    }
+
+    if (loadingAdvice) return;
     
     setLoadingAdvice(true);
     try {
       const genAI = new GoogleGenerativeAI(API_KEY);
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      
       const result = await model.generateContent("Donne un conseil financier zen très court (max 60 caractères) en français, sans guillemets.");
       const response = await result.response;
       setAiAdvice(response.text());
     } catch (err) {
+      console.error("Erreur IA:", err);
       setAiAdvice("ZenTip : Respirez, votre budget est sous contrôle. ✨");
     } finally {
       setLoadingAdvice(false);
@@ -82,7 +94,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     });
   };
 
-  // CORRECTION : Forcer 2 chiffres après la virgule
   const formatVal = (v: number) => new Intl.NumberFormat('fr-FR', { 
     minimumFractionDigits: 2,
     maximumFractionDigits: 2 
@@ -95,7 +106,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500">{activeAccount.name}</p>
       </div>
 
-      {/* Solde Bancaire */}
+      {/* Widget Solde Bancaire */}
       <div className="bg-slate-900 px-6 py-9 rounded-[40px] shadow-2xl relative overflow-hidden min-h-[130px] flex flex-col justify-center">
         <span className="text-indigo-400 text-[9px] font-black uppercase tracking-[0.3em] mb-1">Solde Bancaire Actuel</span>
         <div className="text-4xl font-black tracking-tighter text-white">{formatVal(checkingAccountBalance)} €</div>
@@ -120,7 +131,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* Projection */}
+      {/* Projection Fin de Mois */}
       <div className={`p-5 rounded-[32px] border-2 flex justify-between items-center ${projectedBalance < 0 ? 'bg-rose-50 border-rose-100' : 'bg-white border-slate-50'}`}>
         <div>
           <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block mb-1">Projection Fin de Mois</span>
@@ -129,15 +140,20 @@ const Dashboard: React.FC<DashboardProps> = ({
         {projectedBalance < 0 && <span className="text-2xl animate-bounce">🧘‍♀️</span>}
       </div>
 
-      {/* IA Advice */}
-      <div className="bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm" onClick={() => !loadingAdvice && fetchAiAdvice()}>
+      {/* Widget IA */}
+      <div 
+        className="bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm active:scale-[0.98] transition-all cursor-pointer" 
+        onClick={() => !loadingAdvice && fetchAiAdvice()}
+      >
         <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl shrink-0">
-          {loadingAdvice ? "..." : "💡"}
+          {loadingAdvice ? (
+            <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+          ) : "💡"}
         </div>
         <p className="text-[11px] font-bold text-slate-700 leading-tight">{aiAdvice}</p>
       </div>
 
-      {/* Graphique de répartition */}
+      {/* Graphique et Répartition */}
       <div className="bg-white/80 backdrop-blur-xl rounded-[40px] p-6 border border-white shadow-xl">
         <h2 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 text-center">Répartition des dépenses</h2>
         <div className="h-[200px] w-full relative mb-6">
