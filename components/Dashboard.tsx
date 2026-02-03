@@ -1,7 +1,8 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { GoogleGenAI } from "@google/genai";
+// CORRECTION : Utilisation du package officiel stable
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface DashboardProps {
   transactions: Transaction[];
@@ -21,7 +22,6 @@ interface DashboardProps {
 const Dashboard: React.FC<DashboardProps> = ({ 
   transactions, categories, activeAccount, allAccounts, onSwitchAccount, checkingAccountBalance, availableBalance, projectedBalance, month, year 
 }) => {
-  const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const [aiAdvice, setAiAdvice] = useState<string>("Analyse financière Zen...");
   const [loadingAdvice, setLoadingAdvice] = useState(false);
 
@@ -41,13 +41,20 @@ const Dashboard: React.FC<DashboardProps> = ({
     if (loadingAdvice) return;
     setLoadingAdvice(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
-        contents: "Donne un conseil financier zen très court (max 60 caractères) en français, sans guillemets, inspirant et pratique.",
-      });
-      setAiAdvice(response.text || "La simplicité apporte la paix d'esprit. 🌿");
+      // CORRECTION : Utilisation de import.meta.env pour Vite/Vercel
+      const apiKey = import.meta.env.VITE_API_KEY;
+      if (!apiKey) throw new Error("Clé manquante");
+
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+      const prompt = "Donne un conseil financier zen très court (max 60 caractères) en français, sans guillemets, inspirant et pratique.";
+      const result = await model.generateContent(prompt);
+      const text = result.response.text();
+      
+      setAiAdvice(text || "La simplicité apporte la paix d'esprit. 🌿");
     } catch (err) {
+      console.error("Erreur AI:", err);
       setAiAdvice("ZenTip : Respirez, votre budget est sous contrôle. ✨");
     } finally {
       setLoadingAdvice(false);
@@ -76,7 +83,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     const now = new Date();
     const rows = [];
     
-    // Bloc Résumé (Identique aux Settings)
     rows.push(["RESUME DU COMPTE"]);
     rows.push(["Nom du compte", activeAccount.name]);
     rows.push(["Date d'export", now.toLocaleDateString()]);
@@ -84,7 +90,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     rows.push(["Disponible estime (Fin de mois)", `${projectedBalance.toFixed(2)} €`]);
     rows.push([]); 
     
-    // Bloc Détails
     rows.push(["DETAILS DES OPERATIONS"]);
     rows.push(["Date", "Type", "Categorie", "Montant", "Note"]);
     
@@ -173,7 +178,7 @@ const Dashboard: React.FC<DashboardProps> = ({
       </div>
 
       <div className="bg-white/80 backdrop-blur-xl rounded-[40px] p-6 border border-white shadow-xl">
-        <h2 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Répartition des denses</h2>
+        <h2 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Répartition des dépenses</h2>
         <div className="h-[200px] w-full relative mb-6">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
