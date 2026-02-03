@@ -1,285 +1,129 @@
-import React, { useState, useEffect } from 'react';
-import { AppState, BudgetAccount } from '../types';
-import { IconPlus } from './Icons';
-import { createDefaultAccount } from '../store';
+import React from 'react';
+import { AppState, Category, BudgetAccount } from '../types';
+import { saveState } from '../store';
 
 interface SettingsProps {
   state: AppState;
+  onUpdateCategories: (categories: Category[]) => void;
   onUpdateAccounts: (accounts: BudgetAccount[]) => void;
   onSetActiveAccount: (id: string) => void;
-  onDeleteAccount: (id: string) => void;
   onReset: () => void;
-  onUpdateCategories: (cats: any) => void;
-  onUpdateBudget: (val: number) => void;
-  onLogout: () => void;
 }
 
-const AccountItem: React.FC<{
-  acc: BudgetAccount;
-  isActive: boolean;
-  onDelete: (id: string) => void;
-  onRename: (acc: BudgetAccount) => void;
-  onSelect: (id: string) => void;
-  canDelete: boolean;
-}> = ({ acc, isActive, onDelete, onRename, onSelect, canDelete }) => {
-  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
+const Settings: React.FC<SettingsProps> = ({ 
+  state, 
+  onUpdateAccounts, 
+  onSetActiveAccount, 
+  onReset 
+}) => {
 
-  const handleDelete = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!isConfirmingDelete) {
-      setIsConfirmingDelete(true);
-      setTimeout(() => setIsConfirmingDelete(false), 3000);
-      return;
-    }
-    onDelete(acc.id);
+  // --- FONCTION DE SAUVEGARDE TOTALE (JSON) ---
+  const exportBackup = () => {
+    const dataStr = JSON.stringify(state, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    
+    const exportFileDefaultName = `zenbudget_backup_${new Date().toISOString().split('T')[0]}.json`;
+    
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
   };
 
-  const handleRename = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    onRename(acc);
+  // --- FONCTION DE RESTAURATION ---
+  const importBackup = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const fileReader = new FileReader();
+    if (event.target.files && event.target.files[0]) {
+      fileReader.readAsText(event.target.files[0], "UTF-8");
+      fileReader.onload = (e) => {
+        try {
+          const json = JSON.parse(e.target?.result as string);
+          // On force la sauvegarde dans le localStorage
+          saveState(json);
+          // On recharge la page pour appliquer les données
+          window.location.reload();
+        } catch (err) {
+          alert("Erreur : Le fichier de sauvegarde est corrompu.");
+        }
+      };
+    }
   };
 
   return (
-    <div 
-      className={`flex items-center justify-between bg-white rounded-[24px] p-4 mb-2 border transition-all cursor-pointer ${isActive ? 'border-indigo-100 shadow-sm ring-4 ring-indigo-50/20' : 'border-slate-50 hover:border-slate-200'}`}
-      onClick={() => onSelect(acc.id)}
-    >
-      <div className="flex items-center gap-3 min-w-0">
-        <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm shrink-0" style={{ backgroundColor: `${acc.color}20`, border: `1px solid ${acc.color}40` }}>
-          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: acc.color }} />
-        </div>
-        <div className="flex flex-col min-w-0">
-          <span className="text-[12px] font-black text-slate-800 truncate uppercase tracking-tight">{acc.name}</span>
-          {isActive && <span className="text-[7px] font-black text-indigo-500 uppercase tracking-widest">Actif</span>}
-        </div>
+    <div className="flex flex-col h-full space-y-8 overflow-y-auto no-scrollbar pb-32 pt-6">
+      <div>
+        <h2 className="text-2xl font-black text-slate-800 tracking-tighter italic">Réglages ⚙️</h2>
+        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Configuration & Sécurité</p>
       </div>
 
-      <div className="flex items-center gap-1">
-        <button onClick={handleRename} className="p-2 text-slate-300 hover:text-indigo-600 transition-all rounded-lg">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-        </button>
-        {canDelete && (
-          <button 
-            onClick={handleDelete} 
-            className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase transition-all min-w-[40px] ${isConfirmingDelete ? 'bg-red-600 text-white' : 'text-red-300 hover:bg-red-50'}`}
-          >
-            {isConfirmingDelete ? 'Sûr ?' : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>}
-          </button>
-        )}
-      </div>
-    </div>
-  );
-};
-
-const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiveAccount, onDeleteAccount, onReset }) => {
-  const [isAddingAccount, setIsAddingAccount] = useState(false);
-  const [newAccName, setNewAccName] = useState('');
-  const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
-  const [isHowItWorksOpen, setIsHowItWorksOpen] = useState(false);
-  const [customDay, setCustomDay] = useState('');
-
-  const activeAccount = state.accounts.find(a => a.id === state.activeAccountId);
-  
-  const SectionTitle: React.FC<{ icon: string, title: string }> = ({ icon, title }) => (
-    <div className="flex items-center gap-3 px-2 mb-3">
-      <div className="w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center text-lg border border-slate-50 shrink-0">
-        {icon}
-      </div>
-      <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{title}</h2>
-    </div>
-  );
-
-  useEffect(() => {
-    const day = activeAccount?.cycleEndDay;
-    if (day && day > 0 && ![25, 26, 28].includes(day)) {
-      setCustomDay(day.toString());
-    } else {
-      setCustomDay('');
-    }
-  }, [activeAccount?.id, activeAccount?.cycleEndDay]);
-
-  const handleCreateAccount = () => {
-    if (!newAccName.trim()) return;
-    const newAcc = createDefaultAccount(state.user?.id || 'local-user');
-    newAcc.name = newAccName.trim();
-    onUpdateAccounts([...state.accounts, newAcc]);
-    onSetActiveAccount(newAcc.id);
-    setNewAccName('');
-    setIsAddingAccount(false);
-  };
-
-  const handleStartRename = (acc: BudgetAccount) => {
-    setEditingAccountId(acc.id);
-    setEditName(acc.name);
-  };
-
-  const handleSaveRename = () => {
-    if (!editingAccountId || !editName.trim()) {
-      setEditingAccountId(null);
-      return;
-    }
-    const nextAccounts = state.accounts.map(a => a.id === editingAccountId ? { ...a, name: editName.trim() } : a);
-    onUpdateAccounts(nextAccounts);
-    setEditingAccountId(null);
-  };
-
-  const updateCycleDay = (day: number) => {
-    if (!activeAccount) return;
-    const nextAccounts = state.accounts.map(a => a.id === activeAccount.id ? { ...a, cycleEndDay: day } : a);
-    onUpdateAccounts(nextAccounts);
-  };
-
-  const handleCustomDayChange = (val: string) => {
-    const s = val.replace(/[^0-9]/g, '').slice(0, 2);
-    setCustomDay(s);
-    const day = parseInt(s);
-    if (!isNaN(day) && day >= 1 && day <= 31) {
-      updateCycleDay(day);
-    }
-  };
-
-  const handleFeedback = () => {
-    const subject = encodeURIComponent("Suggestion ZenBudget 🚀");
-    const body = encodeURIComponent("Bonjour !\n\nJe contribue à l'évolution de ZenBudget avec ce retour :\n\n");
-    window.location.href = `mailto:s.kherchache@gmail.com?subject=${subject}&body=${body}`;
-  };
-
-  return (
-    <div className="space-y-7 pb-32 overflow-y-auto no-scrollbar h-full px-1 fade-in">
-      <section className="mt-4">
-        <SectionTitle icon="✨" title="Mon Espace" />
-        <div className="bg-white p-5 rounded-[28px] border border-slate-50 flex items-center justify-between shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-2xl shadow-inner">🧘‍♂️</div>
-            <div>
-              <h3 className="font-black text-slate-800 text-sm leading-none mb-1">Utilisateur Zen</h3>
-              <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Stockage local sécurisé</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section>
-        <SectionTitle icon="📖" title="Gestion intuitive" />
-        <div className="bg-white rounded-[28px] border border-slate-50 overflow-hidden shadow-sm">
-          <button onClick={() => setIsHowItWorksOpen(!isHowItWorksOpen)} className="w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-colors">
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-800">Comment ça marche ?</h3>
-            <svg className={`w-3.5 h-3.5 text-slate-300 transition-transform ${isHowItWorksOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M19 9l-7 7-7-7" /></svg>
-          </button>
-          <div className={`transition-all duration-300 ${isHowItWorksOpen ? 'max-h-[1200px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
-            <div className="px-5 pb-5 space-y-6">
-              <div className="bg-slate-50 p-5 rounded-2xl space-y-5">
-                <p className="text-[11px] font-bold text-slate-600 leading-relaxed italic">
-                  ZenBudget simplifie votre charge mentale en calculant votre véritable capacité de dépense.
-                </p>
-
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <h4 className="text-[11px] font-black uppercase text-indigo-600 tracking-wider flex items-center gap-2">
-                      <span>1. L'Ancrage</span> ⚓
-                    </h4>
-                    <p className="text-[11px] text-slate-500 font-medium leading-relaxed">Rendez-vous dans l'onglet <b>Journal</b> (Calendrier) et cliquez sur la <b>date du jour</b> pour saisir votre solde bancaire réel. C'est votre point de départ.</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <h4 className="text-[11px] font-black uppercase text-indigo-600 tracking-wider flex items-center gap-2">
-                      <span>2. La Vision</span> 👓
-                    </h4>
-                    <p className="text-[11px] text-slate-500 font-medium leading-relaxed">L'app déduit immédiatement vos charges fixes à venir (loyer, abonnements, ...). Vous voyez ce qu'il vous reste vraiment pour finir le mois.</p>
-                  </div>
-
-                  <div className="space-y-2">
-                    <h4 className="text-[11px] font-black uppercase text-indigo-600 tracking-wider flex items-center gap-2">
-                      <span>3. La Sérénité</span> 🧘‍♂️
-                    </h4>
-                    <p className="text-[11px] text-slate-500 font-medium leading-relaxed">Votre "Disponible Réel" s'ajuste en temps réel. Si le chiffre est bleu, vous êtes serein. S'il diminue, l'app vous permet d'ajuster vos dépenses pour finir le cycle sereinement.</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ... Suite de Settings identique ... */}
-      <section>
-        <SectionTitle icon="💳" title="Mes Comptes" />
-        <div className="space-y-1">
-          {state.accounts.map(acc => (
-            <AccountItem key={acc.id} acc={acc} isActive={state.activeAccountId === acc.id} onDelete={onDeleteAccount} onRename={handleStartRename} onSelect={onSetActiveAccount} canDelete={state.accounts.length > 1} />
-          ))}
-          {editingAccountId && (
-            <div className="bg-white p-4 rounded-[22px] border-2 border-indigo-200 mb-2 animate-in zoom-in-95">
-              <input autoFocus value={editName} onChange={e => setEditName(e.target.value)} placeholder="Nom..." className="w-full bg-slate-50 p-3 rounded-xl mb-3 text-sm font-bold border-none outline-none focus:ring-1 focus:ring-indigo-200" />
-              <div className="flex gap-2">
-                <button onClick={() => setEditingAccountId(null)} className="flex-1 py-2 text-[10px] font-black uppercase text-slate-400">Annuler</button>
-                <button onClick={handleSaveRename} className="flex-1 py-2 text-[10px] font-black uppercase text-white bg-indigo-600 rounded-xl shadow-lg shadow-indigo-100">Sauver</button>
-              </div>
-            </div>
-          )}
-          {isAddingAccount ? (
-            <div className="bg-white p-4 rounded-[22px] border-2 border-indigo-200 mb-2 animate-in zoom-in-95">
-              <input autoFocus value={newAccName} onChange={e => setNewAccName(e.target.value)} placeholder="Nom..." className="w-full bg-slate-50 p-3 rounded-xl mb-3 text-sm font-bold border-none outline-none focus:ring-1 focus:ring-indigo-200" />
-              <div className="flex gap-2">
-                <button onClick={() => setIsAddingAccount(false)} className="flex-1 py-2 text-[10px] font-black uppercase text-slate-400">Annuler</button>
-                <button onClick={handleCreateAccount} className="flex-1 py-2 text-[10px] font-black uppercase text-white bg-indigo-600 rounded-xl shadow-lg shadow-indigo-100">Créer</button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setIsAddingAccount(true)} className="w-full py-4 border-2 border-dashed border-slate-100 text-slate-400 font-black text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 rounded-[24px] bg-white/40 hover:bg-white hover:text-indigo-600 transition-all">
-              <IconPlus className="w-4 h-4" /> Nouveau compte
-            </button>
-          )}
-        </div>
-      </section>
-
-      <section>
-        <SectionTitle icon="📅" title="Cycle Budgétaire" />
-        <div className="bg-white p-5 rounded-[28px] border border-slate-50 shadow-sm space-y-4">
-          <p className="text-[10px] text-slate-400 font-medium leading-tight px-1">Jour du salaire (le budget redémarre à cette date).</p>
-          <div className="flex flex-wrap items-center gap-2">
-            {[0, 25, 26, 28].map(day => (
-              <button key={day} onClick={() => updateCycleDay(day)} className={`w-11 h-11 rounded-xl text-[10px] font-black uppercase tracking-tight transition-all border-2 ${activeAccount?.cycleEndDay === day ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-slate-50 border-transparent text-slate-400 hover:border-slate-200'}`}>
-                {day === 0 ? 'Fin' : `${day}`}
-              </button>
-            ))}
-            <div className="relative">
-              <input 
-                type="number" inputMode="numeric" value={customDay} onChange={(e) => handleCustomDayChange(e.target.value)} placeholder="+"
-                className={`w-11 h-11 text-center rounded-xl text-[11px] font-black outline-none border-2 transition-all ${customDay && ![25, 26, 28].includes(parseInt(customDay)) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-slate-50 border-dashed border-slate-200 text-slate-500'}`}
-              />
-            </div>
-          </div>
-        </div>
-      </section>
-
+      {/* Section Comptes */}
       <section className="space-y-4">
-        <div className="bg-indigo-50/40 border border-indigo-100 p-8 rounded-[40px] text-center space-y-5 shadow-sm relative overflow-hidden group">
-          <div className="absolute -right-6 -top-6 w-24 h-24 bg-indigo-100/30 rounded-full blur-2xl group-hover:scale-125 transition-transform" />
-          <p className="text-[12px] font-medium text-slate-600 leading-relaxed italic relative z-10 px-2">
-            "ZenBudget évolue grâce à vous ! Si vous avez envie d'aider à améliorer l'appli, envoyez-nous une suggestion ou signalez un bug."
+        <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-indigo-500 px-1">Mes Comptes</h3>
+        <div className="space-y-2">
+          {state.accounts.map(account => (
+            <button
+              key={account.id}
+              onClick={() => onSetActiveAccount(account.id)}
+              className={`w-full p-4 rounded-3xl border-2 flex items-center justify-between transition-all ${
+                state.activeAccountId === account.id 
+                ? 'border-indigo-600 bg-indigo-50/50' 
+                : 'border-slate-100 bg-white'
+              }`}
+            >
+              <div className="flex flex-col items-start">
+                <span className={`text-xs font-black uppercase ${state.activeAccountId === account.id ? 'text-indigo-600' : 'text-slate-700'}`}>
+                  {account.name}
+                </span>
+                <span className="text-[10px] font-bold text-slate-400 italic">Solde : {account.balance.toFixed(2)}€</span>
+              </div>
+              {state.activeAccountId === account.id && (
+                <div className="w-5 h-5 bg-indigo-600 rounded-full flex items-center justify-center">
+                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}><path d="M5 13l4 4L19 7" /></svg>
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* SECTION SÉCURITÉ (IMPORT/EXPORT) */}
+      <section className="bg-slate-900 rounded-[35px] p-6 shadow-xl space-y-6">
+        <div>
+          <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-indigo-400 mb-1">Sauvegarde de sécurité</h3>
+          <p className="text-[10px] text-slate-400 leading-relaxed font-medium">
+            Téléchargez vos données pour ne jamais les perdre lors d'une mise à jour.
           </p>
-          <button 
-            onClick={handleFeedback} 
-            className="w-full py-4.5 bg-slate-900 text-white font-black rounded-[26px] uppercase text-[10px] tracking-[0.2em] active:scale-95 transition-all shadow-xl flex items-center justify-center gap-2 relative z-10 hover:bg-slate-800"
-          >
-            <span>Envoyez un retour</span>
-            <span className="text-sm">✨</span>
-          </button>
         </div>
 
+        <div className="grid grid-cols-1 gap-3">
+          {/* Bouton Export */}
+          <button 
+            onClick={exportBackup}
+            className="w-full py-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+            <span className="text-[11px] font-black uppercase tracking-widest">Créer une sauvegarde</span>
+          </button>
+
+          {/* Bouton Import (Input caché) */}
+          <label className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-2xl flex items-center justify-center gap-3 transition-all active:scale-95 cursor-pointer border border-slate-700">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+            <span className="text-[11px] font-black uppercase tracking-widest">Restaurer un fichier</span>
+            <input type="file" accept=".json" onChange={importBackup} className="hidden" />
+          </label>
+        </div>
+      </section>
+
+      {/* Section Danger */}
+      <section className="pt-4 px-2">
         <button 
-          onClick={onReset} 
-          className="w-full py-4 text-red-300 font-black rounded-[24px] uppercase text-[9px] tracking-[0.2em] active:scale-95 transition-all hover:bg-red-50"
+          onClick={() => { if(confirm("Supprimer toutes les données ?")) onReset(); }}
+          className="w-full py-4 text-red-500 text-[10px] font-black uppercase tracking-[0.2em] border-2 border-red-50/50 rounded-2xl active:bg-red-50 transition-all"
         >
           Réinitialiser l'application
         </button>
+        <p className="text-center text-[9px] text-slate-300 mt-6 font-medium italic">ZenBudget v2.1 • Made with Serenity</p>
       </section>
-
-      <div className="pt-4 border-t border-slate-50 text-center">
-        <p className="text-[8px] text-slate-200 font-black uppercase tracking-[0.4em]">ZenBudget V4.8 • Premium Design</p>
-      </div>
     </div>
   );
 };

@@ -17,11 +17,19 @@ interface DashboardProps {
   carryOver: number;
 }
 
+const ZEN_TIPS = [
+  "La richesse est dans la gestion, pas dans la possession. 🌿",
+  "Un petit flux devient une grande rivière. Épargnez. ✨",
+  "La sérénité financière commence par un regard honnête. 🙏",
+  "Dépensez pour ce qui a de la valeur, pas du prix. 💎",
+  "Le calme est le meilleur conseiller budgétaire. 🧘‍♂️"
+];
+
 const Dashboard: React.FC<DashboardProps> = ({ 
   transactions, categories, activeAccount, allAccounts, onSwitchAccount, checkingAccountBalance, availableBalance, projectedBalance, month, year 
 }) => {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const [aiAdvice, setAiAdvice] = useState<string>("Analyse financière Zen...");
+  const [aiAdvice, setAiAdvice] = useState<string>(ZEN_TIPS[0]);
   const [loadingAdvice, setLoadingAdvice] = useState(false);
 
   const stats = useMemo(() => {
@@ -36,16 +44,16 @@ const Dashboard: React.FC<DashboardProps> = ({
     return { income, expenses, fixed, variable: expenses - fixed, net: income - expenses };
   }, [transactions]);
 
-  const isAttention = projectedBalance < 0;
-  const isVigilance = availableBalance < 50;
-  const isCapacity = stats.income > 0 && projectedBalance > (stats.income * 0.2);
-
   const fetchAiAdvice = async () => {
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
-      setAiAdvice("ZenTip : La régularité est la clé de la sérénité. 🌿");
+    
+    // Si pas de clé API, on prend un conseil aléatoire dans notre liste locale
+    if (!apiKey || apiKey === "") {
+      const randomTip = ZEN_TIPS[Math.floor(Math.random() * ZEN_TIPS.length)];
+      setAiAdvice(randomTip);
       return;
     }
+
     setLoadingAdvice(true);
     try {
       const response = await fetch(
@@ -62,12 +70,13 @@ const Dashboard: React.FC<DashboardProps> = ({
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
       if (text) setAiAdvice(text.trim());
     } catch (err) { 
-      setAiAdvice("ZenTip : Respirez, votre budget est sous contrôle. ✨"); 
+      setAiAdvice(ZEN_TIPS[1]); 
     } finally { 
       setLoadingAdvice(false); 
     }
   };
 
+  // On lance le premier conseil au chargement
   useEffect(() => {
     fetchAiAdvice();
   }, [activeAccount.id]);
@@ -113,13 +122,8 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="flex flex-col h-full space-y-6 overflow-y-auto no-scrollbar pb-32 px-1 fade-in">
-      {isAttention && (
-        <div className="bg-red-50 border border-red-100 p-4 rounded-3xl flex items-center gap-3 animate-pulse">
-          <span className="text-xl">🧘‍♀️</span>
-          <p className="text-[11px] font-black text-red-600 leading-tight">Attention Zen : Votre projection est négative.</p>
-        </div>
-      )}
-
+      
+      {/* Header & Export */}
       <div className="flex items-center justify-between pt-6">
         <div className="flex flex-col">
           <h2 className="text-2xl font-black text-slate-800 tracking-tighter italic">Bilan Zen ✨</h2>
@@ -137,90 +141,60 @@ const Dashboard: React.FC<DashboardProps> = ({
         </button>
       </div>
 
+      {/* Solde Principal */}
       <div className="bg-slate-900 px-6 py-9 rounded-[40px] shadow-2xl relative overflow-hidden flex flex-col justify-center min-h-[130px]">
         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
         <span className="text-indigo-400 text-[9px] font-black uppercase tracking-[0.3em] mb-1">Solde Bancaire Aujourd'hui</span>
-        <div className="flex items-baseline gap-2">
-          <span className="text-4xl font-black tracking-tighter text-white">{formatVal(checkingAccountBalance)}</span>
+        <div className="flex items-baseline gap-2 text-white">
+          <span className="text-4xl font-black tracking-tighter">{formatVal(checkingAccountBalance)}</span>
           <span className="text-xl font-black text-slate-500">€</span>
         </div>
       </div>
 
+      {/* Disponible & Projection */}
       <div className="grid grid-cols-2 gap-3">
         <div className={`p-5 rounded-[32px] shadow-lg relative transition-colors duration-500 ${availableBalance < 0 ? 'bg-red-500' : 'bg-indigo-600'}`}>
           <span className={`${availableBalance < 0 ? 'text-red-100' : 'text-indigo-200'} text-[8px] font-black uppercase tracking-widest block mb-1`}>Disponible Réel</span>
           <div className="text-xl font-black text-white">{formatVal(availableBalance)}€</div>
-          {(isVigilance || availableBalance < 0) && <div className="absolute top-3 right-3 w-2 h-2 bg-white rounded-full animate-pulse" />}
         </div>
+        
         <div className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm relative">
           <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block mb-1">Projection Fin</span>
           <div className={`text-xl font-black ${projectedBalance >= 0 ? 'text-slate-900' : 'text-red-500'}`}>{formatVal(projectedBalance)}€</div>
-          {isCapacity && <span className="absolute top-3 right-3 text-xs animate-bounce">🚀</span>}
         </div>
       </div>
 
-      {/* ... Suite du Dashboard identique ... */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white p-4 rounded-[28px] border border-slate-50 shadow-sm">
-          <span className="text-emerald-500 text-[8px] font-black uppercase tracking-widest mb-1 block">Entrées</span>
-          <div className="text-[15px] font-black text-slate-800">+{formatVal(stats.income)}€</div>
-        </div>
-        <div className="bg-white p-4 rounded-[28px] border border-slate-50 shadow-sm">
-          <span className="text-red-400 text-[8px] font-black uppercase tracking-widest mb-1 block">Sorties</span>
-          <div className="text-[15px] font-black text-slate-800">-{formatVal(stats.expenses)}€</div>
-        </div>
-      </div>
-
-      <div className="bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm active:scale-[0.98] transition-all cursor-pointer" onClick={() => !loadingAdvice && fetchAiAdvice()}>
+      {/* Zen Advice (Le ZenTip) */}
+      <div 
+        className="bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm active:scale-[0.98] transition-all cursor-pointer" 
+        onClick={fetchAiAdvice}
+      >
         <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl shrink-0">
           {loadingAdvice ? <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div> : "💡"}
         </div>
-        <p className="text-[11px] font-bold text-slate-700 leading-tight">{aiAdvice}</p>
+        <p className="text-[11px] font-bold text-slate-700 leading-tight">
+          {aiAdvice}
+        </p>
       </div>
 
+      {/* Graphique */}
       <div className="bg-white/80 backdrop-blur-xl rounded-[40px] p-6 border border-white shadow-xl">
         <h2 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Répartition des dépenses</h2>
-        <div className="h-[240px] w-full relative">
+        <div className="h-[200px] w-full relative">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={categorySummary} innerRadius={75} outerRadius={100} paddingAngle={8} dataKey="value" onMouseEnter={(_, index) => setActiveIndex(index)} onMouseLeave={() => setActiveIndex(null)} stroke="none">
+              <Pie data={categorySummary} innerRadius={60} outerRadius={85} paddingAngle={8} dataKey="value" onMouseEnter={(_, index) => setActiveIndex(index)} onMouseLeave={() => setActiveIndex(null)} stroke="none">
                 {categorySummary.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} opacity={activeIndex === null || activeIndex === index ? 1 : 0.3} />)}
               </Pie>
             </PieChart>
           </ResponsiveContainer>
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            {activeIndex !== null ? (
-              <>
-                <span className="text-2xl mb-1">{categorySummary[activeIndex].icon}</span>
-                <span className="text-lg font-black text-slate-900">{formatVal(categorySummary[activeIndex].value)}€</span>
-              </>
-            ) : (
-              <>
-                <span className="text-[10px] font-black uppercase text-slate-400">Total</span>
-                <span className="text-2xl font-black text-slate-900">{formatVal(stats.expenses)}€</span>
-              </>
-            )}
+            <span className="text-[9px] font-black uppercase text-slate-400">Total</span>
+            <span className="text-xl font-black text-slate-900">{formatVal(stats.expenses)}€</span>
           </div>
         </div>
-
-        <div className="mt-8 space-y-3">
-          {categorySummary.length > 0 ? categorySummary.map((cat) => (
-            <div key={cat.id} className="flex items-center gap-3 p-3 bg-slate-50/50 rounded-2xl border border-slate-100/50 group hover:bg-white hover:shadow-md transition-all">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-inner shrink-0" style={{ backgroundColor: `${cat.color}15` }}>{cat.icon}</div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] font-black text-slate-800 uppercase tracking-tight truncate">{cat.name}</span>
-                  <span className="text-[12px] font-black text-slate-900">{formatVal(cat.value)}€</span>
-                </div>
-                <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-1000 ease-out" style={{ width: `${cat.percent}%`, backgroundColor: cat.color }} />
-                </div>
-              </div>
-              <div className="text-[9px] font-black text-slate-400 w-8 text-right">{Math.round(cat.percent)}%</div>
-            </div>
-          )) : <div className="text-center py-6 text-[10px] font-black text-slate-300 uppercase italic">Aucune dépense</div>}
-        </div>
       </div>
+
     </div>
   );
 };
