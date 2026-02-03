@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
-import { AppState, ViewType, Transaction, Category, BudgetAccount } from './types';
+import { AppState, ViewType, Transaction } from './types';
 import { getInitialState, saveState, generateId } from './store';
 import { MONTHS_FR } from './constants';
 import { IconPlus, IconHome, IconCalendar, IconLogo, IconSettings } from './components/Icons';
 
-// Framer Motion pour le swipe complet
+// Framer Motion
 import { motion, AnimatePresence } from 'framer-motion';
 
 import Dashboard from './components/Dashboard';
@@ -26,16 +26,11 @@ const App: React.FC = () => {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [modalInitialDate, setModalInitialDate] = useState<string>(new Date().toISOString());
   const [selectedDay, setSelectedDay] = useState<number | null>(new Date().getDate());
-  
-  // Gestion de la direction du swipe
+  const [showWelcome, setShowWelcome] = useState(false);
   const [viewDirection, setViewDirection] = useState(0);
 
-  const isInitialMount = useRef(true);
+  // Sauvegarde à chaque changement d'état
   useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
     saveState(state);
   }, [state]);
 
@@ -49,33 +44,7 @@ const App: React.FC = () => {
     return d;
   }, []);
 
-  // --- SAUVEGARDE & IMPORT ---
-  const handleBackup = () => {
-    const dataStr = JSON.stringify(state, null, 2);
-    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
-    const linkElement = document.createElement('a');
-    linkElement.setAttribute('href', dataUri);
-    linkElement.setAttribute('download', `zenbudget_backup_${new Date().toISOString().split('T')[0]}.json`);
-    linkElement.click();
-  };
-
-  const handleImport = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const json = JSON.parse(e.target?.result as string);
-        if (json.accounts && json.categories) {
-          setState(json);
-          alert("Importation réussie !");
-        }
-      } catch (err) {
-        alert("Fichier invalide");
-      }
-    };
-    reader.readAsText(file);
-  };
-
-  // --- LOGIQUE METIER ---
+  // --- LOGIQUE METIER (Calculs) ---
   const getBalanceAtDate = (targetDate: Date, includeProjections: boolean) => {
     if (!activeAccount) return 0;
     let balance = activeAccount.transactions.reduce((acc, t) => {
@@ -95,9 +64,8 @@ const App: React.FC = () => {
         templates.forEach(tpl => {
           if (!tpl.isActive || paidTemplateIds.has(tpl.id)) return;
           const day = Math.min(tpl.dayOfMonth, new Date(y, m + 1, 0).getDate());
-          const tplDate = new Date(y, m, day, 12, 0, 0);
           const vId = `virtual-${tpl.id}-${m}-${y}`;
-          if (tplDate <= targetDate && !deletedIds.has(vId)) {
+          if (new Date(y, m, day) <= targetDate && !deletedIds.has(vId)) {
             balance += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
           }
         });
@@ -162,13 +130,6 @@ const App: React.FC = () => {
     setActiveView(newView);
   };
 
-  // --- CONFIG ANIMATION ---
-  const slideVariants = {
-    enter: (direction: number) => ({ x: direction > 0 ? '100%' : '-100%', opacity: 0 }),
-    center: { x: 0, opacity: 1 },
-    exit: (direction: number) => ({ x: direction < 0 ? '100%' : '-100%', opacity: 0 })
-  };
-
   return (
     <div className="flex flex-col h-screen bg-[#F8F9FD] text-slate-900 overflow-hidden font-sans">
       <header className="bg-white/80 backdrop-blur-xl border-b border-slate-100 px-4 py-3 shrink-0 z-50">
@@ -190,10 +151,12 @@ const App: React.FC = () => {
           <motion.div
             key={activeView}
             custom={viewDirection}
-            variants={slideVariants}
-            initial="enter"
-            animate="center"
-            exit="exit"
+            variants={{
+              enter: (dir: number) => ({ x: dir > 0 ? '100%' : '-100%', opacity: 0 }),
+              center: { x: 0, opacity: 1 },
+              exit: (dir: number) => ({ x: dir < 0 ? '100%' : '-100%', opacity: 0 })
+            }}
+            initial="enter" animate="center" exit="exit"
             transition={{ type: "spring", stiffness: 350, damping: 35 }}
             className="absolute inset-0 px-4 pt-4 pb-24 overflow-y-auto no-scrollbar"
           >
@@ -224,18 +187,41 @@ const App: React.FC = () => {
             )}
             {activeView === 'SETTINGS' && (
               <Settings 
-                state={state} onUpdateAccounts={(accounts) => setState(prev => ({ ...prev, accounts }))}
+                state={state} 
+                onUpdateAccounts={(accs) => setState(prev => ({ ...prev, accounts: accs }))}
                 onSetActiveAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))}
-                onDeleteAccount={() => {}} 
+                onDeleteAccount={(id) => {
+                  setState(prev => {
+                    const nextAccounts = prev.accounts.filter(a => a.id !== id);
+                    const nextActive = prev.activeAccountId === id ? nextAccounts[0].id : prev.activeAccountId;
+                    return { ...prev, accounts: nextAccounts, activeAccountId: nextActive };
+                  });
+                }}
                 onReset={() => {
-                  if (confirm("Supprimer toutes les données ?")) {
-                    localStorage.clear();
+                  if(confirm("Tout supprimer ?")) {
+                    localStorage.removeItem('zenbudget_data');
                     setState(getInitialState());
-                    setTimeout(() => window.location.reload(), 100);
+                    setTimeout(() => window.location.reload(), 50);
                   }
                 }}
-                onUpdateCategories={()=>{}} onUpdateBudget={()=>{}} onLogout={()=>{}} onShowWelcome={()=>{}}
-                onBackup={handleBackup} onImport={handleImport}
+                onUpdateCategories={()=>{}} onUpdateBudget={()=>{}} onLogout={()=>{}} 
+                onShowWelcome={() => setShowWelcome(true)}
+                onBackup={() => {
+                  const dataStr = JSON.stringify(state);
+                  const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+                  const link = document.createElement('a');
+                  link.setAttribute('href', dataUri);
+                  link.setAttribute('download', 'zenbudget_backup.json');
+                  link.click();
+                }} 
+                onImport={(file) => {
+                  const reader = new FileReader();
+                  reader.onload = (e) => {
+                    const json = JSON.parse(e.target?.result as string);
+                    if(json.accounts) setState(json);
+                  };
+                  reader.readAsText(file);
+                }}
               />
             )}
           </motion.div>
@@ -252,6 +238,20 @@ const App: React.FC = () => {
       </nav>
 
       {showAddModal && <AddTransactionModal categories={state.categories} onClose={() => setShowAddModal(false)} onAdd={handleUpsertTransaction} initialDate={modalInitialDate} editItem={editingTransaction} />}
+      
+      {/* Pop-up Guide */}
+      <AnimatePresence>
+        {showWelcome && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-slate-900/20 backdrop-blur-sm flex items-end justify-center">
+            <motion.div initial={{ y: "100%" }} animate={{ y: 0 }} exit={{ y: "100%" }} className="bg-white w-full max-w-lg rounded-t-[32px] p-8 pb-12 shadow-2xl">
+              <div className="w-12 h-1 bg-slate-100 rounded-full mx-auto mb-6" />
+              <h2 className="text-xl font-black mb-4 text-center">Guide ZenBudget</h2>
+              <p className="text-sm text-slate-500 text-center mb-8">ZenBudget vous aide à voir clair dans votre budget réel.</p>
+              <button onClick={() => setShowWelcome(false)} className="w-full py-4 bg-indigo-600 text-white font-black rounded-2xl uppercase text-[10px] tracking-widest">Commencer</button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

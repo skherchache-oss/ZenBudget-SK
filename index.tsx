@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
-import { AppState, ViewType, Transaction, Category, BudgetAccount } from './types';
+import { AppState, ViewType, Transaction, Category, BudgetAccount, RecurringTemplate } from './types';
 import { getInitialState, saveState, generateId } from './store';
 import { MONTHS_FR } from './constants';
 import { IconPlus, IconHome, IconCalendar, IconLogo, IconSettings } from './components/Icons';
@@ -11,84 +11,149 @@ import TransactionList from './components/TransactionList';
 import AddTransactionModal from './components/AddTransactionModal';
 import Settings from './components/Settings';
 
-const views: ViewType[] = ['DASHBOARD', 'TRANSACTIONS', 'RECURRING', 'SETTINGS'];
-
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>(() => getInitialState());
   const [activeView, setActiveView] = useState<ViewType>('DASHBOARD');
   
-  const now = new Date();
-  const [currentMonth, setCurrentMonth] = useState(now.getMonth());
-  const [currentYear, setCurrentYear] = useState(now.getFullYear());
+  const now = useMemo(() => {
+    const d = new Date();
+    d.setHours(23, 59, 59, 999);
+    return d;
+  }, []);
+
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   
   const [slideDirection, setSlideDirection] = useState<'next' | 'prev' | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [showWelcome, setShowWelcome] = useState(false);
   const [modalInitialDate, setModalInitialDate] = useState<string>(new Date().toISOString());
   const [selectedDay, setSelectedDay] = useState<number | null>(new Date().getDate());
 
   const isInitialMount = useRef(true);
+  const isResetting = useRef(false);
   
-  // --- LOGIQUE DE SWIPE (Balayage) ---
-  const touchStartX = useRef<number | null>(null);
-  const touchEndX = useRef<number | null>(null);
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.targetTouches[0].clientX;
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    touchEndX.current = e.targetTouches[0].clientX;
-  };
-
-  const handleTouchEnd = () => {
-    if (!touchStartX.current || !touchEndX.current) return;
-    
-    const distance = touchStartX.current - touchEndX.current;
-    const isSignificant = Math.abs(distance) > 70; // Seuil de 70px pour éviter les déclenchements accidentels
-    
-    if (isSignificant) {
-      const currentIndex = views.indexOf(activeView);
-      if (distance > 0 && currentIndex < views.length - 1) {
-        // Swipe vers la GAUCHE -> Onglet suivant
-        setActiveView(views[currentIndex + 1]);
-      } else if (distance < 0 && currentIndex > 0) {
-        // Swipe vers la DROITE -> Onglet précédent
-        setActiveView(views[currentIndex - 1]);
-      }
-    }
-    
-    // Reset
-    touchStartX.current = null;
-    touchEndX.current = null;
-  };
-
-  useEffect(() => {
-    const firstLaunch = localStorage.getItem('zenbudget_first_launch');
-    const hasRated = localStorage.getItem('zenbudget_has_rated');
-    
-    if (!firstLaunch) {
-      localStorage.setItem('zenbudget_first_launch', Date.now().toString());
-    } else if (!hasRated) {
-      const diffDays = (Date.now() - parseInt(firstLaunch)) / (1000 * 3600 * 24);
-      if (diffDays > 3) {
-        const timer = setTimeout(() => setShowRatingModal(true), 3000);
-        return () => clearTimeout(timer);
-      }
-    }
-  }, []);
-
+  // Persistance automatique ultra-sécurisée avec verrouillage pour le reset
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
       return;
     }
+    // Verrouillage absolu : si un reset est en cours, on arrête définitivement toute écriture
+    if (isResetting.current) return;
+    
     saveState(state);
   }, [state]);
 
   const activeAccount = useMemo(() => {
     return state.accounts.find(a => a.id === state.activeAccountId) || state.accounts[0];
   }, [state.accounts, state.activeAccountId]);
+
+  const getBalanceAtDate = (targetDate: Date, includeProjections: boolean) => {
+    if (!activeAccount) return 0;
+    let balance = activeAccount.transactions.reduce((acc, t) => {
+      const tDate = new Date(t.date);
+      if (tDate.getTime() <= targetDate.getTime()) {
+        const amount = Math.abs(t.amount);
+        return acc + (t.type === 'INCOME' ? amount : -amount);
+      }
+      return acc;
+    }, 0);
+
+    if (includeProjections) {
+      const templates = activeAccount.recurringTemplates || [];
+      const deletedIds = new Set(activeAccount.deletedVirtualIds || []);
+      const startProj = new Date(now.getFullYear(), now.getMonth(), 1);
+      let scanDate = new Date(startProj);
+      while (scanDate <= targetDate) {
+        const m = scanDate.getMonth();
+        const y = scanDate.getFullYear();
+        const paidTemplateIds = new Set(activeAccount.transactions.filter(t => {
+          const d = new Date(t.date);
+          return d.getMonth() === m && d.getFullYear() === y && t.templateId;
+        }).map(t => t.templateId));
+
+        templates.forEach(tpl => {
+          if (!tpl.isActive || paidTemplateIds.has(tpl.id)) return;
+          const lastDayOfMonth = new Date(y, m + 1, 0).getDate();
+          const day = Math.min(tpl.dayOfMonth, lastDayOfMonth);
+          const vDate = new Date(y, m, day, 12, 0, 0);
+          const vId = `virtual-${tpl.id}-${m}-${y}`;
+          if (vDate.getTime() <= targetDate.getTime() && vDate.getTime() >= startProj.getTime() && !deletedIds.has(vId)) {
+            balance += (tpl.type === 'INCOME' ? Math.abs(tpl.amount) : -Math.abs(tpl.amount));
+          }
+        });
+        scanDate.setMonth(scanDate.getMonth() + 1);
+      }
+    }
+    return balance;
+  };
+
+  const projectedBalance = useMemo(() => 
+    getBalanceAtDate(new Date(currentYear, currentMonth + 1, 0, 23, 59, 59), true), 
+    [activeAccount, currentMonth, currentYear]
+  );
+  
+  const carryOver = useMemo(() => 
+    getBalanceAtDate(new Date(currentYear, currentMonth, 0, 23, 59, 59), true), 
+    [activeAccount, currentMonth, currentYear]
+  );
+
+  const effectiveTransactions = useMemo(() => {
+    if (!activeAccount) return [];
+    const realOnes = activeAccount.transactions.filter(t => {
+      const d = new Date(t.date);
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+    });
+    const paidIds = new Set(realOnes.map(t => t.templateId).filter(Boolean));
+    const deletedIds = new Set(activeAccount.deletedVirtualIds || []);
+    const isPast = new Date(currentYear, currentMonth + 1, 0).getTime() < new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    const virtuals = !isPast ? (activeAccount.recurringTemplates || [])
+      .filter(tpl => tpl.isActive && !paidIds.has(tpl.id))
+      .map(tpl => {
+        const day = Math.min(tpl.dayOfMonth, new Date(currentYear, currentMonth + 1, 0).getDate());
+        const vId = `virtual-${tpl.id}-${currentMonth}-${currentYear}`;
+        return {
+          id: vId, amount: Math.abs(tpl.amount), type: tpl.type, categoryId: tpl.categoryId,
+          comment: tpl.comment || (tpl.type === 'INCOME' ? 'Revenu fixe' : 'Charge fixe'),
+          date: new Date(currentYear, currentMonth, day, 12, 0, 0).toISOString(),
+          isRecurring: true, templateId: tpl.id
+        } as Transaction;
+      }).filter(v => !deletedIds.has(v.id)) : [];
+    return [...realOnes, ...virtuals].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [activeAccount, currentMonth, currentYear]);
+
+  const handleUpsertTransaction = (t: Omit<Transaction, 'id'> & { id?: string }) => {
+    setState(prev => {
+      const accId = prev.activeAccountId || prev.accounts[0]?.id;
+      const accIndex = prev.accounts.findIndex(a => a.id === accId);
+      if (accIndex === -1) return prev;
+      const acc = { ...prev.accounts[accIndex] };
+      let nextTx = [...acc.transactions];
+      let nextTemplates = [...(acc.recurringTemplates || [])];
+      let nextDeleted = [...(acc.deletedVirtualIds || [])];
+      const cleanTransaction = { ...t, amount: Math.abs(t.amount) };
+      const targetId = t.id || editingTransaction?.id;
+      if (t.isRecurring && !targetId) {
+        const newTplId = generateId();
+        nextTemplates.push({ id: newTplId, amount: cleanTransaction.amount, type: cleanTransaction.type, categoryId: cleanTransaction.categoryId, comment: cleanTransaction.comment, dayOfMonth: new Date(cleanTransaction.date).getDate(), isActive: true });
+        nextTx = [{ ...cleanTransaction, id: generateId(), templateId: newTplId } as Transaction, ...nextTx];
+      } else if (targetId?.startsWith('virtual-')) {
+        nextDeleted.push(targetId!);
+        nextTx = [{ ...cleanTransaction, id: generateId(), templateId: targetId.split('-')[1] } as Transaction, ...nextTx];
+      } else if (targetId && nextTx.some(i => i.id === targetId)) {
+        nextTx = nextTx.map(i => i.id === targetId ? ({ ...cleanTransaction, id: targetId } as Transaction) : i);
+      } else {
+        nextTx = [{ ...cleanTransaction, id: generateId() } as Transaction, ...nextTx];
+      }
+      const nextAccounts = [...prev.accounts];
+      nextAccounts[accIndex] = { ...acc, transactions: nextTx, recurringTemplates: nextTemplates, deletedVirtualIds: nextDeleted };
+      return { ...prev, accounts: nextAccounts };
+    });
+    setShowAddModal(false);
+    setEditingTransaction(null);
+  };
 
   const handleMonthChange = (offset: number) => {
     setSlideDirection(offset > 0 ? 'next' : 'prev');
@@ -99,36 +164,100 @@ const App: React.FC = () => {
     setCurrentYear(ny);
   };
 
-  const handleUpsertTransaction = (t: any) => { /* Ta logique upsert */ };
+  const handleReset = () => {
+    if (window.confirm("🗑️ RÉINITIALISATION COMPLÈTE\n\nCette action effacera TOUT votre budget (comptes, transactions, flux fixes).\n\nContinuer ?")) {
+      isResetting.current = true;
+      localStorage.removeItem('zenbudget_state_v3');
+      localStorage.clear();
+      // On utilise window.location.href pour être certain de vider la mémoire React avant le reload
+      window.location.href = window.location.pathname + "?reset=" + Date.now();
+    }
+  };
 
   return (
-    <div 
-      className="flex flex-col h-screen bg-[#F8F9FD] text-slate-900 overflow-hidden font-sans"
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    >
+    <div className="flex flex-col h-screen bg-[#F8F9FD] text-slate-900 overflow-hidden font-sans">
       <header className="bg-white/80 backdrop-blur-xl border-b border-slate-100 px-4 py-3 safe-top shrink-0 z-50">
         <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-3"><IconLogo className="w-8 h-8" /><h1 className="text-xl font-black tracking-tighter text-slate-900 italic">ZenBudget</h1></div>
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-sm flex-1 max-w-[180px] justify-between">
-             <button onClick={(e) => { e.stopPropagation(); handleMonthChange(-1); }} className="p-2 text-slate-400 active:scale-90"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15 19l-7-7 7-7" /></svg></button>
+             <button onClick={() => handleMonthChange(-1)} className="p-2 text-slate-400">‹</button>
              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-700">{MONTHS_FR[currentMonth]} {currentYear}</span>
-             <button onClick={(e) => { e.stopPropagation(); handleMonthChange(1); }} className="p-2 text-slate-400 active:scale-90"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M9 5l7 7-7 7" /></svg></button>
+             <button onClick={() => handleMonthChange(1)} className="p-2 text-slate-400">›</button>
           </div>
         </div>
       </header>
 
       <main className="flex-1 overflow-hidden max-w-2xl w-full mx-auto px-4 pt-2">
-        <div className="h-full w-full animate-in fade-in slide-in-from-bottom-2 duration-300">
-          {activeView === 'DASHBOARD' && <Dashboard transactions={[]} categories={state.categories} activeAccount={activeAccount} allAccounts={state.accounts} onSwitchAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))} month={currentMonth} year={currentYear} onViewTransactions={() => setActiveView('TRANSACTIONS')} checkingAccountBalance={0} availableBalance={0} projectedBalance={0} carryOver={0} />}
-          {activeView === 'TRANSACTIONS' && <TransactionList transactions={[]} categories={state.categories} month={currentMonth} year={currentYear} onDelete={() => {}} onEdit={() => {}} onAddAtDate={() => {}} selectedDay={selectedDay} onSelectDay={setSelectedDay} totalBalance={0} carryOver={0} cycleEndDay={activeAccount?.cycleEndDay || 0} onMonthChange={handleMonthChange} slideDirection={slideDirection} />}
-          {activeView === 'RECURRING' && <RecurringManager recurringTemplates={activeAccount?.recurringTemplates || []} categories={state.categories} onUpdate={() => {}} totalBalance={0} />}
-          {activeView === 'SETTINGS' && <Settings state={state} onUpdateCategories={() => {}} onUpdateBudget={() => {}} onUpdateAccounts={(accounts) => setState(prev => ({ ...prev, accounts }))} onSetActiveAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))} onDeleteAccount={(id) => {}} onReset={() => {}} onLogout={() => {}} />}
+        <div className="h-full w-full">
+          {activeView === 'DASHBOARD' && (
+            <Dashboard 
+              transactions={effectiveTransactions} categories={state.categories} activeAccount={activeAccount} allAccounts={state.accounts} 
+              onSwitchAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))} month={currentMonth} year={currentYear} 
+              onViewTransactions={() => setActiveView('TRANSACTIONS')} 
+              checkingAccountBalance={getBalanceAtDate(now, true)} 
+              availableBalance={getBalanceAtDate(now, true)} 
+              projectedBalance={projectedBalance} carryOver={carryOver} 
+            />
+          )}
+          {activeView === 'TRANSACTIONS' && (
+            <TransactionList 
+              transactions={effectiveTransactions} categories={state.categories} month={currentMonth} year={currentYear} 
+              onDelete={(id) => setState(prev => ({ ...prev, accounts: prev.accounts.map(a => a.id === activeAccount.id ? { ...a, transactions: a.transactions.filter(tx => tx.id !== id), deletedVirtualIds: id.startsWith('virtual-') ? [...(a.deletedVirtualIds || []), id] : a.deletedVirtualIds } : a) }))}
+              onEdit={(t) => { setEditingTransaction(t); setShowAddModal(true); }} 
+              onAddAtDate={(date) => { setModalInitialDate(date); setShowAddModal(true); }} 
+              selectedDay={selectedDay} onSelectDay={setSelectedDay} totalBalance={projectedBalance} carryOver={carryOver} 
+              cycleEndDay={activeAccount?.cycleEndDay || 0} onMonthChange={handleMonthChange} slideDirection={slideDirection} 
+            />
+          )}
+          {activeView === 'RECURRING' && (
+            <RecurringManager 
+              recurringTemplates={activeAccount?.recurringTemplates || []} categories={state.categories} 
+              onUpdate={(templates) => setState(prev => ({ ...prev, accounts: prev.accounts.map(a => a.id === activeAccount.id ? { ...a, recurringTemplates: templates } : a) }))} 
+              totalBalance={projectedBalance} 
+            />
+          )}
+          {activeView === 'SETTINGS' && (
+            <Settings 
+              state={state} 
+              onUpdateCategories={(cats) => setState(prev => ({ ...prev, categories: cats }))} 
+              onUpdateBudget={() => {}} 
+              onUpdateAccounts={(accounts) => setState(prev => ({ ...prev, accounts }))} 
+              onSetActiveAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))} 
+              onDeleteAccount={(id) => {
+                setState(prev => {
+                  const nextAccounts = prev.accounts.filter(a => a.id !== id);
+                  if (nextAccounts.length === 0) return prev;
+                  const nextActive = prev.activeAccountId === id ? nextAccounts[0].id : prev.activeAccountId;
+                  return { ...prev, accounts: nextAccounts, activeAccountId: nextActive };
+                });
+              }} 
+              onReset={handleReset} 
+              onLogout={() => {}} 
+              onShowWelcome={() => setShowWelcome(true)} 
+              onBackup={() => {
+                const dataStr = JSON.stringify(state);
+                const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+                const link = document.createElement('a');
+                link.setAttribute('href', dataUri);
+                link.setAttribute('download', 'zenbudget_backup.json');
+                link.click();
+              }} 
+              onImport={(file) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                  try {
+                    const json = JSON.parse(e.target?.result as string);
+                    if(json.accounts) setState(json);
+                  } catch(err) { alert("Fichier invalide."); }
+                };
+                reader.readAsText(file);
+              }} 
+            />
+          )}
         </div>
       </main>
 
-      <button onClick={() => setShowAddModal(true)} className="fixed bottom-[100px] right-6 w-14 h-14 bg-slate-900 text-white rounded-[22px] shadow-2xl flex items-center justify-center active:scale-90 z-40 border-4 border-white"><IconPlus className="w-7 h-7" /></button>
+      <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="fixed bottom-[100px] right-6 w-14 h-14 bg-slate-900 text-white rounded-[22px] shadow-2xl flex items-center justify-center z-40 border-4 border-white"><IconPlus className="w-7 h-7" /></button>
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-100 flex justify-around items-center pt-2 pb-[max(1.5rem,env(safe-area-inset-bottom))] px-6 z-40">
         <NavBtn active={activeView === 'DASHBOARD'} onClick={() => setActiveView('DASHBOARD')} icon={<IconHome />} label="Stats" />
@@ -137,36 +266,19 @@ const App: React.FC = () => {
         <NavBtn active={activeView === 'SETTINGS'} onClick={() => setActiveView('SETTINGS')} icon={<IconSettings />} label="Réglages" />
       </nav>
 
-      {showAddModal && <AddTransactionModal categories={state.categories} onClose={() => setShowAddModal(false)} onAdd={handleUpsertTransaction} initialDate={modalInitialDate} />}
+      {showAddModal && <AddTransactionModal categories={state.categories} onClose={() => { setShowAddModal(false); setEditingTransaction(null); }} onAdd={handleUpsertTransaction} initialDate={modalInitialDate} editItem={editingTransaction} />}
       
-      {showRatingModal && (
-        <div className="fixed inset-0 z-[110] flex items-end justify-center p-0 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white w-full max-w-md rounded-t-[40px] shadow-2xl p-8 relative animate-in slide-in-from-bottom duration-500 pb-[calc(2rem+95px)]">
-            <div className="flex flex-col items-center text-center space-y-4">
-              <div className="w-16 h-16 bg-indigo-50 rounded-3xl flex items-center justify-center text-3xl animate-bounce">✨</div>
-              <h3 className="text-xl font-black text-slate-800 tracking-tight">Vivez-vous l'expérience Zen ?</h3>
-              <p className="text-[12px] font-medium text-slate-500 leading-relaxed px-4">
-                Si vous appréciez la sérénité de ZenBudget, votre retour nous ferait chaud au cœur !
-              </p>
-              <div className="flex flex-col w-full gap-3 pt-4">
-                <button 
-                  onClick={() => { 
-                    localStorage.setItem('zenbudget_has_rated', 'true'); 
-                    setShowRatingModal(false); 
-                    window.location.href = `mailto:s.kherchache@gmail.com?subject=Avis ZenBudget&body=Bonjour !`; 
-                  }}
-                  className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl shadow-xl active:scale-95 text-[11px] uppercase tracking-widest"
-                >
-                  Partager mon avis
-                </button>
-                <button 
-                  onClick={() => { localStorage.setItem('zenbudget_has_rated', 'true'); setShowRatingModal(false); }}
-                  className="w-full py-4 bg-white border border-slate-100 text-slate-400 font-black rounded-2xl text-[10px] uppercase tracking-widest"
-                >
-                  Plus tard
-                </button>
-              </div>
+      {showWelcome && (
+        <div className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-xl flex items-center justify-center p-6" onClick={() => setShowWelcome(false)}>
+          <div className="bg-white rounded-[40px] max-w-md w-full p-8 shadow-2xl space-y-6" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-center text-4xl">🌿</div>
+            <h2 className="text-2xl font-black text-center italic">Guide Zen</h2>
+            <div className="space-y-4 text-slate-600">
+              <div className="flex gap-3"><span className="font-black text-indigo-600">1.</span><p className="text-sm font-medium">Ajoutez votre <b>solde bancaire actuel</b> comme un <b>Revenu</b> ponctuel aujourd'hui dans le <b>calendrier</b>.</p></div>
+              <div className="flex gap-3"><span className="font-black text-indigo-600">2.</span><p className="text-sm font-medium">Configurez vos <b>flux fixes</b> (loyer, abonnements...) dans l'onglet <b>"Fixes"</b>.</p></div>
+              <div className="flex gap-3"><span className="font-black text-indigo-600">3.</span><p className="text-sm font-medium">Vérifiez votre <b>"Disponible Réel"</b> : c'est l'argent que vous pouvez dépenser sereinement.</p></div>
             </div>
+            <button onClick={() => setShowWelcome(false)} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-lg active:scale-95 transition-all">C'est parti !</button>
           </div>
         </div>
       )}
