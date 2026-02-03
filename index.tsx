@@ -21,11 +21,29 @@ const App: React.FC = () => {
   
   const [slideDirection, setSlideDirection] = useState<'next' | 'prev' | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showRatingModal, setShowRatingModal] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [modalInitialDate, setModalInitialDate] = useState<string>(new Date().toISOString());
   const [selectedDay, setSelectedDay] = useState<number | null>(new Date().getDate());
 
   const isInitialMount = useRef(true);
+  
+  // --- LOGIQUE RATING & USAGE ---
+  useEffect(() => {
+    const firstLaunch = localStorage.getItem('zenbudget_first_launch');
+    const hasRated = localStorage.getItem('zenbudget_has_rated');
+    
+    if (!firstLaunch) {
+      localStorage.setItem('zenbudget_first_launch', Date.now().toString());
+    } else if (!hasRated) {
+      const diffDays = (Date.now() - parseInt(firstLaunch)) / (1000 * 3600 * 24);
+      // On affiche après 3 jours d'utilisation
+      if (diffDays > 3) {
+        setTimeout(() => setShowRatingModal(true), 2000);
+      }
+    }
+  }, []);
+
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
@@ -91,7 +109,6 @@ const App: React.FC = () => {
   };
 
   const checkingAccountBalance = useMemo(() => {
-    // Correction : Inclure toutes les transactions jusqu'à la fin de la journée d'aujourd'hui
     const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
     return getProjectedBalanceAtDate(endOfToday);
   }, [activeAccount]);
@@ -149,6 +166,15 @@ const App: React.FC = () => {
 
     return [...realOnes, ...virtuals].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [activeAccount, currentMonth, currentYear]);
+
+  // --- ZEN SIGNALS LOGIC ---
+  const needsCheck = useMemo(() => {
+    if (activeAccount.transactions.length === 0) return true;
+    const sorted = [...activeAccount.transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const lastTxDate = new Date(sorted[0].date);
+    const diffDays = (now.getTime() - lastTxDate.getTime()) / (1000 * 3600 * 24);
+    return diffDays > 3;
+  }, [activeAccount.transactions]);
 
   const handleMonthChange = (offset: number) => {
     setSlideDirection(offset > 0 ? 'next' : 'prev');
@@ -243,7 +269,7 @@ const App: React.FC = () => {
     <div className="flex flex-col h-screen bg-[#F8F9FD] text-slate-900 overflow-hidden font-sans">
       <header className="bg-white/80 backdrop-blur-xl border-b border-slate-100 px-4 py-3 safe-top shrink-0 z-50">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-3"><IconLogo className="w-8 h-8" /><h1 className="text-xl font-black tracking-tighter text-slate-900 italic">ZenBudget</h1></div>
+          <div className="flex items-center gap-3"><IconLogo className="w-8 h-8" /><h1 className="text-xl font-black tracking-tighter text-slate-900 italic text-shadow-sm">ZenBudget</h1></div>
           <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-2xl border border-slate-200 shadow-sm flex-1 max-w-[180px] justify-between">
              <button onClick={() => handleMonthChange(-1)} className="p-2 hover:bg-white rounded-xl transition-all text-slate-400 active:scale-90"><svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15 19l-7-7 7-7" /></svg></button>
              <div className="flex items-center justify-center px-1 overflow-hidden"><span className="text-[12px] font-black uppercase tracking-widest text-indigo-700 whitespace-nowrap">{MONTHS_FR[currentMonth]} {currentYear}</span></div>
@@ -263,12 +289,39 @@ const App: React.FC = () => {
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-100 flex justify-around items-center pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] px-6 z-40">
         <NavBtn active={activeView === 'DASHBOARD'} onClick={() => setActiveView('DASHBOARD')} icon={<IconHome />} label="Stats" />
-        <NavBtn active={activeView === 'TRANSACTIONS'} onClick={() => setActiveView('TRANSACTIONS')} icon={<IconCalendar />} label="Journal" />
+        <NavBtn active={activeView === 'TRANSACTIONS'} onClick={() => setActiveView('TRANSACTIONS')} icon={<div className="relative"><IconCalendar />{needsCheck && <div className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-indigo-500 rounded-full border-2 border-white animate-pulse" />}</div>} label="Journal" />
         <NavBtn active={activeView === 'RECURRING'} onClick={() => setActiveView('RECURRING')} icon={<IconPlus className="rotate-45" />} label="Fixes" />
         <NavBtn active={activeView === 'SETTINGS'} onClick={() => setActiveView('SETTINGS')} icon={<IconSettings />} label="Réglages" />
       </nav>
 
       {showAddModal && <AddTransactionModal categories={state.categories} onClose={() => { setShowAddModal(false); setEditingTransaction(null); }} onAdd={handleUpsertTransaction} initialDate={modalInitialDate} editItem={editingTransaction} />}
+      
+      {/* MODAL RATING ZEN */}
+      {showRatingModal && (
+        <div className="fixed inset-0 z-[110] flex items-end sm:items-center justify-center p-0 bg-slate-900/40 backdrop-blur-[2px] animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-md rounded-t-[40px] sm:rounded-[40px] shadow-2xl p-8 relative animate-in slide-in-from-bottom duration-500">
+            <div className="flex flex-col items-center text-center space-y-4">
+              <div className="w-16 h-16 bg-indigo-50 rounded-3xl flex items-center justify-center text-3xl animate-bounce">✨</div>
+              <h3 className="text-xl font-black text-slate-800 tracking-tight">Vivez-vous l'expérience Zen ?</h3>
+              <p className="text-xs font-medium text-slate-500 leading-relaxed px-4">Votre avis nous aide à rendre ZenBudget encore plus serein. Si vous aimez l'app, laissez-nous une note !</p>
+              <div className="flex flex-col w-full gap-3 pt-4">
+                <button 
+                  onClick={() => { localStorage.setItem('zenbudget_has_rated', 'true'); setShowRatingModal(false); /* Redirection store si besoin */ }}
+                  className="w-full py-4 bg-slate-900 text-white font-black rounded-2xl shadow-xl active:scale-95 transition-all text-[11px] uppercase tracking-widest"
+                >
+                  Noter l'application
+                </button>
+                <button 
+                  onClick={() => { localStorage.setItem('zenbudget_has_rated', 'true'); setShowRatingModal(false); }}
+                  className="w-full py-4 bg-white border border-slate-100 text-slate-400 font-black rounded-2xl active:scale-95 transition-all text-[10px] uppercase tracking-widest"
+                >
+                  Plus tard
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
