@@ -1,6 +1,6 @@
-import React, { useState, useEffect, useRef } from 'react'; 
-import { AppState, BudgetAccount, Transaction } from '../types'; 
-import { IconPlus, IconExport } from './Icons'; 
+import React, { useState, useRef } from 'react'; 
+import { AppState, BudgetAccount } from '../types'; 
+import { IconPlus } from './Icons'; 
 import { createDefaultAccount } from '../store'; 
 
 interface SettingsProps { 
@@ -122,8 +122,8 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
   };
 
   return ( 
-    <div className="space-y-6 pb-32 overflow-y-auto no-scrollbar h-full px-4 pt-6 fade-in"> 
-       
+    <div className="space-y-6 pb-32 overflow-y-auto no-scrollbar h-full px-4 pt-6"> 
+        
       <div className="bg-white p-4 rounded-[24px] border border-slate-50 flex items-center justify-between shadow-sm"> 
         <div className="flex items-center gap-3"> 
           <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg">✨</div> 
@@ -189,7 +189,6 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
               </button>
             ))}
             
-            {/* Bouton additionnel si jour personnalisé actif */}
             {isCustomDay && (
               <button
                 onClick={() => {}}
@@ -215,7 +214,7 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
 
       <section> 
         <SectionTitle title="Outils & Aide" /> 
-        <div className="bg-white rounded-[24px] border border-slate-50 overflow-hidden"> 
+        <div className="bg-white rounded-[24px] border border-slate-50 overflow-hidden shadow-sm"> 
           <button onClick={onShowWelcome} className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors"> 
             <div className="flex items-center gap-3"> 
               <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-sm">📖</div> 
@@ -231,20 +230,19 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
           <button onClick={onBackup} className="w-full flex items-center justify-between p-4 hover:bg-slate-50 border-b border-slate-50">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-[10px]">💾</div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Exporter JSON</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Exporter backup</span>
             </div>
           </button>
-          <input type="file" ref={fileInputRef} hidden accept=".json" onChange={(e) => e.target.files?.[0] && onImport(e.target.files[0])} />
+          <input type="file" ref={fileInputRef} hidden accept=".backup,.json" onChange={(e) => e.target.files?.[0] && onImport(e.target.files[0])} />
           <button onClick={() => fileInputRef.current?.click()} className="w-full flex items-center justify-between p-4 hover:bg-slate-50">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center text-white text-[10px]">📂</div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-amber-600">Importer JSON</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-amber-600">Importer backup</span>
             </div>
           </button>
         </div>
       </section>
 
-      {/* FEEDBACK & RESET */} 
       <section className="pt-4 space-y-4"> 
         <div className="bg-slate-900 rounded-[32px] p-6 text-center relative overflow-hidden"> 
           <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/20 blur-3xl rounded-full" /> 

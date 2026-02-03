@@ -34,7 +34,6 @@ const App: React.FC = () => {
   const isInitialMount = useRef(true);
   const isResetting = useRef(false);
   
-  // Persistance automatique avec protection contre la ré-écriture post-reset
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
@@ -88,7 +87,6 @@ const App: React.FC = () => {
     return balance;
   };
 
-  // Calcul du jour de fin de cycle (paye)
   const cycleEndDate = useMemo(() => {
     const day = activeAccount?.cycleEndDay || 0;
     if (day === 0) return new Date(currentYear, currentMonth + 1, 0, 23, 59, 59);
@@ -101,7 +99,6 @@ const App: React.FC = () => {
     [activeAccount, currentMonth, currentYear]
   );
 
-  // Disponible Réel = Solde projeté au jour du cycle budgétaire
   const availableBalance = useMemo(() => 
     getBalanceAtDate(cycleEndDate, true),
     [activeAccount, currentMonth, currentYear, cycleEndDate]
@@ -182,7 +179,6 @@ const App: React.FC = () => {
       try {
         window.localStorage.clear();
         window.localStorage.removeItem('zenbudget_state_v3');
-        // Rechargement forcé pour vider la mémoire React
         window.location.href = window.location.origin + window.location.pathname + "?reset=" + Date.now();
       } catch (e) {
         window.location.reload();
@@ -255,7 +251,7 @@ const App: React.FC = () => {
                 const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
                 const link = document.createElement('a');
                 link.setAttribute('href', dataUri);
-                link.setAttribute('download', 'zenbudget_backup.json');
+                link.setAttribute('download', 'zenbudget_backup.backup');
                 link.click();
               }} 
               onImport={(file) => {

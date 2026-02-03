@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-// CORRECTION : Utilisation du package officiel stable
+// Import correspondant à ton importmap
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface DashboardProps {
@@ -17,41 +17,28 @@ interface DashboardProps {
   availableBalance: number;
   projectedBalance: number;
   carryOver: number;
+  onAddTransaction: (t: Omit<Transaction, 'id'>) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ 
-  transactions, categories, activeAccount, allAccounts, onSwitchAccount, checkingAccountBalance, availableBalance, projectedBalance, month, year 
+  transactions, categories, activeAccount, allAccounts, onSwitchAccount, 
+  checkingAccountBalance, availableBalance, projectedBalance, carryOver,
+  onAddTransaction, month, year 
 }) => {
   const [aiAdvice, setAiAdvice] = useState<string>("Analyse financière Zen...");
   const [loadingAdvice, setLoadingAdvice] = useState(false);
 
-  const stats = useMemo(() => {
-    let income = 0, expenses = 0, fixed = 0;
-    transactions.forEach(t => {
-      if (t.type === 'INCOME') income += t.amount;
-      else {
-        expenses += t.amount;
-        if (t.isRecurring) fixed += t.amount;
-      }
-    });
-    return { income, expenses, fixed, variable: expenses - fixed, net: income - expenses };
-  }, [transactions]);
-
   const fetchAiAdvice = async () => {
-    if (loadingAdvice) return;
+    // On cherche la clé dans les endroits possibles (Vercel / Window)
+    const API_KEY = (window as any).process?.env?.NEXT_PUBLIC_GEMINI_API_KEY || "";
+    if (!API_KEY || loadingAdvice) return;
+    
     setLoadingAdvice(true);
     try {
-      // CORRECTION : Utilisation de import.meta.env pour Vite/Vercel
-      const apiKey = import.meta.env.VITE_API_KEY;
-      if (!apiKey) throw new Error("Clé manquante");
-
-      const genAI = new GoogleGenerativeAI(apiKey);
+      const genAI = new GoogleGenerativeAI(API_KEY);
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-      const prompt = "Donne un conseil financier zen très court (max 60 caractères) en français, sans guillemets, inspirant et pratique.";
-      const result = await model.generateContent(prompt);
+      const result = await model.generateContent("Donne un conseil financier zen très court (max 60 caractères) en français, sans guillemets.");
       const text = result.response.text();
-      
       setAiAdvice(text || "La simplicité apporte la paix d'esprit. 🌿");
     } catch (err) {
       console.error("Erreur AI:", err);
@@ -65,6 +52,15 @@ const Dashboard: React.FC<DashboardProps> = ({
     fetchAiAdvice();
   }, [activeAccount.id]);
 
+  const stats = useMemo(() => {
+    let income = 0, expenses = 0;
+    transactions.forEach(t => {
+      if (t.type === 'INCOME') income += t.amount;
+      else expenses += t.amount;
+    });
+    return { income, expenses, total: income - expenses };
+  }, [transactions]);
+
   const categorySummary = useMemo(() => {
     const map: Record<string, number> = {};
     transactions.filter(t => t.type === 'EXPENSE').forEach(t => {
@@ -77,99 +73,70 @@ const Dashboard: React.FC<DashboardProps> = ({
     }).sort((a, b) => b.value - a.value);
   }, [transactions, categories, stats.expenses]);
 
-  const handleExportCSV = () => {
-    if (!activeAccount) return;
-
-    const now = new Date();
-    const rows = [];
-    
-    rows.push(["RESUME DU COMPTE"]);
-    rows.push(["Nom du compte", activeAccount.name]);
-    rows.push(["Date d'export", now.toLocaleDateString()]);
-    rows.push(["Solde Actuel", `${checkingAccountBalance.toFixed(2)} €`]);
-    rows.push(["Disponible estime (Fin de mois)", `${projectedBalance.toFixed(2)} €`]);
-    rows.push([]); 
-    
-    rows.push(["DETAILS DES OPERATIONS"]);
-    rows.push(["Date", "Type", "Categorie", "Montant", "Note"]);
-    
-    [...transactions].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).forEach(t => {
-      const cat = categories.find(c => c.id === t.categoryId);
-      rows.push([
-        t.date.split('T')[0], 
-        t.type === 'INCOME' ? 'Revenu' : 'Depense', 
-        cat?.name || 'Inconnue', 
-        t.amount.toString().replace('.', ','), 
-        (t.comment || '').replace(/;/g, ',')
-      ]);
+  const handleApplyCarryOver = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onAddTransaction({
+      amount: Math.abs(carryOver),
+      type: carryOver >= 0 ? 'INCOME' : 'EXPENSE',
+      categoryId: 'carry-over',
+      comment: `Report du mois précédent`,
+      date: new Date(year, month, 1, 12).toISOString(),
     });
-
-    const csvContent = rows.map(e => e.join(";")).join("\n");
-    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", `zenbudget_${activeAccount.name.toLowerCase()}.csv`);
-    link.click();
   };
 
   const formatVal = (v: number) => new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2 }).format(v);
 
-  const getAvailableColor = () => {
-    if (availableBalance < 0) return 'bg-rose-500';
-    if (availableBalance <= 100) return 'bg-amber-500';
-    return 'bg-indigo-600';
-  };
-
-  const isAttention = projectedBalance < 0;
-
   return (
     <div className="flex flex-col h-full space-y-6 overflow-y-auto no-scrollbar pb-32 px-1 fade-in">
-      {isAttention && (
-        <div className="bg-rose-50 border border-rose-100 p-4 rounded-3xl flex items-center gap-3 animate-pulse">
-          <span className="text-xl">🧘‍♀️</span>
-          <p className="text-[11px] font-black text-rose-600 leading-tight">Attention Zen : Votre projection est négative.</p>
-        </div>
-      )}
-
       <div className="flex items-center justify-between pt-6">
         <div className="flex flex-col">
           <h2 className="text-2xl font-black text-slate-800 tracking-tighter italic">Bilan Zen ✨</h2>
-          <button onClick={() => allAccounts.length > 1 && onSwitchAccount(allAccounts[(allAccounts.findIndex(a => a.id === activeAccount.id) + 1) % allAccounts.length].id)} className="flex items-center gap-1.5 mt-1 text-left active:opacity-60 transition-opacity">
-            <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500">{activeAccount.name}</p>
-          </button>
+          <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500">{activeAccount.name}</p>
         </div>
-        
-        <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 rounded-2xl shadow-xl active:scale-95 text-white border border-slate-800 transition-all">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
-          <span className="text-[10px] font-black uppercase tracking-widest">Export CSV</span>
-        </button>
       </div>
 
+      {/* Widget Solde Actuel */}
       <div className="bg-slate-900 px-6 py-9 rounded-[40px] shadow-2xl relative overflow-hidden flex flex-col justify-center min-h-[130px]">
         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
         <span className="text-indigo-400 text-[9px] font-black uppercase tracking-[0.3em] mb-1">Solde Bancaire Actuel</span>
-        <div className="flex items-baseline gap-2 overflow-hidden">
-          <span className={`text-4xl font-black tracking-tighter truncate ${checkingAccountBalance < 0 ? 'text-rose-400' : 'text-white'}`}>
+        <div className="flex items-baseline gap-2">
+          <span className={`text-4xl font-black tracking-tighter ${checkingAccountBalance < 0 ? 'text-rose-400' : 'text-white'}`}>
             {formatVal(checkingAccountBalance)}
           </span>
           <span className="text-xl font-black text-slate-500">€</span>
         </div>
       </div>
 
+      {/* Grille : Disponible et Report */}
       <div className="grid grid-cols-2 gap-3">
-        <div className={`p-5 rounded-[32px] shadow-lg relative transition-all duration-700 ${getAvailableColor()}`}>
-          <span className={`text-[8px] font-black uppercase tracking-widest block mb-1 ${availableBalance < 0 ? 'text-rose-100' : 'text-indigo-200'}`}>Disponible Réel</span>
+        <div className={`p-5 rounded-[32px] shadow-lg relative ${availableBalance < 0 ? 'bg-rose-500' : 'bg-indigo-600'}`}>
+          <span className="text-[8px] font-black uppercase tracking-widest block mb-1 text-white/70">Disponible Réel</span>
           <div className="text-xl font-black text-white">{formatVal(availableBalance)}€</div>
-          {availableBalance <= 100 && <div className="absolute top-3 right-3 w-2 h-2 bg-white rounded-full animate-pulse" />}
         </div>
         
-        <div className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm relative">
-          <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block mb-1">Projection Fin</span>
-          <div className={`text-xl font-black ${projectedBalance >= 0 ? 'text-slate-900' : 'text-rose-500'}`}>{formatVal(projectedBalance)}€</div>
+        <div className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm relative flex flex-col justify-between">
+          <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block mb-1">Report Précédent</span>
+          <div className={`text-xl font-black flex items-center justify-between ${carryOver >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+            {formatVal(carryOver)}€
+            {carryOver !== 0 && (
+              <button onClick={handleApplyCarryOver} className="bg-indigo-50 p-1.5 rounded-lg text-indigo-600 active:scale-90 transition-transform">
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={4}><path d="M12 4v16m8-8H4" /></svg>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
+      {/* Projection */}
+      <div className={`p-5 rounded-[32px] border-2 flex justify-between items-center ${projectedBalance < 0 ? 'bg-rose-50 border-rose-100' : 'bg-white border-slate-50'}`}>
+        <div>
+          <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block mb-1">Projection Fin de Mois</span>
+          <div className={`text-2xl font-black ${projectedBalance >= 0 ? 'text-slate-900' : 'text-rose-600'}`}>{formatVal(projectedBalance)}€</div>
+        </div>
+        {projectedBalance < 0 && <span className="text-2xl animate-bounce">🧘‍♀️</span>}
+      </div>
+
+      {/* IA */}
       <div className="bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm active:scale-[0.98] transition-all cursor-pointer" onClick={() => !loadingAdvice && fetchAiAdvice()}>
         <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl shrink-0">
           {loadingAdvice ? <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div> : "💡"}
@@ -177,6 +144,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         <p className="text-[11px] font-bold text-slate-700 leading-tight">{aiAdvice}</p>
       </div>
 
+      {/* Graphique */}
       <div className="bg-white/80 backdrop-blur-xl rounded-[40px] p-6 border border-white shadow-xl">
         <h2 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Répartition des dépenses</h2>
         <div className="h-[200px] w-full relative mb-6">
