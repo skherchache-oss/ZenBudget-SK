@@ -5,11 +5,17 @@ import { getInitialState, saveState, generateId } from './store';
 import { MONTHS_FR } from './constants';
 import { IconPlus, IconHome, IconCalendar, IconLogo, IconSettings } from './components/Icons';
 
+// Ajout de Framer Motion pour le swipe
+import { motion, AnimatePresence } from 'framer-motion';
+
 import Dashboard from './components/Dashboard';
 import RecurringManager from './components/RecurringManager';
 import TransactionList from './components/TransactionList';
 import AddTransactionModal from './components/AddTransactionModal';
 import Settings from './components/Settings';
+
+// Ordre des vues pour calculer la direction du swipe
+const VIEW_ORDER: ViewType[] = ['DASHBOARD', 'TRANSACTIONS', 'RECURRING', 'SETTINGS'];
 
 const App: React.FC = () => {
   const [state, setState] = useState<AppState>(() => getInitialState());
@@ -21,6 +27,9 @@ const App: React.FC = () => {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
   const [modalInitialDate, setModalInitialDate] = useState<string>(new Date().toISOString());
   const [selectedDay, setSelectedDay] = useState<number | null>(new Date().getDate());
+
+  // Pour l'animation de swipe entre onglets
+  const [viewDirection, setViewDirection] = useState(0);
 
   const isInitialMount = useRef(true);
   useEffect(() => {
@@ -41,27 +50,32 @@ const App: React.FC = () => {
     return d;
   }, []);
 
+  // --- LOGIQUE DE BACKUP ---
+  const handleBackup = () => {
+    const dataStr = JSON.stringify(state, null, 2);
+    const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+    const exportFileDefaultName = `zenbudget_backup_${new Date().toISOString().split('T')[0]}.json`;
+
+    const linkElement = document.createElement('a');
+    linkElement.setAttribute('href', dataUri);
+    linkElement.setAttribute('download', exportFileDefaultName);
+    linkElement.click();
+  };
+
   // --- MOTEUR DE CALCUL DE SOLDE ---
   const getBalanceAtDate = (targetDate: Date, includeProjections: boolean) => {
     if (!activeAccount) return 0;
-    
-    // 1. Somme du RÉEL
     let balance = activeAccount.transactions.reduce((acc, t) => {
       return new Date(t.date) <= targetDate ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
     }, 0);
 
-    // 2. Injection des FIXES
     if (includeProjections) {
       const templates = activeAccount.recurringTemplates || [];
       const deletedIds = new Set(activeAccount.deletedVirtualIds || []);
-      
-      // On calcule mois par mois du passé vers le futur
       let scanDate = new Date(now.getFullYear(), now.getMonth() - 6, 1);
       while (scanDate <= targetDate) {
         const m = scanDate.getMonth();
         const y = scanDate.getFullYear();
-
-        // On identifie les templates déjà payés ce mois-ci
         const paidTemplateIds = new Set(
           activeAccount.transactions
             .filter(t => {
@@ -73,11 +87,9 @@ const App: React.FC = () => {
 
         templates.forEach(tpl => {
           if (!tpl.isActive || paidTemplateIds.has(tpl.id)) return;
-          
           const day = Math.min(tpl.dayOfMonth, new Date(y, m + 1, 0).getDate());
           const tplDate = new Date(y, m, day, 12, 0, 0);
           const vId = `virtual-${tpl.id}-${m}-${y}`;
-
           if (tplDate <= targetDate && !deletedIds.has(vId)) {
             balance += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
           }
@@ -93,18 +105,14 @@ const App: React.FC = () => {
   const projectedBalance = useMemo(() => getBalanceAtDate(new Date(currentYear, currentMonth + 1, 0), true), [activeAccount, currentMonth, currentYear]);
   const carryOver = useMemo(() => getBalanceAtDate(new Date(currentYear, currentMonth, 0), true), [activeAccount, currentMonth, currentYear]);
 
-  // --- GÉNÉRATION DE LA LISTE DE TRANSACTIONS ---
   const effectiveTransactions = useMemo(() => {
     if (!activeAccount) return [];
-    
     const realOnes = activeAccount.transactions.filter(t => {
       const d = new Date(t.date);
       return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
     });
-
     const paidIds = new Set(realOnes.map(t => t.templateId).filter(Boolean));
     const deletedIds = new Set(activeAccount.deletedVirtualIds || []);
-
     const virtuals = (activeAccount.recurringTemplates || [])
       .filter(tpl => tpl.isActive && !paidIds.has(tpl.id))
       .map(tpl => {
@@ -122,27 +130,21 @@ const App: React.FC = () => {
         } as Transaction;
       })
       .filter(v => !deletedIds.has(v.id));
-
     return [...realOnes, ...virtuals].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [activeAccount, currentMonth, currentYear]);
 
-  // --- ACTIONS ---
   const handleUpsertTransaction = (t: Omit<Transaction, 'id'> & { id?: string }) => {
     setState(prev => {
       const accIndex = prev.accounts.findIndex(a => a.id === prev.activeAccountId);
       if (accIndex === -1) return prev;
-      
       const acc = { ...prev.accounts[accIndex] };
       let nextTx = [...acc.transactions];
       let nextDeleted = [...(acc.deletedVirtualIds || [])];
-      
       const targetId = t.id || editingTransaction?.id;
       const isVirtual = targetId?.startsWith('virtual-');
 
       if (isVirtual) {
-        // Si c'était une virtuelle, on la supprime de la projection et on crée une réelle
         nextDeleted.push(targetId!);
-        // On s'assure que la nouvelle transaction porte bien l'ID du template d'origine
         const originalTemplateId = targetId?.split('-')[1];
         nextTx = [{ ...t, id: generateId(), templateId: originalTemplateId } as Transaction, ...nextTx];
       } else if (targetId && nextTx.some(i => i.id === targetId)) {
@@ -150,7 +152,6 @@ const App: React.FC = () => {
       } else {
         nextTx = [{ ...t, id: generateId() } as Transaction, ...nextTx];
       }
-
       const nextAccounts = [...prev.accounts];
       nextAccounts[accIndex] = { ...acc, transactions: nextTx, deletedVirtualIds: nextDeleted };
       return { ...prev, accounts: nextAccounts };
@@ -166,6 +167,21 @@ const App: React.FC = () => {
     setCurrentMonth(m);
     setCurrentYear(y);
     setSlideDirection(offset > 0 ? 'next' : 'prev');
+  };
+
+  // Gestion du changement d'onglet avec direction
+  const handleViewChange = (newView: ViewType) => {
+    const currentIndex = VIEW_ORDER.indexOf(activeView);
+    const nextIndex = VIEW_ORDER.indexOf(newView);
+    setViewDirection(nextIndex > currentIndex ? 1 : -1);
+    setActiveView(newView);
+  };
+
+  // Variantes d'animation pour le swipe
+  const variants = {
+    enter: (direction: number) => ({ x: direction > 0 ? '100%' : '-100%', opacity: 0 }),
+    center: { x: 0, opacity: 1 },
+    exit: (direction: number) => ({ x: direction < 0 ? '100%' : '-100%', opacity: 0 })
   };
 
   return (
@@ -186,61 +202,76 @@ const App: React.FC = () => {
         </div>
       </header>
 
-      <main className="flex-1 overflow-hidden max-w-2xl w-full mx-auto px-4 py-2 pb-24">
-        {activeView === 'DASHBOARD' && (
-          <Dashboard 
-            transactions={effectiveTransactions} categories={state.categories} activeAccount={activeAccount} allAccounts={state.accounts}
-            onSwitchAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))} month={currentMonth} year={currentYear}
-            onViewTransactions={() => setActiveView('TRANSACTIONS')} checkingAccountBalance={checkingAccountBalance} availableBalance={availableBalance} projectedBalance={projectedBalance}
-            carryOver={carryOver}
-          />
-        )}
-        {activeView === 'TRANSACTIONS' && (
-          <TransactionList 
-            transactions={effectiveTransactions} categories={state.categories} month={currentMonth} year={currentYear}
-            onDelete={(id) => setState(prev => {
-                const idx = prev.accounts.findIndex(a => a.id === prev.activeAccountId);
-                const acc = prev.accounts[idx];
-                return {
-                    ...prev,
-                    accounts: prev.accounts.map(a => a.id === acc.id ? {
-                        ...a,
-                        transactions: a.transactions.filter(tx => tx.id !== id),
-                        deletedVirtualIds: id.startsWith('virtual-') ? [...(a.deletedVirtualIds || []), id] : a.deletedVirtualIds
-                    } : a)
-                };
-            })}
-            onEdit={(t) => { setEditingTransaction(t); setShowAddModal(true); }}
-            onAddAtDate={(date) => { setModalInitialDate(date); setShowAddModal(true); }}
-            selectedDay={selectedDay} onSelectDay={setSelectedDay} totalBalance={projectedBalance}
-            carryOver={carryOver} cycleEndDay={activeAccount?.cycleEndDay || 0}
-            onMonthChange={handleMonthChange} slideDirection={slideDirection}
-          />
-        )}
-        {activeView === 'RECURRING' && (
-          <RecurringManager 
-            recurringTemplates={activeAccount?.recurringTemplates || []} categories={state.categories}
-            onUpdate={(templates) => setState(prev => ({ ...prev, accounts: prev.accounts.map(a => a.id === activeAccount.id ? { ...a, recurringTemplates: templates } : a) }))}
-            totalBalance={projectedBalance}
-          />
-        )}
-        {activeView === 'SETTINGS' && (
-          <Settings 
-            state={state} onUpdateCategories={(cats) => setState(prev => ({ ...prev, categories: cats }))} onUpdateBudget={() => {}}
-            onUpdateAccounts={(accounts) => setState(prev => ({ ...prev, accounts }))} onSetActiveAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))}
-            onDeleteAccount={() => {}} onReset={() => { localStorage.clear(); window.location.reload(); }} onLogout={() => {}}
-          />
-        )}
+      <main className="flex-1 relative overflow-hidden max-w-2xl w-full mx-auto">
+        <AnimatePresence mode="popLayout" custom={viewDirection}>
+          <motion.div
+            key={activeView}
+            custom={viewDirection}
+            variants={variants}
+            initial="enter"
+            animate="center"
+            exit="exit"
+            transition={{ type: "spring", stiffness: 300, damping: 30 }}
+            className="absolute inset-0 px-4 py-2 pb-24 overflow-y-auto no-scrollbar"
+          >
+            {activeView === 'DASHBOARD' && (
+              <Dashboard 
+                transactions={effectiveTransactions} categories={state.categories} activeAccount={activeAccount} allAccounts={state.accounts}
+                onSwitchAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))} month={currentMonth} year={currentYear}
+                onViewTransactions={() => handleViewChange('TRANSACTIONS')} checkingAccountBalance={checkingAccountBalance} availableBalance={availableBalance} projectedBalance={projectedBalance}
+                carryOver={carryOver}
+              />
+            )}
+            {activeView === 'TRANSACTIONS' && (
+              <TransactionList 
+                transactions={effectiveTransactions} categories={state.categories} month={currentMonth} year={currentYear}
+                onDelete={(id) => setState(prev => {
+                    const idx = prev.accounts.findIndex(a => a.id === prev.activeAccountId);
+                    const acc = prev.accounts[idx];
+                    return {
+                        ...prev,
+                        accounts: prev.accounts.map(a => a.id === acc.id ? {
+                            ...a,
+                            transactions: a.transactions.filter(tx => tx.id !== id),
+                            deletedVirtualIds: id.startsWith('virtual-') ? [...(a.deletedVirtualIds || []), id] : a.deletedVirtualIds
+                        } : a)
+                    };
+                })}
+                onEdit={(t) => { setEditingTransaction(t); setShowAddModal(true); }}
+                onAddAtDate={(date) => { setModalInitialDate(date); setShowAddModal(true); }}
+                selectedDay={selectedDay} onSelectDay={setSelectedDay} totalBalance={projectedBalance}
+                carryOver={carryOver} cycleEndDay={activeAccount?.cycleEndDay || 0}
+                onMonthChange={handleMonthChange} slideDirection={slideDirection}
+              />
+            )}
+            {activeView === 'RECURRING' && (
+              <RecurringManager 
+                recurringTemplates={activeAccount?.recurringTemplates || []} categories={state.categories}
+                onUpdate={(templates) => setState(prev => ({ ...prev, accounts: prev.accounts.map(a => a.id === activeAccount.id ? { ...a, recurringTemplates: templates } : a) }))}
+                totalBalance={projectedBalance}
+              />
+            )}
+            {activeView === 'SETTINGS' && (
+              <Settings 
+                state={state} onUpdateCategories={(cats) => setState(prev => ({ ...prev, categories: cats }))} onUpdateBudget={() => {}}
+                onUpdateAccounts={(accounts) => setState(prev => ({ ...prev, accounts }))} onSetActiveAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))}
+                onDeleteAccount={() => {}} onReset={() => { localStorage.clear(); window.location.reload(); }} onLogout={() => {}}
+                // Injection de la fonction de backup
+                onBackup={handleBackup}
+              />
+            )}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
       <button onClick={() => { setEditingTransaction(null); setModalInitialDate(new Date(currentYear, currentMonth, selectedDay || 1, 12, 0, 0).toISOString()); setShowAddModal(true); }} 
         className="fixed bottom-[100px] right-6 w-14 h-14 bg-slate-900 text-white rounded-[22px] shadow-2xl flex items-center justify-center active:scale-90 z-40 border-4 border-white transition-all"><IconPlus className="w-7 h-7" /></button>
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-100 flex justify-around items-center pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] px-6 z-40">
-        <NavBtn active={activeView === 'DASHBOARD'} onClick={() => setActiveView('DASHBOARD')} icon={<IconHome />} label="Stats" />
-        <NavBtn active={activeView === 'TRANSACTIONS'} onClick={() => setActiveView('TRANSACTIONS')} icon={<IconCalendar />} label="Journal" />
-        <NavBtn active={activeView === 'RECURRING'} onClick={() => setActiveView('RECURRING')} icon={<IconPlus className="rotate-45" />} label="Fixes" />
-        <NavBtn active={activeView === 'SETTINGS'} onClick={() => setActiveView('SETTINGS')} icon={<IconSettings />} label="Réglages" />
+        <NavBtn active={activeView === 'DASHBOARD'} onClick={() => handleViewChange('DASHBOARD')} icon={<IconHome />} label="Stats" />
+        <NavBtn active={activeView === 'TRANSACTIONS'} onClick={() => handleViewChange('TRANSACTIONS')} icon={<IconCalendar />} label="Journal" />
+        <NavBtn active={activeView === 'RECURRING'} onClick={() => handleViewChange('RECURRING')} icon={<IconPlus className="rotate-45" />} label="Fixes" />
+        <NavBtn active={activeView === 'SETTINGS'} onClick={() => handleViewChange('SETTINGS')} icon={<IconSettings />} label="Réglages" />
       </nav>
 
       {showAddModal && <AddTransactionModal categories={state.categories} onClose={() => { setShowAddModal(false); setEditingTransaction(null); }} onAdd={handleUpsertTransaction} initialDate={modalInitialDate} editItem={editingTransaction} />}

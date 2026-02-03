@@ -13,6 +13,8 @@ interface SettingsProps {
   onUpdateBudget: (val: number) => void;
   onLogout: () => void;
   onShowWelcome: () => void;
+  // Ajout de la fonction de sauvegarde
+  onBackup: () => void;
 }
 
 const AccountItem: React.FC<{
@@ -67,7 +69,7 @@ const AccountItem: React.FC<{
   );
 };
 
-const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiveAccount, onDeleteAccount, onReset, onShowWelcome }) => {
+const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiveAccount, onDeleteAccount, onReset, onShowWelcome, onBackup }) => {
   const [isAddingAccount, setIsAddingAccount] = useState(false);
   const [newAccName, setNewAccName] = useState('');
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
@@ -117,7 +119,6 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
 
   const handleExportCSV = () => {
     if (!activeAccount) return;
-
     const now = new Date();
     const currentBalance = activeAccount.transactions.reduce((acc, t) => {
       return new Date(t.date) <= now ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
@@ -184,10 +185,20 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
             </div>
             <svg className="w-3 h-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M9 5l7 7-7 7" /></svg>
           </button>
+          
+          {/* NOUVEAU : BOUTON BACKUP JSON */}
+          <button onClick={onBackup} className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors border-b border-slate-50">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white text-[10px]">💾</div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Sauvegarder les données (Backup)</span>
+            </div>
+            <svg className="w-3 h-3 text-indigo-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M9 5l7 7-7 7" /></svg>
+          </button>
+
           <button onClick={handleExportCSV} className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors">
             <div className="flex items-center gap-3">
               <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600"><IconExport className="w-4 h-4" /></div>
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">Export complet (Stats + Journal)</span>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">Export CSV (Excel)</span>
             </div>
             <svg className="w-3 h-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M9 5l7 7-7 7" /></svg>
           </button>
