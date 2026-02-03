@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { GoogleGenAI } from "@google/genai";
 
 interface DashboardProps {
   transactions: Transaction[];
@@ -36,35 +37,20 @@ const Dashboard: React.FC<DashboardProps> = ({
     return { income, expenses, fixed, variable: expenses - fixed, net: income - expenses };
   }, [transactions]);
 
-  const isAttention = projectedBalance < 0;
-  const isVigilance = availableBalance < 50;
-  const isCapacity = stats.income > 0 && projectedBalance > (stats.income * 0.2);
-
   const fetchAiAdvice = async () => {
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    if (!apiKey) {
-      setAiAdvice("ZenTip : La régularité est la clé de la sérénité. 🌿");
-      return;
-    }
+    if (loadingAdvice) return;
     setLoadingAdvice(true);
     try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: "Donne un conseil financier zen très court (60 car max) en français sans guillemets." }] }]
-          })
-        }
-      );
-      const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (text) setAiAdvice(text.trim());
-    } catch (err) { 
-      setAiAdvice("ZenTip : Respirez, votre budget est sous contrôle. ✨"); 
-    } finally { 
-      setLoadingAdvice(false); 
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: "Donne un conseil financier zen très court (max 60 caractères) en français, sans guillemets, inspirant et pratique.",
+      });
+      setAiAdvice(response.text || "La simplicité apporte la paix d'esprit. 🌿");
+    } catch (err) {
+      setAiAdvice("ZenTip : Respirez, votre budget est sous contrôle. ✨");
+    } finally {
+      setLoadingAdvice(false);
     }
   };
 
@@ -85,99 +71,100 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, [transactions, categories, stats.expenses]);
 
   const handleExportCSV = () => {
-    try {
-      const s = ";"; 
-      const f = (n: number) => n.toFixed(2).replace('.', ',');
-      const rows = [
-        `ZENBUDGET - EXPORT - ${activeAccount.name.toUpperCase()}`,
-        `Période : ${month + 1}/${year}`,
-        "",
-        `Solde Bancaire${s}${f(checkingAccountBalance)} €`,
-        `Disponible Réel${s}${f(availableBalance)} €`,
-        "",
-        "Date;Categorie;Note;Type;Montant"
-      ];
-      transactions.forEach(t => {
-        const cat = categories.find(c => c.id === t.categoryId);
-        rows.push(`${new Date(t.date).toLocaleDateString('fr-FR')}${s}${cat?.name || 'Autre'}${s}${t.comment || ''}${s}${t.type}${s}${f(t.amount)}`);
-      });
-      const blob = new Blob(["\uFEFF" + rows.join("\n")], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = `ZenBudget_${activeAccount.name}.csv`;
-      link.click();
-    } catch (e) { console.error(e); }
+    if (!activeAccount) return;
+
+    const now = new Date();
+    const rows = [];
+    
+    // Bloc Résumé (Identique aux Settings)
+    rows.push(["RESUME DU COMPTE"]);
+    rows.push(["Nom du compte", activeAccount.name]);
+    rows.push(["Date d'export", now.toLocaleDateString()]);
+    rows.push(["Solde Actuel", `${checkingAccountBalance.toFixed(2)} €`]);
+    rows.push(["Disponible estime (Fin de mois)", `${projectedBalance.toFixed(2)} €`]);
+    rows.push([]); 
+    
+    // Bloc Détails
+    rows.push(["DETAILS DES OPERATIONS"]);
+    rows.push(["Date", "Type", "Categorie", "Montant", "Note"]);
+    
+    [...transactions].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).forEach(t => {
+      const cat = categories.find(c => c.id === t.categoryId);
+      rows.push([
+        t.date.split('T')[0], 
+        t.type === 'INCOME' ? 'Revenu' : 'Depense', 
+        cat?.name || 'Inconnue', 
+        t.amount.toString().replace('.', ','), 
+        (t.comment || '').replace(/;/g, ',')
+      ]);
+    });
+
+    const csvContent = rows.map(e => e.join(";")).join("\n");
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `zenbudget_${activeAccount.name.toLowerCase()}.csv`);
+    link.click();
   };
 
-  const formatVal = (v: number) => new Intl.NumberFormat('fr-FR', { style: 'decimal', minimumFractionDigits: 2 }).format(v);
+  const formatVal = (v: number) => new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2 }).format(v);
+
+  const getAvailableColor = () => {
+    if (availableBalance < 0) return 'bg-rose-500';
+    if (availableBalance <= 100) return 'bg-amber-500';
+    return 'bg-indigo-600';
+  };
+
+  const isAttention = projectedBalance < 0;
 
   return (
     <div className="flex flex-col h-full space-y-6 overflow-y-auto no-scrollbar pb-32 px-1 fade-in">
-      {/* Alerte Zen Si Projection Négative */}
       {isAttention && (
-        <div className="bg-red-50 border border-red-100 p-4 rounded-3xl flex items-center gap-3 animate-pulse">
+        <div className="bg-rose-50 border border-rose-100 p-4 rounded-3xl flex items-center gap-3 animate-pulse">
           <span className="text-xl">🧘‍♀️</span>
-          <p className="text-[11px] font-black text-red-600 leading-tight">Attention Zen : Votre projection est négative.</p>
+          <p className="text-[11px] font-black text-rose-600 leading-tight">Attention Zen : Votre projection est négative.</p>
         </div>
       )}
 
-      {/* Header Dashboard avec Nom du Compte et Bouton Export */}
       <div className="flex items-center justify-between pt-6">
         <div className="flex flex-col">
           <h2 className="text-2xl font-black text-slate-800 tracking-tighter italic">Bilan Zen ✨</h2>
           <button onClick={() => allAccounts.length > 1 && onSwitchAccount(allAccounts[(allAccounts.findIndex(a => a.id === activeAccount.id) + 1) % allAccounts.length].id)} className="flex items-center gap-1.5 mt-1 text-left active:opacity-60 transition-opacity">
             <p className="text-[10px] font-black uppercase tracking-widest text-indigo-500">{activeAccount.name}</p>
-            {allAccounts.length > 1 && <svg className="w-3 h-3 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M19 9l-7 7-7-7" /></svg>}
           </button>
         </div>
         
         <button onClick={handleExportCSV} className="flex items-center gap-2 px-4 py-2.5 bg-slate-900 rounded-2xl shadow-xl active:scale-95 text-white border border-slate-800 transition-all">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-            <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
           <span className="text-[10px] font-black uppercase tracking-widest">Export CSV</span>
         </button>
       </div>
 
-      {/* Solde Bancaire Principal */}
       <div className="bg-slate-900 px-6 py-9 rounded-[40px] shadow-2xl relative overflow-hidden flex flex-col justify-center min-h-[130px]">
         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
-        <span className="text-indigo-400 text-[9px] font-black uppercase tracking-[0.3em] mb-1">Solde Bancaire Aujourd'hui</span>
-        <div className="flex items-baseline gap-2">
-          <span className="text-4xl font-black tracking-tighter text-white">{formatVal(checkingAccountBalance)}</span>
+        <span className="text-indigo-400 text-[9px] font-black uppercase tracking-[0.3em] mb-1">Solde Bancaire Actuel</span>
+        <div className="flex items-baseline gap-2 overflow-hidden">
+          <span className={`text-4xl font-black tracking-tighter truncate ${checkingAccountBalance < 0 ? 'text-rose-400' : 'text-white'}`}>
+            {formatVal(checkingAccountBalance)}
+          </span>
           <span className="text-xl font-black text-slate-500">€</span>
         </div>
       </div>
 
-      {/* Disponible Réel et Projection */}
       <div className="grid grid-cols-2 gap-3">
-        {/* Disponible Réel : Devient Rouge si < 0 */}
-        <div className={`p-5 rounded-[32px] shadow-lg relative transition-colors duration-500 ${availableBalance < 0 ? 'bg-red-500' : 'bg-indigo-600'}`}>
-          <span className={`${availableBalance < 0 ? 'text-red-100' : 'text-indigo-200'} text-[8px] font-black uppercase tracking-widest block mb-1`}>Disponible Réel</span>
+        <div className={`p-5 rounded-[32px] shadow-lg relative transition-all duration-700 ${getAvailableColor()}`}>
+          <span className={`text-[8px] font-black uppercase tracking-widest block mb-1 ${availableBalance < 0 ? 'text-rose-100' : 'text-indigo-200'}`}>Disponible Réel</span>
           <div className="text-xl font-black text-white">{formatVal(availableBalance)}€</div>
-          {(isVigilance || availableBalance < 0) && <div className="absolute top-3 right-3 w-2 h-2 bg-white rounded-full animate-pulse" />}
+          {availableBalance <= 100 && <div className="absolute top-3 right-3 w-2 h-2 bg-white rounded-full animate-pulse" />}
         </div>
         
         <div className="bg-white p-5 rounded-[32px] border border-slate-100 shadow-sm relative">
           <span className="text-slate-400 text-[8px] font-black uppercase tracking-widest block mb-1">Projection Fin</span>
-          <div className={`text-xl font-black ${projectedBalance >= 0 ? 'text-slate-900' : 'text-red-500'}`}>{formatVal(projectedBalance)}€</div>
-          {isCapacity && <span className="absolute top-3 right-3 text-xs animate-bounce">🚀</span>}
+          <div className={`text-xl font-black ${projectedBalance >= 0 ? 'text-slate-900' : 'text-rose-500'}`}>{formatVal(projectedBalance)}€</div>
         </div>
       </div>
 
-      {/* Entrées / Sorties */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="bg-white p-4 rounded-[28px] border border-slate-50 shadow-sm">
-          <span className="text-emerald-500 text-[8px] font-black uppercase tracking-widest mb-1 block">Entrées</span>
-          <div className="text-[15px] font-black text-slate-800">+{formatVal(stats.income)}€</div>
-        </div>
-        <div className="bg-white p-4 rounded-[28px] border border-slate-50 shadow-sm">
-          <span className="text-red-400 text-[8px] font-black uppercase tracking-widest mb-1 block">Sorties</span>
-          <div className="text-[15px] font-black text-slate-800">-{formatVal(stats.expenses)}€</div>
-        </div>
-      </div>
-
-      {/* Zen Advice */}
       <div className="bg-white/80 backdrop-blur-md p-5 rounded-[28px] flex items-center gap-4 border border-white shadow-sm active:scale-[0.98] transition-all cursor-pointer" onClick={() => !loadingAdvice && fetchAiAdvice()}>
         <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-xl shrink-0">
           {loadingAdvice ? <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div> : "💡"}
@@ -185,48 +172,37 @@ const Dashboard: React.FC<DashboardProps> = ({
         <p className="text-[11px] font-bold text-slate-700 leading-tight">{aiAdvice}</p>
       </div>
 
-      {/* Graphique et Répartition */}
       <div className="bg-white/80 backdrop-blur-xl rounded-[40px] p-6 border border-white shadow-xl">
-        <h2 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Répartition des dépenses</h2>
-        <div className="h-[240px] w-full relative">
+        <h2 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">Répartition des denses</h2>
+        <div className="h-[200px] w-full relative mb-6">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
-              <Pie data={categorySummary} innerRadius={75} outerRadius={100} paddingAngle={8} dataKey="value" onMouseEnter={(_, index) => setActiveIndex(index)} onMouseLeave={() => setActiveIndex(null)} stroke="none">
-                {categorySummary.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} opacity={activeIndex === null || activeIndex === index ? 1 : 0.3} />)}
+              <Pie data={categorySummary} innerRadius={60} outerRadius={85} paddingAngle={8} dataKey="value" stroke="none">
+                {categorySummary.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
               </Pie>
             </PieChart>
           </ResponsiveContainer>
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            {activeIndex !== null ? (
-              <>
-                <span className="text-2xl mb-1">{categorySummary[activeIndex].icon}</span>
-                <span className="text-lg font-black text-slate-900">{formatVal(categorySummary[activeIndex].value)}€</span>
-              </>
-            ) : (
-              <>
-                <span className="text-[10px] font-black uppercase text-slate-400">Total</span>
-                <span className="text-2xl font-black text-slate-900">{formatVal(stats.expenses)}€</span>
-              </>
-            )}
+            <span className="text-[10px] font-black uppercase text-slate-400">Total</span>
+            <span className="text-xl font-black text-slate-900">{formatVal(stats.expenses)}€</span>
           </div>
         </div>
 
-        <div className="mt-8 space-y-3">
-          {categorySummary.length > 0 ? categorySummary.map((cat) => (
-            <div key={cat.id} className="flex items-center gap-3 p-3 bg-slate-50/50 rounded-2xl border border-slate-100/50 group hover:bg-white hover:shadow-md transition-all">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shadow-inner shrink-0" style={{ backgroundColor: `${cat.color}15` }}>{cat.icon}</div>
+        <div className="space-y-2">
+          {categorySummary.map((cat) => (
+            <div key={cat.id} className="flex items-center gap-3 p-3 bg-slate-50/50 rounded-2xl border border-slate-100/30">
+              <span className="text-xl w-8 text-center">{cat.icon}</span>
               <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[11px] font-black text-slate-800 uppercase tracking-tight truncate">{cat.name}</span>
-                  <span className="text-[12px] font-black text-slate-900">{formatVal(cat.value)}€</span>
+                <div className="flex justify-between text-[11px] font-black uppercase text-slate-800">
+                  <span className="truncate">{cat.name}</span>
+                  <span>{formatVal(cat.value)}€</span>
                 </div>
-                <div className="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
-                  <div className="h-full rounded-full transition-all duration-1000 ease-out" style={{ width: `${cat.percent}%`, backgroundColor: cat.color }} />
+                <div className="w-full bg-slate-200 h-1 rounded-full mt-1.5 overflow-hidden">
+                  <div className="h-full rounded-full transition-all duration-1000" style={{ width: `${cat.percent}%`, backgroundColor: cat.color }} />
                 </div>
               </div>
-              <div className="text-[9px] font-black text-slate-400 w-8 text-right">{Math.round(cat.percent)}%</div>
             </div>
-          )) : <div className="text-center py-6 text-[10px] font-black text-slate-300 uppercase italic">Aucune dépense</div>}
+          ))}
         </div>
       </div>
     </div>

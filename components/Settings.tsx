@@ -1,556 +1,287 @@
 import React, { useState, useEffect } from 'react';
-
-import { AppState, BudgetAccount } from '../types';
-
-import { IconPlus } from './Icons';
-
+import { AppState, BudgetAccount, Transaction } from '../types';
+import { IconPlus, IconExport } from './Icons';
 import { createDefaultAccount } from '../store';
 
-
 interface SettingsProps {
-
   state: AppState;
-
   onUpdateAccounts: (accounts: BudgetAccount[]) => void;
-
   onSetActiveAccount: (id: string) => void;
-
   onDeleteAccount: (id: string) => void;
-
   onReset: () => void;
-
   onUpdateCategories: (cats: any) => void;
-
   onUpdateBudget: (val: number) => void;
-
   onLogout: () => void;
-
+  onShowWelcome: () => void;
 }
 
-
 const AccountItem: React.FC<{
-
   acc: BudgetAccount;
-
   isActive: boolean;
-
   onDelete: (id: string) => void;
-
   onRename: (acc: BudgetAccount) => void;
-
   onSelect: (id: string) => void;
-
   canDelete: boolean;
-
 }> = ({ acc, isActive, onDelete, onRename, onSelect, canDelete }) => {
-
   const [isConfirmingDelete, setIsConfirmingDelete] = useState(false);
 
-
   const handleDelete = (e: React.MouseEvent) => {
-
     e.stopPropagation();
-
     if (!isConfirmingDelete) {
-
       setIsConfirmingDelete(true);
-
       setTimeout(() => setIsConfirmingDelete(false), 3000);
-
       return;
-
     }
-
     onDelete(acc.id);
-
   };
-
-
-  const handleRename = (e: React.MouseEvent) => {
-
-    e.stopPropagation();
-
-    onRename(acc);
-
-  };
-
 
   return (
-
     <div 
-
-      className={`flex items-center justify-between bg-white rounded-[24px] p-4 mb-2 border transition-all cursor-pointer ${isActive ? 'border-indigo-100 shadow-sm ring-4 ring-indigo-50/20' : 'border-slate-50 hover:border-slate-200'}`}
-
+      className={`flex items-center justify-between bg-white rounded-2xl p-3.5 mb-2 border transition-all cursor-pointer ${isActive ? 'border-indigo-200 shadow-sm ring-2 ring-indigo-50' : 'border-slate-100 hover:border-slate-200'}`}
       onClick={() => onSelect(acc.id)}
-
     >
-
       <div className="flex items-center gap-3 min-w-0">
-
-        <div className="w-8 h-8 rounded-xl flex items-center justify-center shadow-sm shrink-0" style={{ backgroundColor: `${acc.color}20`, border: `1px solid ${acc.color}40` }}>
-
-          <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: acc.color }} />
-
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${acc.color}15` }}>
+          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: acc.color }} />
         </div>
-
         <div className="flex flex-col min-w-0">
-
-          <span className="text-[12px] font-black text-slate-800 truncate uppercase tracking-tight">{acc.name}</span>
-
-          {isActive && <span className="text-[7px] font-black text-indigo-500 uppercase tracking-widest">Actif</span>}
-
+          <span className="text-[11px] font-black text-slate-800 truncate uppercase tracking-tight">{acc.name}</span>
+          {isActive && <span className="text-[7px] font-black text-indigo-500 uppercase tracking-[0.1em]">Compte actif</span>}
         </div>
-
       </div>
-
 
       <div className="flex items-center gap-1">
-
-        <button onClick={handleRename} className="p-2 text-slate-300 hover:text-indigo-600 transition-all rounded-lg">
-
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
-
+        <button onClick={(e) => { e.stopPropagation(); onRename(acc); }} className="p-2 text-slate-300 hover:text-indigo-600">
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
         </button>
-
         {canDelete && (
-
           <button 
-
             onClick={handleDelete} 
-
-            className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase transition-all min-w-[40px] ${isConfirmingDelete ? 'bg-red-600 text-white' : 'text-red-300 hover:bg-red-50'}`}
-
+            className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${isConfirmingDelete ? 'bg-red-500 text-white' : 'text-red-200 hover:text-red-400'}`}
           >
-
-            {isConfirmingDelete ? 'Sûr ?' : <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>}
-
+            {isConfirmingDelete ? 'Sûr ?' : <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>}
           </button>
-
         )}
-
       </div>
-
     </div>
-
   );
-
 };
 
-
-const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiveAccount, onDeleteAccount, onReset }) => {
-
+const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiveAccount, onDeleteAccount, onReset, onShowWelcome }) => {
   const [isAddingAccount, setIsAddingAccount] = useState(false);
-
   const [newAccName, setNewAccName] = useState('');
-
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
-
   const [editName, setEditName] = useState('');
-
-  const [isHowItWorksOpen, setIsHowItWorksOpen] = useState(false);
-
   const [customDay, setCustomDay] = useState('');
-
 
   const activeAccount = state.accounts.find(a => a.id === state.activeAccountId);
 
-  
-
-  const SectionTitle: React.FC<{ icon: string, title: string }> = ({ icon, title }) => (
-
-    <div className="flex items-center gap-3 px-2 mb-3">
-
-      <div className="w-9 h-9 rounded-full bg-white shadow-md flex items-center justify-center text-lg border border-slate-50 shrink-0">
-
-        {icon}
-
-      </div>
-
-      <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">{title}</h2>
-
-    </div>
-
+  const SectionTitle: React.FC<{ title: string }> = ({ title }) => (
+    <h2 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] px-1 mb-3">{title}</h2>
   );
-
 
   useEffect(() => {
-
     const day = activeAccount?.cycleEndDay;
-
     if (day && day > 0 && ![25, 26, 28].includes(day)) {
-
       setCustomDay(day.toString());
-
     } else {
-
       setCustomDay('');
-
     }
-
   }, [activeAccount?.id, activeAccount?.cycleEndDay]);
 
-
   const handleCreateAccount = () => {
-
     if (!newAccName.trim()) return;
-
     const newAcc = createDefaultAccount(state.user?.id || 'local-user');
-
     newAcc.name = newAccName.trim();
-
     onUpdateAccounts([...state.accounts, newAcc]);
-
     onSetActiveAccount(newAcc.id);
-
     setNewAccName('');
-
     setIsAddingAccount(false);
-
   };
-
-
-  const handleStartRename = (acc: BudgetAccount) => {
-
-    setEditingAccountId(acc.id);
-
-    setEditName(acc.name);
-
-  };
-
 
   const handleSaveRename = () => {
-
     if (!editingAccountId || !editName.trim()) {
-
       setEditingAccountId(null);
-
       return;
-
     }
-
     const nextAccounts = state.accounts.map(a => a.id === editingAccountId ? { ...a, name: editName.trim() } : a);
-
     onUpdateAccounts(nextAccounts);
-
     setEditingAccountId(null);
-
   };
-
 
   const updateCycleDay = (day: number) => {
+    if (!activeAccount) return;
+    const nextAccounts = state.accounts.map(a => a.id === activeAccount.id ? { ...a, cycleEndDay: day } : a);
+    onUpdateAccounts(nextAccounts);
+  };
 
+  const handleExportCSV = () => {
     if (!activeAccount) return;
 
-    const nextAccounts = state.accounts.map(a => a.id === activeAccount.id ? { ...a, cycleEndDay: day } : a);
+    const now = new Date();
+    const currentBalance = activeAccount.transactions.reduce((acc, t) => {
+      return new Date(t.date) <= now ? acc + (t.type === 'INCOME' ? t.amount : -t.amount) : acc;
+    }, 0);
 
-    onUpdateAccounts(nextAccounts);
+    let projectedEnd = currentBalance;
+    const materializedIds = new Set(activeAccount.transactions.filter(t => {
+        const d = new Date(t.date);
+        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+    }).map(t => t.templateId).filter(Boolean));
 
+    activeAccount.recurringTemplates?.forEach(tpl => {
+        if (tpl.isActive && !materializedIds.has(tpl.id)) {
+            projectedEnd += (tpl.type === 'INCOME' ? tpl.amount : -tpl.amount);
+        }
+    });
+
+    const rows = [];
+    rows.push(["RESUME DU COMPTE"]);
+    rows.push(["Nom du compte", activeAccount.name]);
+    rows.push(["Date d'export", now.toLocaleDateString()]);
+    rows.push(["Solde Actuel", `${currentBalance.toFixed(2)} €`]);
+    rows.push(["Disponible estime (Fin de mois)", `${projectedEnd.toFixed(2)} €`]);
+    rows.push([]); 
+    rows.push(["DETAILS DES OPERATIONS"]);
+    rows.push(["Date", "Type", "Categorie", "Montant", "Note"]);
+    
+    activeAccount.transactions.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).forEach(t => {
+      const cat = state.categories.find(c => c.id === t.categoryId);
+      rows.push([t.date.split('T')[0], t.type === 'INCOME' ? 'Revenu' : 'Depense', cat?.name || 'Inconnue', t.amount.toString().replace('.', ','), (t.comment || '').replace(/;/g, ',')]);
+    });
+
+    const csvContent = rows.map(e => e.join(";")).join("\n");
+    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `zenbudget_${activeAccount.name.toLowerCase()}.csv`);
+    link.click();
   };
-
-
-  const handleCustomDayChange = (val: string) => {
-
-    const s = val.replace(/[^0-9]/g, '').slice(0, 2);
-
-    setCustomDay(s);
-
-    const day = parseInt(s);
-
-    if (!isNaN(day) && day >= 1 && day <= 31) {
-
-      updateCycleDay(day);
-
-    }
-
-  };
-
-
-  const handleFeedback = () => {
-
-    const subject = encodeURIComponent("Suggestion ZenBudget 🚀");
-
-    const body = encodeURIComponent("Bonjour,\n\nJ'ai une idée ou un bug à signaler pour ZenBudget : ");
-
-    window.location.href = `mailto:s.kherchache@gmail.com?subject=${subject}&body=${body}`;
-
-  };
-
 
   return (
-
-    <div className="space-y-7 pb-32 overflow-y-auto no-scrollbar h-full px-1 fade-in">
-
-      {/* MON ESPACE */}
-
-      <section className="mt-4">
-
-        <SectionTitle icon="✨" title="Mon Espace" />
-
-        <div className="bg-white p-5 rounded-[28px] border border-slate-50 flex items-center justify-between shadow-sm">
-
-          <div className="flex items-center gap-4">
-
-            <div className="w-12 h-12 rounded-full bg-indigo-50 border border-indigo-100 flex items-center justify-center text-2xl shadow-inner">🧘‍♂️</div>
-
-            <div>
-
-              <h3 className="font-black text-slate-800 text-sm leading-none mb-1">Utilisateur Zen</h3>
-
-              <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest">Stockage local sécurisé</p>
-
-            </div>
-
+    <div className="space-y-6 pb-32 overflow-y-auto no-scrollbar h-full px-4 pt-6 fade-in">
+      
+      {/* PROFIL CARD */}
+      <div className="bg-white p-4 rounded-[24px] border border-slate-50 flex items-center justify-between shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-indigo-100">✨</div>
+          <div>
+            <h3 className="font-black text-slate-800 text-[13px] leading-tight">Session Locale</h3>
+            <p className="text-[8px] font-black text-slate-300 uppercase tracking-widest">ZenBudget Premium v4.8</p>
           </div>
-
         </div>
-
-      </section>
-
-
-      {/* ZENBUDGET : GESTION INTUITIVE */}
-
-      <section>
-
-        <SectionTitle icon="📖" title="Gestion intuitive" />
-
-        <div className="bg-white rounded-[28px] border border-slate-50 overflow-hidden shadow-sm">
-
-          <button onClick={() => setIsHowItWorksOpen(!isHowItWorksOpen)} className="w-full flex items-center justify-between p-5 hover:bg-slate-50 transition-colors">
-
-            <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-800">Comment ça marche ?</h3>
-
-            <svg className={`w-3.5 h-3.5 text-slate-300 transition-transform ${isHowItWorksOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M19 9l-7 7-7-7" /></svg>
-
-          </button>
-
-          <div className={`transition-all duration-300 ${isHowItWorksOpen ? 'max-h-[1200px] opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
-
-            <div className="px-5 pb-5 space-y-6">
-
-              <div className="bg-slate-50 p-5 rounded-2xl space-y-5">
-
-                <p className="text-[11px] font-bold text-slate-600 leading-relaxed italic">
-
-                  ZenBudget est une méthode de gestion financière basée sur la sérénité. Elle calcule votre véritable capacité de dépense en tenant compte de vos engagements futurs.
-
-                </p>
-
-
-                <div className="space-y-3">
-
-                  <h4 className="text-[11px] font-black uppercase text-indigo-600 tracking-wider">Le cycle Zen</h4>
-
-                  <div className="space-y-3 text-[11px] text-slate-500 font-medium leading-relaxed">
-
-                    <p><b>1. Initialisation :</b> Pour un démarrage parfait, saisissez votre solde bancaire réel à la date d'aujourd'hui. Ce point d'ancrage permet à ZenBudget de synchroniser immédiatement vos projections avec votre réalité financière.</p>
-
-                    <p><b>2. Revenus :</b> Enregistrez vos rentrées (Salaires, aides...).</p>
-
-                    <p><b>3. Fixes :</b> ZenBudget déduit vos charges programmées dès le début du cycle, même si elles n'ont pas encore été payées.</p>
-
-                    <p><b>4. Variables :</b> Vos dépenses quotidiennes ajustent votre solde projeté en temps réel.</p>
-
-                  </div>
-
-                </div>
-
-
-                <div className="space-y-3 pt-3 border-t border-slate-200/60">
-
-                  <h4 className="text-[11px] font-black uppercase text-slate-800 tracking-wider">Lexique Zen</h4>
-
-                  <div className="space-y-3 text-[11px] text-slate-500 font-medium leading-relaxed">
-
-                    <p><b>Solde Bancaire :</b> Somme réelle disponible sur votre compte aujourd'hui (opérations saisies ou pointées).</p>
-
-                    <p><b>Disponible Réel :</b> Ce qu'il vous reste vraiment pour finir le cycle après déduction de TOUS vos flux fixes prévus.</p>
-
-                    <p><b>Projection Fin :</b> Estimation de votre solde au dernier jour du cycle si vous ne dépensez rien d'autre d'ici là.</p>
-
-                    <p><b>Flux Fixes :</b> Vos charges ou revenus récurrents (loyer, abonnements, salaire...). ZenBudget les automatise.</p>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      </section>
-
-
-      {/* MES COMPTES */}
-
-      <section>
-
-        <SectionTitle icon="💳" title="Mes Comptes" />
-
-        <div className="space-y-1">
-
-          {state.accounts.map(acc => (
-
-            <AccountItem key={acc.id} acc={acc} isActive={state.activeAccountId === acc.id} onDelete={onDeleteAccount} onRename={handleStartRename} onSelect={onSetActiveAccount} canDelete={state.accounts.length > 1} />
-
-          ))}
-
-          {editingAccountId && (
-
-            <div className="bg-white p-4 rounded-[22px] border-2 border-indigo-200 mb-2 animate-in zoom-in-95">
-
-              <input autoFocus value={editName} onChange={e => setEditName(e.target.value)} placeholder="Nom..." className="w-full bg-slate-50 p-3 rounded-xl mb-3 text-sm font-bold border-none outline-none focus:ring-1 focus:ring-indigo-200" />
-
-              <div className="flex gap-2">
-
-                <button onClick={() => setEditingAccountId(null)} className="flex-1 py-2 text-[10px] font-black uppercase text-slate-400">Annuler</button>
-
-                <button onClick={handleSaveRename} className="flex-1 py-2 text-[10px] font-black uppercase text-white bg-indigo-600 rounded-xl shadow-lg shadow-indigo-100">Sauver</button>
-
-              </div>
-
-            </div>
-
-          )}
-
-          {isAddingAccount ? (
-
-            <div className="bg-white p-4 rounded-[22px] border-2 border-indigo-200 mb-2 animate-in zoom-in-95">
-
-              <input autoFocus value={newAccName} onChange={e => setNewAccName(e.target.value)} placeholder="Nom..." className="w-full bg-slate-50 p-3 rounded-xl mb-3 text-sm font-bold border-none outline-none focus:ring-1 focus:ring-indigo-200" />
-
-              <div className="flex gap-2">
-
-                <button onClick={() => setIsAddingAccount(false)} className="flex-1 py-2 text-[10px] font-black uppercase text-slate-400">Annuler</button>
-
-                <button onClick={handleCreateAccount} className="flex-1 py-2 text-[10px] font-black uppercase text-white bg-indigo-600 rounded-xl shadow-lg shadow-indigo-100">Créer</button>
-
-              </div>
-
-            </div>
-
-          ) : (
-
-            <button onClick={() => setIsAddingAccount(true)} className="w-full py-4 border-2 border-dashed border-slate-100 text-slate-400 font-black text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 rounded-[24px] bg-white/40 hover:bg-white hover:text-indigo-600 transition-all">
-
-              <IconPlus className="w-4 h-4" /> Nouveau compte
-
-            </button>
-
-          )}
-
-        </div>
-
-      </section>
-
-
-      {/* CYCLE BUDGÉTAIRE */}
-
-      <section>
-
-        <SectionTitle icon="📅" title="Cycle Budgétaire" />
-
-        <div className="bg-white p-5 rounded-[28px] border border-slate-50 shadow-sm space-y-4">
-
-          <p className="text-[10px] text-slate-400 font-medium leading-tight px-1">Jour du salaire (le budget redémarre à cette date).</p>
-
-          <div className="flex flex-wrap items-center gap-2">
-
-            {[0, 25, 26, 28].map(day => (
-
-              <button key={day} onClick={() => updateCycleDay(day)} className={`w-11 h-11 rounded-xl text-[10px] font-black uppercase tracking-tight transition-all border-2 ${activeAccount?.cycleEndDay === day ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-100' : 'bg-slate-50 border-transparent text-slate-400 hover:border-slate-200'}`}>
-
-                {day === 0 ? 'Fin' : `${day}`}
-
-              </button>
-
-            ))}
-
-            <div className="relative">
-
-              <input 
-
-                type="number" inputMode="numeric" value={customDay} onChange={(e) => handleCustomDayChange(e.target.value)} placeholder="+"
-
-                className={`w-11 h-11 text-center rounded-xl text-[11px] font-black outline-none border-2 transition-all ${customDay && ![25, 26, 28].includes(parseInt(customDay)) ? 'bg-indigo-600 border-indigo-600 text-white' : 'bg-slate-50 border-dashed border-slate-200 text-slate-500'}`}
-
-              />
-
-            </div>
-
-            {customDay && ![25, 26, 28].includes(parseInt(customDay)) && (
-
-              <span className="text-[9px] font-black text-indigo-500 uppercase ml-1 animate-in slide-in-from-left">Le {customDay}</span>
-
-            )}
-
-          </div>
-
-        </div>
-
-      </section>
-
-
-      {/* ACTIONS FINALES & FEEDBACK */}
-
-      <section className="space-y-4">
-
-        <div className="bg-indigo-50/40 border border-indigo-100 p-8 rounded-[40px] text-center space-y-5 shadow-sm relative overflow-hidden group">
-
-          <div className="absolute -right-6 -top-6 w-24 h-24 bg-indigo-100/30 rounded-full blur-2xl group-hover:scale-125 transition-transform" />
-
-          <p className="text-[12px] font-medium text-slate-600 leading-relaxed italic relative z-10 px-2">
-
-            "ZenBudget évolue grâce à vous ! Si vous avez envie d'aider à améliorer l'appli, envoyez-nous une suggestion ou signalez un bug."
-
-          </p>
-
-          <button 
-
-            onClick={handleFeedback} 
-
-            className="w-full py-4.5 bg-slate-900 text-white font-black rounded-[26px] uppercase text-[10px] tracking-[0.2em] active:scale-95 transition-all shadow-xl flex items-center justify-center gap-2 relative z-10 hover:bg-slate-800"
-
-          >
-
-            <span>Envoyez un retour</span>
-
-            <span className="text-sm">✨</span>
-
-          </button>
-
-        </div>
-
-
-        <button 
-
-          onClick={onReset} 
-
-          className="w-full py-4 text-red-300 font-black rounded-[24px] uppercase text-[9px] tracking-[0.2em] active:scale-95 transition-all hover:bg-red-50"
-
-        >
-
-          Réinitialiser l'application
-
-        </button>
-
-      </section>
-
-
-      <div className="pt-4 border-t border-slate-50 text-center">
-
-        <p className="text-[8px] text-slate-200 font-black uppercase tracking-[0.4em]">ZenBudget V4.8 • Premium Design</p>
-
       </div>
 
+      {/* OUTILS ZEN */}
+      <section>
+        <SectionTitle title="Outils & Aide" />
+        <div className="bg-white rounded-[24px] border border-slate-50 overflow-hidden shadow-sm">
+          <button onClick={onShowWelcome} className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors border-b border-slate-50">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-sm">📖</div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">Guide d'utilisation</span>
+            </div>
+            <svg className="w-3 h-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M9 5l7 7-7 7" /></svg>
+          </button>
+          <button onClick={handleExportCSV} className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600"><IconExport className="w-4 h-4" /></div>
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">Export complet (Stats + Journal)</span>
+            </div>
+            <svg className="w-3 h-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M9 5l7 7-7 7" /></svg>
+          </button>
+        </div>
+      </section>
+
+      {/* MES COMPTES */}
+      <section>
+        <SectionTitle title="Mes Comptes" />
+        <div className="space-y-1">
+          {state.accounts.map(acc => (
+            <AccountItem key={acc.id} acc={acc} isActive={state.activeAccountId === acc.id} onDelete={onDeleteAccount} onRename={(a) => { setEditingAccountId(a.id); setEditName(a.name); }} onSelect={onSetActiveAccount} canDelete={state.accounts.length > 1} />
+          ))}
+          
+          {editingAccountId && (
+            <div className="bg-white p-3 rounded-2xl border-2 border-indigo-100 mb-2 animate-in zoom-in-95">
+              <input autoFocus value={editName} onChange={e => setEditName(e.target.value)} className="w-full bg-slate-50 p-2.5 rounded-xl mb-2 text-xs font-bold outline-none" />
+              <div className="flex gap-2">
+                <button onClick={() => setEditingAccountId(null)} className="flex-1 py-2 text-[9px] font-black uppercase text-slate-400">Annuler</button>
+                <button onClick={handleSaveRename} className="flex-1 py-2 text-[9px] font-black uppercase text-white bg-indigo-600 rounded-xl">Renommer</button>
+              </div>
+            </div>
+          )}
+
+          {!isAddingAccount ? (
+            <button onClick={() => setIsAddingAccount(true)} className="w-full py-3.5 border-2 border-dashed border-slate-100 text-slate-300 font-black text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 rounded-2xl hover:border-indigo-200 hover:text-indigo-400 transition-all mt-2">
+              <IconPlus className="w-3 h-3" /> Ajouter un compte
+            </button>
+          ) : (
+            <div className="bg-white p-3 rounded-2xl border-2 border-indigo-100 mt-2 animate-in zoom-in-95">
+              <input autoFocus value={newAccName} onChange={e => setNewAccName(e.target.value)} placeholder="Nom du compte..." className="w-full bg-slate-50 p-2.5 rounded-xl mb-2 text-xs font-bold outline-none" />
+              <div className="flex gap-2">
+                <button onClick={() => setIsAddingAccount(false)} className="flex-1 py-2 text-[9px] font-black uppercase text-slate-400">Annuler</button>
+                <button onClick={handleCreateAccount} className="flex-1 py-2 text-[9px] font-black uppercase text-white bg-indigo-600 rounded-xl">Créer</button>
+              </div>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* CYCLE */}
+      <section>
+        <SectionTitle title="Cycle Budgétaire" />
+        <div className="bg-white p-4 rounded-[24px] border border-slate-50 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            {[0, 25, 26, 28].map(day => (
+              <button key={day} onClick={() => updateCycleDay(day)} className={`flex-1 h-10 rounded-xl text-[10px] font-black transition-all ${activeAccount?.cycleEndDay === day ? 'bg-indigo-600 text-white shadow-md' : 'bg-slate-50 text-slate-400'}`}>
+                {day === 0 ? 'Fin' : day}
+              </button>
+            ))}
+            <input 
+              type="number" value={customDay} onChange={(e) => {
+                const val = e.target.value.slice(0, 2);
+                setCustomDay(val);
+                const d = parseInt(val);
+                if (d >= 1 && d <= 31) updateCycleDay(d);
+              }} 
+              placeholder="+"
+              className={`w-10 h-10 text-center rounded-xl text-[10px] font-black outline-none border-2 ${customDay ? 'border-indigo-600 bg-indigo-50 text-indigo-600' : 'border-transparent bg-slate-50 text-slate-400'}`}
+            />
+          </div>
+          <p className="text-[9px] text-slate-400 font-medium text-center uppercase tracking-tight">Le budget se réinitialise le {activeAccount?.cycleEndDay === 0 ? 'dernier jour' : activeAccount?.cycleEndDay} du mois</p>
+        </div>
+      </section>
+
+      {/* FEEDBACK & RESET */}
+      <section className="pt-4 space-y-4">
+        <div className="bg-slate-900 rounded-[32px] p-6 text-center relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/20 blur-3xl rounded-full" />
+          <p className="text-[11px] font-medium text-indigo-100/80 mb-4 px-2 leading-relaxed">
+            Un bug ? Une idée ? Un avis ?<br/>
+            ZenBudget évolue grâce à vos retours.
+          </p>
+          <button 
+            onClick={() => window.location.href = `mailto:s.kherchache@gmail.com?subject=ZenBudget : Bug, Idée ou Avis`} 
+            className="w-full py-3.5 bg-white text-slate-900 font-black rounded-xl uppercase text-[9px] tracking-widest active:scale-95 transition-all shadow-xl"
+          >
+            Envoyer un retour ✨
+          </button>
+        </div>
+
+        <button 
+          onClick={onReset} 
+          className="w-full py-3 text-red-300 font-black uppercase text-[8px] tracking-[0.2em] active:scale-95 transition-all hover:bg-red-50 rounded-xl"
+        >
+          Réinitialiser les données
+        </button>
+      </section>
+
+      <div className="text-center pb-10">
+        <p className="text-[7px] text-slate-200 font-black uppercase tracking-[0.5em]">Crafted for Serenity</p>
+      </div>
     </div>
-
   );
-
 };
 
-
-export default Settings; 
+export default Settings;
