@@ -34,6 +34,53 @@ const App: React.FC = () => {
   const isInitialMount = useRef(true);
   const isResetting = useRef(false);
   
+  // --- GESTION DU BOUTON RETOUR (History API) ---
+  useEffect(() => {
+    // Initialisation : on remplace l'état actuel pour marquer le point de départ
+    window.history.replaceState({ view: 'DASHBOARD' }, '', '#dashboard');
+
+    const handlePopState = (event: PopStateEvent) => {
+      // Si une modale est ouverte, on la ferme en priorité
+      if (showAddModal) {
+        setShowAddModal(false);
+        setEditingTransaction(null);
+        return;
+      }
+      if (showWelcome) {
+        setShowWelcome(false);
+        return;
+      }
+
+      // Sinon on change de vue
+      if (event.state && event.state.view) {
+        setActiveView(event.state.view);
+      } else {
+        setActiveView('DASHBOARD');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [showAddModal, showWelcome]);
+
+  // Fonction de navigation personnalisée
+  const navigateTo = (view: ViewType) => {
+    if (view !== activeView) {
+      const hash = view.toLowerCase();
+      window.history.pushState({ view }, '', `#${hash}`);
+      setActiveView(view);
+    }
+  };
+
+  // Ajout d'une entrée d'historique quand on ouvre une modale 
+  // pour que le bouton retour la ferme au lieu de changer de page
+  useEffect(() => {
+    if (showAddModal || showWelcome) {
+      window.history.pushState({ modalOpen: true, view: activeView }, '', window.location.hash);
+    }
+  }, [showAddModal, showWelcome]);
+
+  // --- PERSISTANCE ---
   useEffect(() => {
     if (isInitialMount.current) {
       isInitialMount.current = false;
@@ -146,14 +193,12 @@ const App: React.FC = () => {
       const cleanTransaction = { ...t, amount: Math.abs(t.amount) };
       const targetId = t.id || editingTransaction?.id;
 
-      // Logique d'automatisation : Mise à jour du template si l'opération est récurrente
       let currentTemplateId = t.templateId || editingTransaction?.templateId;
       if (targetId?.startsWith('virtual-')) {
         currentTemplateId = targetId.split('-')[1];
       }
 
       if (currentTemplateId) {
-        // Mise à jour automatisée du template pour impacter les autres mois
         nextTemplates = nextTemplates.map(tpl => 
           tpl.id === currentTemplateId 
             ? { 
@@ -167,7 +212,6 @@ const App: React.FC = () => {
             : tpl
         );
       } else if (t.isRecurring && !targetId) {
-        // Création d'un nouveau flux fixe automatisé
         const newTplId = generateId();
         currentTemplateId = newTplId;
         nextTemplates.push({ 
@@ -181,7 +225,6 @@ const App: React.FC = () => {
         });
       }
 
-      // Mise à jour de la transaction réelle (instantanée)
       if (targetId?.startsWith('virtual-')) {
         nextDeleted.push(targetId!);
         nextTx = [{ ...cleanTransaction, id: generateId(), templateId: currentTemplateId } as Transaction, ...nextTx];
@@ -195,7 +238,11 @@ const App: React.FC = () => {
       nextAccounts[accIndex] = { ...acc, transactions: nextTx, recurringTemplates: nextTemplates, deletedVirtualIds: nextDeleted };
       return { ...prev, accounts: nextAccounts };
     });
-    setShowAddModal(false);
+    
+    // Fermeture propre de la modale après validation
+    if (showAddModal) {
+      window.history.back(); // Cela déclenchera popstate et fermera la modale
+    }
     setEditingTransaction(null);
   };
 
@@ -240,7 +287,7 @@ const App: React.FC = () => {
             <Dashboard 
               transactions={effectiveTransactions} categories={state.categories} activeAccount={activeAccount} allAccounts={state.accounts} 
               onSwitchAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))} month={currentMonth} year={currentYear} 
-              onViewTransactions={() => setActiveView('TRANSACTIONS')} 
+              onViewTransactions={() => navigateTo('TRANSACTIONS')} 
               checkingAccountBalance={getBalanceAtDate(now, true)} 
               availableBalance={availableBalance} 
               projectedBalance={projectedBalance} carryOver={carryOver} 
@@ -308,16 +355,16 @@ const App: React.FC = () => {
       <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="fixed bottom-[100px] right-6 w-14 h-14 bg-slate-900 text-white rounded-[22px] shadow-2xl flex items-center justify-center z-40 border-4 border-white"><IconPlus className="w-7 h-7" /></button>
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-100 flex justify-around items-center pt-2 pb-[max(1.5rem,env(safe-area-inset-bottom))] px-6 z-40">
-        <NavBtn active={activeView === 'DASHBOARD'} onClick={() => setActiveView('DASHBOARD')} icon={<IconHome />} label="Stats" />
-        <NavBtn active={activeView === 'TRANSACTIONS'} onClick={() => setActiveView('TRANSACTIONS')} icon={<IconCalendar />} label="Journal" />
-        <NavBtn active={activeView === 'RECURRING'} onClick={() => setActiveView('RECURRING')} icon={<IconPlus className="rotate-45" />} label="Fixes" />
-        <NavBtn active={activeView === 'SETTINGS'} icon={<IconSettings />} onClick={() => setActiveView('SETTINGS')} label="Réglages" />
+        <NavBtn active={activeView === 'DASHBOARD'} onClick={() => navigateTo('DASHBOARD')} icon={<IconHome />} label="Stats" />
+        <NavBtn active={activeView === 'TRANSACTIONS'} onClick={() => navigateTo('TRANSACTIONS')} icon={<IconCalendar />} label="Journal" />
+        <NavBtn active={activeView === 'RECURRING'} onClick={() => navigateTo('RECURRING')} icon={<IconPlus className="rotate-45" />} label="Fixes" />
+        <NavBtn active={activeView === 'SETTINGS'} icon={<IconSettings />} onClick={() => navigateTo('SETTINGS')} label="Réglages" />
       </nav>
 
-      {showAddModal && <AddTransactionModal categories={state.categories} onClose={() => { setShowAddModal(false); setEditingTransaction(null); }} onAdd={handleUpsertTransaction} initialDate={modalInitialDate} editItem={editingTransaction} />}
+      {showAddModal && <AddTransactionModal categories={state.categories} onClose={() => window.history.back()} onAdd={handleUpsertTransaction} initialDate={modalInitialDate} editItem={editingTransaction} />}
       
       {showWelcome && (
-        <div className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-xl flex items-center justify-center p-6" onClick={() => setShowWelcome(false)}>
+        <div className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-xl flex items-center justify-center p-6" onClick={() => window.history.back()}>
           <div className="bg-white rounded-[40px] max-w-md w-full p-8 shadow-2xl space-y-6" onClick={e => e.stopPropagation()}>
             <div className="flex justify-center text-4xl">🌿</div>
             <h2 className="text-2xl font-black text-center italic">Guide Zen</h2>
@@ -326,7 +373,7 @@ const App: React.FC = () => {
               <div className="flex gap-3"><span className="font-black text-indigo-600">2.</span><p className="text-sm font-medium">Configurez vos <b>flux fixes</b> (loyer, abonnements...) dans l'onglet <b>"Fixes"</b>.</p></div>
               <div className="flex gap-3"><span className="font-black text-indigo-600">3.</span><p className="text-sm font-medium">Vérifiez votre <b>"Disponible Réel"</b> : c'est l'argent que vous pouvez dépenser sereinement.</p></div>
             </div>
-            <button onClick={() => setShowWelcome(false)} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-lg active:scale-95 transition-all">C'est parti !</button>
+            <button onClick={() => window.history.back()} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-lg active:scale-95 transition-all">C'est parti !</button>
           </div>
         </div>
       )}
