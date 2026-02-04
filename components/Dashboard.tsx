@@ -1,6 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Transaction, Category, BudgetAccount } from '../types';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+// Utilisation de la bibliothèque standard stable pour éviter les erreurs de build
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface DashboardProps {
@@ -41,16 +42,25 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, []);
 
   const fetchAiAdvice = async () => {
-    const API_KEY = (import.meta as any).env?.VITE_GEMINI_API_KEY || (window as any).process?.env?.VITE_GEMINI_API_KEY || "";
+    // CORRECTION VERCEL : Récupération de la clé compatible Vite/Vercel
+    const API_KEY = 
+      (import.meta as any).env?.VITE_GEMINI_API_KEY || 
+      (window as any).process?.env?.VITE_GEMINI_API_KEY || 
+      "";
+
     if (!API_KEY || loadingAdvice) return;
+    
     setLoadingAdvice(true);
     try {
       const genAI = new GoogleGenerativeAI(API_KEY);
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      
       const result = await model.generateContent("Donne un conseil financier zen très court (max 60 caractères) en français, sans guillemets.");
       const response = await result.response;
-      setAiAdvice(response.text());
+      const text = response.text();
+      setAiAdvice(text || "ZenTip : Respirez, votre budget est sous contrôle. ✨");
     } catch (err) {
+      console.error("Erreur IA:", err);
       setAiAdvice("ZenTip : Respirez, votre budget est sous contrôle. ✨");
     } finally {
       setLoadingAdvice(false);
@@ -135,7 +145,6 @@ const Dashboard: React.FC<DashboardProps> = ({
 
   return (
     <div className="flex flex-col h-full space-y-6 overflow-y-auto no-scrollbar pb-32 px-1 fade-in">
-      {/* Header avec sélecteur personnalisé */}
       <div className="pt-6 flex justify-between items-start relative">
         <div className="flex flex-col" ref={menuRef}>
           <h2 className="text-2xl font-black text-slate-800 tracking-tighter italic leading-none">Bilan Zen ✨</h2>
@@ -155,7 +164,6 @@ const Dashboard: React.FC<DashboardProps> = ({
               )}
             </button>
 
-            {/* Liste déroulante flottante */}
             {isAccountMenuOpen && (
               <div className="absolute left-0 mt-2 w-max min-w-[140px] bg-white border border-slate-100 rounded-2xl shadow-xl z-[100] overflow-hidden fade-in py-1">
                 {allAccounts.map(acc => (
@@ -180,12 +188,11 @@ const Dashboard: React.FC<DashboardProps> = ({
           onClick={handleExportCSV} 
           className="p-3 bg-white border border-slate-50 rounded-2xl shadow-sm text-indigo-600 active:scale-95 transition-all flex items-center gap-2"
         >
-          <span className="text-[9px] font-black uppercase tracking-widest">CSV</span>
+          <span className="text-[9px] font-black uppercase tracking-widest">EXPORT CSV</span>
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
         </button>
       </div>
 
-      {/* Reste du Dashboard... (Solde, Disponible, IA, Graphique identiques) */}
       <div className="bg-slate-900 px-6 py-9 rounded-[40px] shadow-2xl relative overflow-hidden flex flex-col justify-center">
         <span className="text-indigo-400 text-[9px] font-black uppercase tracking-[0.3em] mb-1">Solde Bancaire Actuel</span>
         <div className="text-4xl font-black tracking-tighter text-white">{formatVal(checkingAccountBalance)} €</div>
