@@ -134,6 +134,20 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
         </div> 
       </div> 
 
+      {/* Guide Zen remonté tout en haut sous "Session Locale" */}
+      <section> 
+        <SectionTitle title="Aide" /> 
+        <div className="bg-white rounded-[24px] border border-slate-50 overflow-hidden shadow-sm"> 
+          <button onClick={onShowWelcome} className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors group"> 
+            <div className="flex items-center gap-3"> 
+              <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-sm group-active:scale-90 transition-transform">📖</div> 
+              <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">Guide Zen de l'application</span> 
+            </div> 
+            <svg className="w-3 h-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+          </button> 
+        </div> 
+      </section>
+
       <section> 
         <SectionTitle title="Mes Comptes" /> 
         <div className="space-y-1"> 
@@ -210,18 +224,6 @@ const Settings: React.FC<SettingsProps> = ({ state, onUpdateAccounts, onSetActiv
             <button type="submit" className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest">OK</button>
           </form>
         </div>
-      </section>
-
-      <section> 
-        <SectionTitle title="Outils & Aide" /> 
-        <div className="bg-white rounded-[24px] border border-slate-50 overflow-hidden shadow-sm"> 
-          <button onClick={onShowWelcome} className="w-full flex items-center justify-between p-4 hover:bg-slate-50 transition-colors"> 
-            <div className="flex items-center gap-3"> 
-              <div className="w-8 h-8 rounded-lg bg-indigo-50 flex items-center justify-center text-sm">📖</div> 
-              <span className="text-[10px] font-black uppercase tracking-widest text-slate-700">Guide Zen</span> 
-            </div> 
-          </button> 
-        </div> 
       </section>
 
       <section>
