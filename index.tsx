@@ -142,20 +142,55 @@ const App: React.FC = () => {
       let nextTx = [...acc.transactions];
       let nextTemplates = [...(acc.recurringTemplates || [])];
       let nextDeleted = [...(acc.deletedVirtualIds || [])];
+      
       const cleanTransaction = { ...t, amount: Math.abs(t.amount) };
       const targetId = t.id || editingTransaction?.id;
-      if (t.isRecurring && !targetId) {
-        const newTplId = generateId();
-        nextTemplates.push({ id: newTplId, amount: cleanTransaction.amount, type: cleanTransaction.type, categoryId: cleanTransaction.categoryId, comment: cleanTransaction.comment, dayOfMonth: new Date(cleanTransaction.date).getDate(), isActive: true });
-        nextTx = [{ ...cleanTransaction, id: generateId(), templateId: newTplId } as Transaction, ...nextTx];
-      } else if (targetId?.startsWith('virtual-')) {
-        nextDeleted.push(targetId!);
-        nextTx = [{ ...cleanTransaction, id: generateId(), templateId: targetId.split('-')[1] } as Transaction, ...nextTx];
-      } else if (targetId && nextTx.some(i => i.id === targetId)) {
-        nextTx = nextTx.map(i => i.id === targetId ? ({ ...cleanTransaction, id: targetId } as Transaction) : i);
-      } else {
-        nextTx = [{ ...cleanTransaction, id: generateId() } as Transaction, ...nextTx];
+
+      // Logique d'automatisation : Mise à jour du template si l'opération est récurrente
+      let currentTemplateId = t.templateId || editingTransaction?.templateId;
+      if (targetId?.startsWith('virtual-')) {
+        currentTemplateId = targetId.split('-')[1];
       }
+
+      if (currentTemplateId) {
+        // Mise à jour automatisée du template pour impacter les autres mois
+        nextTemplates = nextTemplates.map(tpl => 
+          tpl.id === currentTemplateId 
+            ? { 
+                ...tpl, 
+                amount: cleanTransaction.amount, 
+                categoryId: cleanTransaction.categoryId, 
+                comment: cleanTransaction.comment, 
+                type: cleanTransaction.type,
+                dayOfMonth: new Date(cleanTransaction.date).getDate()
+              } 
+            : tpl
+        );
+      } else if (t.isRecurring && !targetId) {
+        // Création d'un nouveau flux fixe automatisé
+        const newTplId = generateId();
+        currentTemplateId = newTplId;
+        nextTemplates.push({ 
+          id: newTplId, 
+          amount: cleanTransaction.amount, 
+          type: cleanTransaction.type, 
+          categoryId: cleanTransaction.categoryId, 
+          comment: cleanTransaction.comment, 
+          dayOfMonth: new Date(cleanTransaction.date).getDate(), 
+          isActive: true 
+        });
+      }
+
+      // Mise à jour de la transaction réelle (instantanée)
+      if (targetId?.startsWith('virtual-')) {
+        nextDeleted.push(targetId!);
+        nextTx = [{ ...cleanTransaction, id: generateId(), templateId: currentTemplateId } as Transaction, ...nextTx];
+      } else if (targetId && nextTx.some(i => i.id === targetId)) {
+        nextTx = nextTx.map(i => i.id === targetId ? ({ ...cleanTransaction, id: targetId, templateId: currentTemplateId } as Transaction) : i);
+      } else {
+        nextTx = [{ ...cleanTransaction, id: generateId(), templateId: currentTemplateId } as Transaction, ...nextTx];
+      }
+
       const nextAccounts = [...prev.accounts];
       nextAccounts[accIndex] = { ...acc, transactions: nextTx, recurringTemplates: nextTemplates, deletedVirtualIds: nextDeleted };
       return { ...prev, accounts: nextAccounts };
@@ -209,6 +244,7 @@ const App: React.FC = () => {
               checkingAccountBalance={getBalanceAtDate(now, true)} 
               availableBalance={availableBalance} 
               projectedBalance={projectedBalance} carryOver={carryOver} 
+              onAddTransaction={handleUpsertTransaction}
             />
           )}
           {activeView === 'TRANSACTIONS' && (
