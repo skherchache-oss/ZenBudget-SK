@@ -34,36 +34,19 @@ const App: React.FC = () => {
   const isInitialMount = useRef(true);
   const isResetting = useRef(false);
   
-  // --- GESTION DU BOUTON RETOUR (History API) ---
+  // --- GESTION DU BOUTON RETOUR ---
   useEffect(() => {
-    // Initialisation : on remplace l'état actuel pour marquer le point de départ
     window.history.replaceState({ view: 'DASHBOARD' }, '', '#dashboard');
-
     const handlePopState = (event: PopStateEvent) => {
-      // Si une modale est ouverte, on la ferme en priorité
-      if (showAddModal) {
-        setShowAddModal(false);
-        setEditingTransaction(null);
-        return;
-      }
-      if (showWelcome) {
-        setShowWelcome(false);
-        return;
-      }
-
-      // Sinon on change de vue
-      if (event.state && event.state.view) {
-        setActiveView(event.state.view);
-      } else {
-        setActiveView('DASHBOARD');
-      }
+      if (showAddModal) { setShowAddModal(false); setEditingTransaction(null); return; }
+      if (showWelcome) { setShowWelcome(false); return; }
+      if (event.state && event.state.view) setActiveView(event.state.view);
+      else setActiveView('DASHBOARD');
     };
-
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, [showAddModal, showWelcome]);
 
-  // Fonction de navigation personnalisée
   const navigateTo = (view: ViewType) => {
     if (view !== activeView) {
       const hash = view.toLowerCase();
@@ -72,8 +55,6 @@ const App: React.FC = () => {
     }
   };
 
-  // Ajout d'une entrée d'historique quand on ouvre une modale 
-  // pour que le bouton retour la ferme au lieu de changer de page
   useEffect(() => {
     if (showAddModal || showWelcome) {
       window.history.pushState({ modalOpen: true, view: activeView }, '', window.location.hash);
@@ -82,10 +63,7 @@ const App: React.FC = () => {
 
   // --- PERSISTANCE ---
   useEffect(() => {
-    if (isInitialMount.current) {
-      isInitialMount.current = false;
-      return;
-    }
+    if (isInitialMount.current) { isInitialMount.current = false; return; }
     if (isResetting.current) return;
     saveState(state);
   }, [state]);
@@ -239,11 +217,40 @@ const App: React.FC = () => {
       return { ...prev, accounts: nextAccounts };
     });
     
-    // Fermeture propre de la modale après validation
-    if (showAddModal) {
-      window.history.back(); // Cela déclenchera popstate et fermera la modale
-    }
+    if (showAddModal) window.history.back();
     setEditingTransaction(null);
+  };
+
+  const handleDeleteTransaction = (id: string) => {
+    setState(prev => {
+      const accIndex = prev.accounts.findIndex(a => a.id === activeAccount.id);
+      if (accIndex === -1) return prev;
+      const acc = { ...prev.accounts[accIndex] };
+      
+      let templateIdToDelete: string | undefined;
+
+      // Déterminer s'il y a un template lié
+      if (id.startsWith('virtual-')) {
+        templateIdToDelete = id.split('-')[1];
+      } else {
+        const tx = acc.transactions.find(t => t.id === id);
+        if (tx?.templateId) templateIdToDelete = tx.templateId;
+      }
+
+      const nextAccounts = [...prev.accounts];
+      nextAccounts[accIndex] = {
+        ...acc,
+        transactions: acc.transactions.filter(tx => tx.id !== id),
+        // Si c'est une opération récurrente, on supprime carrément le template pour tous les mois
+        recurringTemplates: templateIdToDelete 
+          ? (acc.recurringTemplates || []).filter(tpl => tpl.id !== templateIdToDelete)
+          : acc.recurringTemplates,
+        deletedVirtualIds: id.startsWith('virtual-') 
+          ? [...(acc.deletedVirtualIds || []), id] 
+          : acc.deletedVirtualIds
+      };
+      return { ...prev, accounts: nextAccounts };
+    });
   };
 
   const handleMonthChange = (offset: number) => {
@@ -262,9 +269,7 @@ const App: React.FC = () => {
         window.localStorage.clear();
         window.localStorage.removeItem('zenbudget_state_v3');
         window.location.href = window.location.origin + window.location.pathname + "?reset=" + Date.now();
-      } catch (e) {
-        window.location.reload();
-      }
+      } catch (e) { window.location.reload(); }
     }
   };
 
@@ -297,7 +302,7 @@ const App: React.FC = () => {
           {activeView === 'TRANSACTIONS' && (
             <TransactionList 
               transactions={effectiveTransactions} categories={state.categories} month={currentMonth} year={currentYear} 
-              onDelete={(id) => setState(prev => ({ ...prev, accounts: prev.accounts.map(a => a.id === activeAccount.id ? { ...a, transactions: a.transactions.filter(tx => tx.id !== id), deletedVirtualIds: id.startsWith('virtual-') ? [...(a.deletedVirtualIds || []), id] : a.deletedVirtualIds } : a) }))}
+              onDelete={handleDeleteTransaction}
               onEdit={(t) => { setEditingTransaction(t); setShowAddModal(true); }} 
               onAddAtDate={(date) => { setModalInitialDate(date); setShowAddModal(true); }} 
               selectedDay={selectedDay} onSelectDay={setSelectedDay} totalBalance={projectedBalance} carryOver={carryOver} 
@@ -313,11 +318,8 @@ const App: React.FC = () => {
           )}
           {activeView === 'SETTINGS' && (
             <Settings 
-              state={state} 
-              onUpdateCategories={(cats) => setState(prev => ({ ...prev, categories: cats }))} 
-              onUpdateBudget={() => {}} 
-              onUpdateAccounts={(accounts) => setState(prev => ({ ...prev, accounts }))} 
-              onSetActiveAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))} 
+              state={state} onUpdateCategories={(cats) => setState(prev => ({ ...prev, categories: cats }))} onUpdateBudget={() => {}} 
+              onUpdateAccounts={(accounts) => setState(prev => ({ ...prev, accounts }))} onSetActiveAccount={(id) => setState(prev => ({ ...prev, activeAccountId: id }))} 
               onDeleteAccount={(id) => {
                 setState(prev => {
                   const nextAccounts = prev.accounts.filter(a => a.id !== id);
@@ -326,9 +328,7 @@ const App: React.FC = () => {
                   return { ...prev, accounts: nextAccounts, activeAccountId: nextActive };
                 });
               }} 
-              onReset={handleReset} 
-              onLogout={() => {}} 
-              onShowWelcome={() => setShowWelcome(true)} 
+              onReset={handleReset} onLogout={() => {}} onShowWelcome={() => setShowWelcome(true)} 
               onBackup={() => {
                 const dataStr = JSON.stringify(state);
                 const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
