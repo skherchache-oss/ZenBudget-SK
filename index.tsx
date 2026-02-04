@@ -273,6 +273,24 @@ const App: React.FC = () => {
     }
   };
 
+  // Nouvelle fonction pour gérer l'ouverture intelligente du modal d'ajout
+  const handleOpenAddModal = () => {
+    setEditingTransaction(null);
+    
+    // Déterminer le jour à utiliser : celui sélectionné ou aujourd'hui par défaut
+    const dayToUse = selectedDay || now.getDate();
+    
+    // S'assurer que le jour est valide pour le mois/année affiché (ex: éviter le 31 Février)
+    const maxDaysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+    const safeDay = Math.min(dayToUse, maxDaysInMonth);
+    
+    // Créer la date ISO à midi pour éviter les décalages de fuseau horaire
+    const targetDate = new Date(currentYear, currentMonth, safeDay, 12, 0, 0);
+    
+    setModalInitialDate(targetDate.toISOString());
+    setShowAddModal(true);
+  };
+
   return (
     <div className="flex flex-col h-screen bg-[#F8F9FD] text-slate-900 overflow-hidden font-sans">
       <header className="bg-white/80 backdrop-blur-xl border-b border-slate-100 px-4 py-3 safe-top shrink-0 z-50">
@@ -352,7 +370,8 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      <button onClick={() => { setEditingTransaction(null); setShowAddModal(true); }} className="fixed bottom-[100px] right-6 w-14 h-14 bg-slate-900 text-white rounded-[22px] shadow-2xl flex items-center justify-center z-40 border-4 border-white"><IconPlus className="w-7 h-7" /></button>
+      {/* Bouton modifié pour appeler handleOpenAddModal */}
+      <button onClick={handleOpenAddModal} className="fixed bottom-[100px] right-6 w-14 h-14 bg-slate-900 text-white rounded-[22px] shadow-2xl flex items-center justify-center z-40 border-4 border-white"><IconPlus className="w-7 h-7" /></button>
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-slate-100 flex justify-around items-center pt-2 pb-[max(1.5rem,env(safe-area-inset-bottom))] px-6 z-40">
         <NavBtn active={activeView === 'DASHBOARD'} onClick={() => navigateTo('DASHBOARD')} icon={<IconHome />} label="Stats" />
