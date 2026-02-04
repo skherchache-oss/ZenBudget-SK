@@ -367,11 +367,12 @@ const App: React.FC = () => {
         <div className="fixed inset-0 z-[200] bg-slate-900/40 backdrop-blur-xl flex items-center justify-center p-6" onClick={() => window.history.back()}>
           <div className="bg-white rounded-[40px] max-w-md w-full p-8 shadow-2xl space-y-6" onClick={e => e.stopPropagation()}>
             <div className="flex justify-center text-4xl">🌿</div>
-            <h2 className="text-2xl font-black text-center italic">Guide Zen</h2>
+            <h2 className="text-2xl font-black text-center italic text-slate-800">Guide Zen</h2>
             <div className="space-y-4 text-slate-600">
-              <div className="flex gap-3"><span className="font-black text-indigo-600">1.</span><p className="text-sm font-medium">Ajoutez votre <b>solde bancaire actuel</b> comme un <b>Revenu</b> ponctuel aujourd'hui dans le <b>calendrier</b>.</p></div>
-              <div className="flex gap-3"><span className="font-black text-indigo-600">2.</span><p className="text-sm font-medium">Configurez vos <b>flux fixes</b> (loyer, abonnements...) dans l'onglet <b>"Fixes"</b>.</p></div>
-              <div className="flex gap-3"><span className="font-black text-indigo-600">3.</span><p className="text-sm font-medium">Vérifiez votre <b>"Disponible Réel"</b> : c'est l'argent que vous pouvez dépenser sereinement.</p></div>
+              <div className="flex gap-3"><span className="font-black text-indigo-600">0.</span><p className="text-sm font-medium">Ajoutez votre <b>solde bancaire actuel</b> comme un <b>Revenu</b> ponctuel aujourd'hui dans le <b>Journal</b>.</p></div>
+              <div className="flex gap-3"><span className="font-black text-indigo-600">1.</span><p className="text-sm font-medium">Configurez vos <b>flux fixes</b> (loyer, abonnements...) dans l'onglet <b>"Fixes"</b>.</p></div>
+              <div className="flex gap-3"><span className="font-black text-indigo-600">2.</span><p className="text-sm font-medium">Vérifiez votre <b>"Disponible Réel"</b> : c'est l'argent que vous pouvez dépenser sereinement.</p></div>
+              <div className="flex gap-3"><span className="font-black text-indigo-600">3.</span><p className="text-sm font-medium leading-relaxed"><b>Sauvegarde vs CSV</b> : Utilisez l'<b>Export Backup</b> (Réglages) pour pouvoir restaurer votre budget. L'<b>Export CSV</b> est une simple lecture pour Excel.</p></div>
             </div>
             <button onClick={() => window.history.back()} className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-lg active:scale-95 transition-all">C'est parti !</button>
           </div>
