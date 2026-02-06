@@ -45,19 +45,25 @@ const Dashboard: React.FC<DashboardProps> = ({
     const API_KEY = (import.meta as any).env?.VITE_GEMINI_API_KEY || (window as any).process?.env?.VITE_GEMINI_API_KEY || "";
     if (!API_KEY || loadingAdvice) return;
     setLoadingAdvice(true);
+    
     try {
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: "Donne un conseil financier zen très court (max 60 caractères) en français, sans guillemets." }] }]
+          contents: [{ parts: [{ text: "Donne un conseil financier zen très court (max 60 caractères) en français." }] }]
         })
       });
+      
       const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      setAiAdvice(text?.trim() || "ZenTip : Respirez, votre budget est sous contrôle. ✨");
+      
+      // Si l'IA répond, on met son message. Sinon, on garde la phrase zen.
+      if (data.candidates?.[0]?.content?.parts?.[0]?.text) {
+        setAiAdvice(data.candidates[0].content.parts[0].text.trim());
+      } else {
+        setAiAdvice("ZenTip : Respirez, votre budget est sous contrôle. ✨");
+      }
     } catch (err) {
-      console.error("Erreur IA:", err);
       setAiAdvice("ZenTip : Respirez, votre budget est sous contrôle. ✨");
     } finally {
       setLoadingAdvice(false);
