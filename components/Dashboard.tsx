@@ -42,23 +42,20 @@ const Dashboard: React.FC<DashboardProps> = ({
   }, []);
 
   const fetchAiAdvice = async () => {
-    // CORRECTION VERCEL : Récupération de la clé compatible Vite/Vercel
-    const API_KEY = 
-      (import.meta as any).env?.VITE_GEMINI_API_KEY || 
-      (window as any).process?.env?.VITE_GEMINI_API_KEY || 
-      "";
-
+    const API_KEY = (import.meta as any).env?.VITE_GEMINI_API_KEY || (window as any).process?.env?.VITE_GEMINI_API_KEY || "";
     if (!API_KEY || loadingAdvice) return;
-    
     setLoadingAdvice(true);
     try {
-      const genAI = new GoogleGenerativeAI(API_KEY);
-      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-      
-      const result = await model.generateContent("Donne un conseil financier zen très court (max 60 caractères) en français, sans guillemets.");
-      const response = await result.response;
-      const text = response.text();
-      setAiAdvice(text || "ZenTip : Respirez, votre budget est sous contrôle. ✨");
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: "Donne un conseil financier zen très court (max 60 caractères) en français, sans guillemets." }] }]
+        })
+      });
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      setAiAdvice(text?.trim() || "ZenTip : Respirez, votre budget est sous contrôle. ✨");
     } catch (err) {
       console.error("Erreur IA:", err);
       setAiAdvice("ZenTip : Respirez, votre budget est sous contrôle. ✨");
@@ -67,7 +64,9 @@ const Dashboard: React.FC<DashboardProps> = ({
     }
   };
 
-  useEffect(() => { fetchAiAdvice(); }, [activeAccount.id]);
+  useEffect(() => {
+    fetchAiAdvice();
+  }, [activeAccount.id]);
 
   const stats = useMemo(() => {
     let income = 0, expenses = 0;
