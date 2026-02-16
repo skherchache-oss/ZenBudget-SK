@@ -42,22 +42,20 @@
         @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
         .fade-in { animation: fadeIn 0.4s ease-out forwards; }
     </style>
-
-    <script type="importmap">
-    {
-      "imports": {
-        "react": "https://esm.sh/react@19.0.0",
-        "react-dom": "https://esm.sh/react-dom@19.0.0",
-        "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
-        "react/jsx-runtime": "https://esm.sh/react@19.0.0/jsx-runtime",
-        "recharts": "https://esm.sh/recharts@2.15.0?external=react,react-dom",
-        "@google/generative-ai": "https://esm.sh/@google/generative-ai@0.21.0"
-      }
-    }
-    </script>
 </head>
 <body>
     <div id="root"></div>
+    
     <script type="module" src="/src/index.tsx"></script>
+
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js')
+            .then(reg => console.log('SW enregistré !', reg))
+            .catch(err => console.log('Erreur SW:', err));
+        });
+      }
+    </script>
 </body>
 </html>

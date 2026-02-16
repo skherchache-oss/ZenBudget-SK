@@ -1,7 +1,7 @@
 {
-  "id": "com.zenbudget.sandbox",
-  "name": "ZenBudget-sandbox",
-  "short_name": "ZB-Sandbox",
+  "id": "com.zenbudget.sk",
+  "name": "ZenBudget",
+  "short_name": "ZenBudget",
   "description": "Environnement de test pour ZenBudget",
   "start_url": "/",
   "scope": "/",
