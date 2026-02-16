@@ -1,8 +1,8 @@
 {
-  "id": "com.zenbudget.prod",
-  "name": "ZenBudget-SK",
-  "short_name": "ZenBudget",
-  "description": "Gestion de budget intuitive et rapide",
+  "id": "com.zenbudget.sandbox",
+  "name": "ZenBudget-sandbox",
+  "short_name": "ZB-Sandbox",
+  "description": "Environnement de test pour ZenBudget",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

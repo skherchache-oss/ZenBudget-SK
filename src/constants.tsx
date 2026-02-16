@@ -1,4 +1,3 @@
-
 import { Category } from './types';
 
 export const DEFAULT_CATEGORIES: Category[] = [
@@ -11,6 +10,7 @@ export const DEFAULT_CATEGORIES: Category[] = [
   { id: 'exp-1', name: 'Logement', icon: '🏠', color: '#ef4444', type: 'EXPENSE' },
   { id: 'exp-2', name: 'Alimentation', icon: '🛒', color: '#f87171', type: 'EXPENSE' },
   { id: 'exp-3', name: 'Transport', icon: '🚗', color: '#fb923c', type: 'EXPENSE' },
+  { id: 'exp-10', name: 'Enfants', icon: '👶', color: '#8b5cf6', type: 'EXPENSE' }, // Ajouté ici
   { id: 'exp-4', name: 'Loisirs', icon: '🎬', color: '#fbbf24', type: 'EXPENSE' },
   { id: 'exp-5', name: 'Santé', icon: '💊', color: '#60a5fa', type: 'EXPENSE' },
   { id: 'exp-6', name: 'Abonnements', icon: '📱', color: '#818cf8', type: 'EXPENSE' },

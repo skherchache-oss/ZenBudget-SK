@@ -19,7 +19,8 @@ export default defineConfig({
   ],
   root: './',
   optimizeDeps: {
-    include: ['@google/genai'],
+    // CORRECTION : On utilise le nouveau package pour éviter les erreurs de dépendances
+    include: ['@google/generative-ai'],
   },
   build: {
     outDir: 'dist',

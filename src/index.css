@@ -1,0 +1,62 @@
+/* Configuration des variables et base */
+:root {
+  --app-bg: #f8f9fd;
+  --slate-950: #020617;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  background-color: var(--app-bg);
+  color: #1e293b;
+  overflow: hidden; /* Empêche le rebond élastique sur tout le body */
+  height: 100vh;
+  width: 100vw;
+}
+
+/* Support des encoches (notches) iPhone */
+.safe-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/* Gestion du scroll propre pour le dashboard */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+/* Animations globales */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.4s ease-out forwards;
+}
+
+/* Styles spécifiques pour les inputs (évite le zoom auto sur iOS) */
+input, select, textarea {
+  font-size: 16px !important;
+}
+
+/* Pour que le conteneur root occupe tout l'écran */
+#root {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}

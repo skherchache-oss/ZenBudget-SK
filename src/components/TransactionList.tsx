@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Transaction, Category } from '../types';
 import { MONTHS_FR } from '../constants';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -27,12 +28,9 @@ const formatCurrency = (amount: number) => {
   }).format(amount);
 };
 
-// Formatteur spécifique pour le calendrier afin d'optimiser l'espace horizontal
 const formatCurrencyCalendar = (amount: number) => {
   const absAmount = Math.abs(amount);
-  // Stratégie UX : Si le montant est ≥ 1000, on supprime les décimales pour gagner de la place
   const hideDecimals = absAmount >= 1000;
-  
   return new Intl.NumberFormat('fr-FR', {
     style: 'decimal',
     minimumFractionDigits: hideDecimals ? 0 : 2,
@@ -114,25 +112,44 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
 
   const selectedDayTransactions = useMemo(() => {
     if (selectedDay === null) return [];
-    return transactions.filter(t => new Date(t.date).getDate() === selectedDay);
-  }, [transactions, selectedDay]);
+    return transactions.filter(t => {
+      const d = new Date(t.date);
+      return d.getDate() === selectedDay && d.getMonth() === month && d.getFullYear() === year;
+    });
+  }, [transactions, selectedDay, month, year]);
 
   const startOffset = (new Date(year, month, 1).getDay() + 6) % 7;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const isThisMonth = new Date().getMonth() === month && new Date().getFullYear() === year;
+
+  const handleQuickAdd = () => {
+    if (!selectedDay) return;
+    const clickedDate = new Date(year, month, selectedDay, 12, 0, 0).toISOString();
+    onAddAtDate(clickedDate);
+  };
 
   return (
     <div className="space-y-3 pb-48 h-full overflow-y-auto no-scrollbar">
       <div className="flex items-center justify-between px-1">
         <h2 className="text-xl font-black tracking-tighter text-slate-800">Journal</h2>
         <div className="bg-slate-900 rounded-xl px-2.5 py-1.5 flex items-center gap-2 shadow-lg">
-           <span className="text-[7px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">
-             Fin de mois
-           </span>
+           <span className="text-[7px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">Fin de mois</span>
            <span className={`text-[12px] font-black ${totalBalance >= 0 ? 'text-indigo-400' : 'text-red-400'} whitespace-nowrap`}>
              {formatCurrency(totalBalance)}€
            </span>
         </div>
+      </div>
+
+      <div className="flex items-center justify-between bg-white px-4 py-2 rounded-2xl border border-slate-100 shadow-sm">
+        <button onClick={() => onMonthChange(-1)} className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-indigo-600 transition-colors">
+          <ChevronLeft size={18} />
+        </button>
+        <span className="text-[11px] font-black uppercase tracking-[0.2em] text-indigo-600">
+          {MONTHS_FR[month]} {year}
+        </span>
+        <button onClick={() => onMonthChange(1)} className="p-2 bg-slate-50 rounded-xl text-slate-400 hover:text-indigo-600 transition-colors">
+          <ChevronRight size={18} />
+        </button>
       </div>
 
       <div className="flex bg-slate-100 p-1 rounded-xl shadow-inner mb-1">
@@ -158,7 +175,12 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
                   const isToday = isThisMonth && new Date().getDate() === day;
                   const dayT = transactions.filter(t => new Date(t.date).getDate() === day);
                   return (
-                    <button key={day} onClick={() => onSelectDay(day)} className={`h-16 rounded-[14px] flex flex-col items-center justify-between py-2 transition-all border relative overflow-hidden ${isSelected ? 'bg-slate-900 border-slate-900 text-white z-10 scale-[1.03]' : (isToday ? 'bg-indigo-50 border-indigo-200 text-indigo-900' : 'bg-white border-slate-50')}`}>
+                    <button 
+                      key={day} 
+                      onClick={() => onSelectDay(day)} 
+                      onDoubleClick={handleQuickAdd}
+                      className={`h-16 rounded-[14px] flex flex-col items-center justify-between py-2 transition-all border relative overflow-hidden ${isSelected ? 'bg-slate-900 border-slate-900 text-white z-10 scale-[1.03]' : (isToday ? 'bg-indigo-50 border-indigo-200 text-indigo-900' : 'bg-white border-slate-50')}`}
+                    >
                       <span className={`text-[12px] font-black leading-none ${isSelected ? 'text-white' : 'text-slate-400'}`}>{day}</span>
                       <div className="flex flex-col items-center justify-center w-full px-0.5 flex-1 mt-1">
                         <span className={`text-[12px] font-black tracking-tighter truncate w-full text-center leading-none ${isSelected ? 'text-indigo-300' : (balance >= 0 ? 'text-indigo-600' : 'text-red-500')}`}>
@@ -176,7 +198,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
             </div>
 
             <div className="animate-in slide-in-from-bottom duration-300">
-              <div className="flex items-center justify-between px-2 mb-2">
+              <div className="px-2 mb-2">
                 <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">
                   {selectedDay ? `${selectedDay} ${MONTHS_FR[month]}` : "Jour sélectionné"}
                 </h3>
