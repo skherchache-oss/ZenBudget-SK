@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Transaction, Category, BudgetAccount, Project } from '../types';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { format, differenceInDays } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, RefreshCw, AlertCircle, MessageSquareHeart, Target, Plus, Pencil, Trash2, Trophy, Star, Send, X } from 'lucide-react';
@@ -51,6 +51,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   const [feedbackStep, setFeedbackStep] = useState<'RATING' | 'FEATURES'>('RATING');
   const [userRating, setUserRating] = useState<number | null>(null);
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
+  
+  // État pour la tranche active du graphique
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
   const menuRef = useRef<HTMLDivElement>(null);
   const currentDate = useMemo(() => new Date(year, month), [year, month]);
@@ -196,6 +199,14 @@ const Dashboard: React.FC<DashboardProps> = ({
       };
     }).sort((a, b) => b.value - a.value);
   }, [transactions, categories, stats.expenses]);
+
+  const onPieEnter = (_: any, index: number) => {
+    setActiveIndex(index);
+  };
+
+  const onPieLeave = () => {
+    setActiveIndex(null);
+  };
 
   if (!activeAccount) return <div className="p-10 text-center text-slate-400">Chargement de votre espace zen...</div>;
 
@@ -410,36 +421,71 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* REPARTITION DES CHARGES */}
+      {/* REPARTITION DES CHARGES - GRAPHIQUE AMÉLIORÉ */}
       <div className="bg-white rounded-[45px] p-8 border border-slate-50 shadow-xl">
         <div className="flex flex-col items-center mb-10">
           <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-8">Répartition des charges</h2>
           <div className="h-[220px] w-full relative">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
-                <Pie data={categorySummary} innerRadius={75} outerRadius={95} paddingAngle={10} dataKey="value" stroke="none">
-                  {categorySummary.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} cornerRadius={10} />)}
+                <Pie 
+                  data={categorySummary} 
+                  innerRadius={70} 
+                  outerRadius={90} 
+                  paddingAngle={0} 
+                  dataKey="value" 
+                  stroke="none"
+                  onMouseEnter={onPieEnter}
+                  onMouseLeave={onPieLeave}
+                >
+                  {categorySummary.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={entry.color} 
+                      style={{ 
+                        filter: activeIndex === index ? 'drop-shadow(0px 0px 8px rgba(0,0,0,0.1))' : 'none',
+                        transition: 'all 0.3s ease'
+                      }}
+                      strokeWidth={activeIndex === index ? 2 : 0}
+                      stroke="#fff"
+                    />
+                  ))}
                 </Pie>
+                <Tooltip content={<></>} />
               </PieChart>
             </ResponsiveContainer>
-            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-              <span className="text-[9px] font-black uppercase text-slate-400">Dépenses</span>
-              <span className="text-3xl font-black text-slate-900">{formatVal(stats.expenses)}€</span>
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-10 text-center">
+              <span className="text-[9px] font-black uppercase text-slate-400 mb-0.5">
+                {activeIndex !== null ? categorySummary[activeIndex].name : 'Total Dépenses'}
+              </span>
+              <span className="text-2xl font-black text-slate-900 leading-none">
+                {formatVal(activeIndex !== null ? categorySummary[activeIndex].value : stats.expenses)}€
+              </span>
+              {activeIndex !== null && (
+                <span className="text-[10px] font-bold text-indigo-500 mt-1">
+                  {categorySummary[activeIndex].percent.toFixed(1)}%
+                </span>
+              )}
             </div>
           </div>
         </div>
         <div className="grid grid-cols-1 gap-6">
-          {categorySummary.map((cat) => (
-            <div key={cat.id} className="group">
+          {categorySummary.map((cat, idx) => (
+            <div 
+              key={cat.id} 
+              className={`group transition-all duration-300 ${activeIndex === idx ? 'scale-[1.02]' : ''}`}
+              onMouseEnter={() => setActiveIndex(idx)}
+              onMouseLeave={() => setActiveIndex(null)}
+            >
               <div className="flex items-start gap-4">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0" style={{ backgroundColor: `${cat.color}15`, color: cat.color }}>{cat.icon}</div>
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shrink-0 transition-transform group-hover:scale-110" style={{ backgroundColor: `${cat.color}15`, color: cat.color }}>{cat.icon}</div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-end mb-1.5">
                     <span className="text-[11px] font-black uppercase text-slate-800 truncate">{cat.name}</span>
                     <span className="text-[13px] font-black text-slate-900">{formatVal(cat.value)}€</span>
                   </div>
                   <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden mb-2">
-                    <div className="h-full rounded-full" style={{ width: `${cat.percent}%`, backgroundColor: cat.color }} />
+                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${cat.percent}%`, backgroundColor: cat.color }} />
                   </div>
                   {cat.notes.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mt-2">
