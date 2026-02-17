@@ -208,14 +208,14 @@ const Dashboard: React.FC<DashboardProps> = ({
               </h3>
               <p className="text-sm text-slate-500 font-medium mb-6 leading-relaxed">
                 {premiumType === 'CSV' 
-                  ? "L'exportation de vos rapports vers Excel sera bientôt disponible." 
-                  : "Les objectifs d'épargne arrivent bientôt pour vous aider."}
+                  ? "L'exportation vers Excel arrive bientôt dans ZenBudget Premium." 
+                  : "La gestion multi-projets arrive bientôt dans ZenBudget Premium."}
               </p>
               <button 
                 onClick={() => { setPremiumType(null); setShowFeedbackModal(true); }} 
                 className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg active:scale-95 transition-all"
               >
-                D'accord ✨
+                Donner mon avis ✨
               </button>
             </motion.div>
           </div>
@@ -235,7 +235,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               initial={{ scale: 0.95, opacity: 0 }} 
               animate={{ scale: 1, opacity: 1 }} 
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-white rounded-[40px] p-8 w-full max-w-[340px] shadow-2xl relative z-10 overflow-hidden"
+              className="bg-white rounded-[40px] p-6 w-full max-w-[340px] shadow-2xl relative z-10 overflow-hidden"
               onClick={e => e.stopPropagation()}
             >
               <button onClick={() => setShowFeedbackModal(false)} className="absolute top-6 right-6 p-2 text-slate-300 hover:text-slate-500">
@@ -243,20 +243,20 @@ const Dashboard: React.FC<DashboardProps> = ({
               </button>
 
               <div className="text-center">
-                <div className="w-16 h-16 bg-indigo-50 rounded-3xl flex items-center justify-center text-3xl mx-auto mb-6">
+                <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-4">
                   {feedbackStep === 'RATING' ? '✨' : '💎'}
                 </div>
 
                 {feedbackStep === 'RATING' ? (
                   <>
-                    <h3 className="text-xl font-black text-slate-900 mb-2 italic">L'app vous plaît ?</h3>
-                    <p className="text-sm text-slate-500 font-medium mb-8">Votre avis nous aide énormément.</p>
-                    <div className="flex justify-center gap-2 mb-8">
+                    <h3 className="text-xl font-black text-slate-900 mb-1 italic">L'app vous plaît ?</h3>
+                    <p className="text-xs text-slate-500 font-medium mb-6">Votre avis nous aide énormément.</p>
+                    <div className="flex justify-center gap-2 mb-6">
                       {[1, 2, 3, 4, 5].map((star) => (
                         <button key={star} onClick={() => setUserRating(star)}
-                          className={`w-11 h-11 rounded-2xl flex items-center justify-center transition-all ${userRating && userRating >= star ? 'bg-amber-400 text-white shadow-lg' : 'bg-slate-50 text-slate-300'}`}
+                          className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${userRating && userRating >= star ? 'bg-amber-400 text-white shadow-lg' : 'bg-slate-50 text-slate-300'}`}
                         >
-                          <Star className={`w-5 h-5 ${userRating && userRating >= star ? 'fill-current' : ''}`} />
+                          <Star className={`w-4 h-4 ${userRating && userRating >= star ? 'fill-current' : ''}`} />
                         </button>
                       ))}
                     </div>
@@ -266,17 +266,27 @@ const Dashboard: React.FC<DashboardProps> = ({
                   </>
                 ) : (
                   <>
-                    <h3 className="text-xl font-black text-slate-900 mb-2 italic">ZenBudget Premium</h3>
-                    <div className="grid grid-cols-1 gap-2 mb-8 text-left">
-                      {[{ id: 'projects', label: 'Multi-projets', icon: '🎯' }, { id: 'csv', label: 'Export Excel', icon: '📊' }, { id: 'ai', label: 'Conseils IA', icon: '🤖' }].map((feat) => (
+                    <h3 className="text-xl font-black text-slate-900 mb-1 italic">ZenBudget Premium</h3>
+                    <p className="text-[11px] text-slate-500 font-medium mb-4">Qu'est-ce qui vous serait le plus utile ?</p>
+                    
+                    {/* Grille serrée pour optimiser l'espace */}
+                    <div className="grid grid-cols-2 gap-2 mb-6 text-left max-h-[220px] overflow-y-auto pr-1 no-scrollbar">
+                      {[
+                        { id: 'multi-accounts', label: 'Comptes Multiples', icon: '🏦' },
+                        { id: 'share', label: 'Partage Zen', icon: '👥' },
+                        { id: 'projects', label: 'Multi-projets', icon: '🎯' }, 
+                        { id: 'csv', label: 'Export Excel', icon: '📊' }, 
+                        { id: 'ai', label: 'Conseils IA', icon: '🤖' }
+                      ].map((feat) => (
                         <button key={feat.id} onClick={() => toggleFeature(feat.id)}
-                          className={`flex items-center gap-3 p-4 rounded-2xl border-2 transition-all ${selectedFeatures.includes(feat.id) ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-50 bg-slate-50/30'}`}
+                          className={`flex flex-col items-center justify-center gap-1.5 p-3 rounded-2xl border-2 transition-all ${selectedFeatures.includes(feat.id) ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-50 bg-slate-50/30'}`}
                         >
                           <span className="text-lg">{feat.icon}</span>
-                          <span className={`text-[11px] font-black uppercase ${selectedFeatures.includes(feat.id) ? 'text-indigo-600' : 'text-slate-500'}`}>{feat.label}</span>
+                          <span className={`text-[9px] font-black uppercase text-center leading-tight ${selectedFeatures.includes(feat.id) ? 'text-indigo-600' : 'text-slate-500'}`}>{feat.label}</span>
                         </button>
                       ))}
                     </div>
+                    
                     <button onClick={handleSendFeedback} className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest flex items-center justify-center gap-2"
                     >Envoyer <Send className="w-3 h-3" /></button>
                   </>
@@ -324,7 +334,7 @@ const Dashboard: React.FC<DashboardProps> = ({
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
             </svg>
-            <div className="absolute -top-3 -right-2 text-lg drop-shadow-sm select-none">👑</div>
+            <div className="absolute -top-3 -right-2 text-lg drop-shadow-sm select-none">💎</div>
           </div>
           <span className="text-[8px] font-black uppercase text-slate-400 tracking-wider">Export CSV</span>
         </button>
@@ -360,7 +370,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="flex-1"><p className="text-[13px] font-bold text-slate-700 leading-snug italic">{aiAdvice}</p></div>
       </div>
 
-      {/* SECTION PROJETS */}
+      {/* SECTION PROJETS - RÉDUITE */}
       <div className="px-1">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-2">
@@ -369,14 +379,16 @@ const Dashboard: React.FC<DashboardProps> = ({
           </div>
           <button onClick={() => setPremiumType('PROJECTS')} className="relative w-10 h-10 rounded-2xl bg-slate-900 text-white flex items-center justify-center shadow-lg active:scale-90 transition-all">
             <Plus className="w-5 h-5" />
-            <div className="absolute -top-3 -right-2 text-lg drop-shadow-sm select-none">👑</div>
+            <div className="absolute -top-3 -right-2 text-lg drop-shadow-sm select-none">💎</div>
           </button>
         </div>
-        <div className="grid grid-cols-1 gap-3">
-          <button onClick={() => setPremiumType('PROJECTS')} className="group py-10 px-4 border-2 border-dashed border-slate-100 rounded-[35px] text-center bg-slate-50/30 hover:bg-indigo-50/30 hover:border-indigo-100 transition-all flex flex-col items-center gap-2">
-            <div className="w-12 h-12 rounded-full bg-white flex items-center justify-center text-xl shadow-sm group-hover:scale-110 transition-transform">🎯</div>
-            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Épargnez pour vos rêves</p>
-            <span className="text-[9px] font-bold text-indigo-500/60">(Bientôt disponible)</span>
+        <div className="grid grid-cols-1">
+          <button onClick={() => setPremiumType('PROJECTS')} className="group p-4 border border-dashed border-slate-200 rounded-[24px] bg-slate-50/50 hover:bg-indigo-50/30 transition-all flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm">🎯</div>
+            <div className="text-left">
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Épargnez pour vos rêves</p>
+              <span className="text-[9px] font-bold text-indigo-500/60 block mt-0.5">Bientôt disponible</span>
+            </div>
           </button>
         </div>
       </div>

@@ -6,8 +6,8 @@ import { IconPlus, IconHome, IconCalendar, IconSettings } from './components/Ico
 
 // Firebase & Auth
 import { auth, loginWithGoogle, logout, db } from './firebase'; 
-import { onAuthStateChanged, User as FirebaseUser, deleteUser } from 'firebase/auth';
-import { doc, setDoc, deleteDoc, addDoc, collection } from 'firebase/firestore';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { doc, setDoc, addDoc, collection } from 'firebase/firestore';
 
 // Framer Motion
 import { motion, AnimatePresence } from 'framer-motion';
@@ -257,6 +257,7 @@ const App: React.FC = () => {
     let nextTx = [...acc.transactions];
     let nextDeleted = [...(acc.deletedVirtualIds || [])];
     const targetId = t.id || editingTransaction?.id;
+    
     if (targetId?.startsWith('virtual-')) {
       nextDeleted.push(targetId!);
       nextTx = [{ ...t, id: generateId(), templateId: targetId.split('-')[1] } as Transaction, ...nextTx];
@@ -265,6 +266,7 @@ const App: React.FC = () => {
     } else {
       nextTx = [{ ...t, id: generateId() } as Transaction, ...nextTx];
     }
+    
     const nextAccounts = [...state.accounts];
     nextAccounts[accIndex] = { ...acc, transactions: nextTx, deletedVirtualIds: nextDeleted };
     const newState = { ...state, accounts: nextAccounts };
@@ -309,22 +311,63 @@ const App: React.FC = () => {
 
   const headerPhoto = (fbUser && fbUser.uid !== 'local-user' && localStorage.getItem(`user_photo_hd_${fbUser.uid}`)) || state.user?.photoURL;
 
+  // --- ÉCRAN DE CHARGEMENT AMÉLIORÉ ---
   if (authLoading) return (
-    <div className="h-screen flex flex-col items-center justify-center bg-slate-950 gap-4">
-      <div className="relative">
+    <div className="h-screen flex flex-col items-center justify-center bg-slate-950 gap-8">
+      <style>{`
+        @keyframes shine {
+          0% { background-position: -200% center; }
+          100% { background-position: 200% center; }
+        }
+        .text-shine {
+          background: linear-gradient(90deg, #4f46e5 0%, #ffffff 50%, #4f46e5 100%);
+          background-size: 200% auto;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          animation: shine 3s linear infinite;
+        }
+      `}</style>
+      
+      <motion.div 
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ 
+          scale: [1, 1.05, 1],
+          opacity: 1 
+        }}
+        transition={{ 
+          scale: { repeat: Infinity, duration: 3, ease: "easeInOut" },
+          opacity: { duration: 0.5 }
+        }}
+        className="relative"
+      >
         <img 
           src="/ZB-logo-192.png" 
           alt="ZenBudget" 
-          className="w-16 h-16 rounded-[22px] shadow-2xl border border-white/10 animate-pulse"
+          className="w-28 h-28 rounded-[32px] shadow-[0_0_60px_rgba(79,70,229,0.4)] border border-white/10"
         />
-      </div>
-      <h1 className="text-2xl font-black tracking-tighter italic text-white/90">
-        ZenBudget
-      </h1>
-      <div className="flex gap-1">
-        <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
-        <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
-        <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+      </motion.div>
+      
+      <div className="flex flex-col items-center gap-3">
+        <h1 className="text-4xl font-black tracking-[0.25em] uppercase italic text-shine">
+          ZenBudget
+        </h1>
+        <div className="flex gap-2.5">
+          <motion.div 
+            animate={{ scale: [1, 1.5, 1], opacity: [0.3, 1, 0.3] }}
+            transition={{ repeat: Infinity, duration: 1.2, delay: 0 }}
+            className="w-1.5 h-1.5 bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(79,70,229,0.8)]"
+          />
+          <motion.div 
+            animate={{ scale: [1, 1.5, 1], opacity: [0.3, 1, 0.3] }}
+            transition={{ repeat: Infinity, duration: 1.2, delay: 0.2 }}
+            className="w-1.5 h-1.5 bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(79,70,229,0.8)]"
+          />
+          <motion.div 
+            animate={{ scale: [1, 1.5, 1], opacity: [0.3, 1, 0.3] }}
+            transition={{ repeat: Infinity, duration: 1.2, delay: 0.4 }}
+            className="w-1.5 h-1.5 bg-indigo-500 rounded-full shadow-[0_0_8px_rgba(79,70,229,0.8)]"
+          />
+        </div>
       </div>
     </div>
   );
@@ -488,7 +531,6 @@ const App: React.FC = () => {
           />
         )}
         
-        {/* NOUVELLE POPUP WELCOME : Positionnement Fixe Absolu par rapport au viewport */}
         <AnimatePresence>
           {showWelcome && (
             <motion.div 
@@ -510,30 +552,46 @@ const App: React.FC = () => {
                 <h2 className="text-xl font-black text-center italic text-slate-800 tracking-tight mb-4">Bienvenue sur ZenBudget</h2>
                 
                 <div className="space-y-3">
-                   <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-3 flex gap-3">
-                     <span className="font-black text-lg text-indigo-600">0.</span>
-                     <p className="text-[12px] font-bold text-indigo-900 leading-tight">
-                       Ajoutez votre solde bancaire actuel comme un <span className="underline decoration-indigo-300">Revenu ponctuel</span> dans le <span className="font-black">Journal</span>.
-                     </p>
-                   </div>
-                   <div className="flex gap-3 px-1 items-start">
-                      <span className="font-black text-indigo-600">1.</span>
-                      <p className="text-[12px] font-medium text-slate-600 leading-tight">
-                        Configurez vos flux fixes dans l'onglet <span className="font-bold text-slate-800">"Fixes"</span>.
+                    <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-3 flex gap-3">
+                      <span className="font-black text-lg text-indigo-600">0.</span>
+                      <p className="text-[12px] font-bold text-indigo-900 leading-tight">
+                        Pour le démarrage, ajoutez votre solde bancaire actuel comme un <span className="underline decoration-indigo-300">Revenu ponctuel</span> dans le <span className="font-black">Journal</span>.
                       </p>
-                   </div>
-                   <div className="flex gap-3 px-1 items-start">
-                      <span className="font-black text-indigo-600">2.</span>
-                      <p className="text-[12px] font-medium text-slate-600 leading-tight">
-                        Entrez vos variables depuis le calendrier dans votre <span className="font-bold text-slate-800">Journal</span>.
-                      </p>
-                   </div>
-                   <div className="flex gap-3 px-1 items-start">
-                      <span className="font-black text-indigo-600">3.</span>
-                      <p className="text-[12px] font-medium text-slate-600 leading-tight">
-                        Vérifiez votre <span className="font-bold text-indigo-700">"Disponible Réel"</span> depuis le <span className="font-bold text-indigo-700">Board</span> pour éviter le découvert.
-                      </p>
-                   </div>
+                    </div>
+
+                    <div className="flex gap-3 px-1 items-start">
+                       <span className="font-black text-indigo-600">1.</span>
+                       <p className="text-[12px] font-medium text-slate-600 leading-tight">
+                         Configurez vos flux fixes dans l'onglet <span className="font-bold text-slate-800">"Fixes"</span>.
+                       </p>
+                    </div>
+
+                    <div className="flex px-1 items-start">
+                       <p className="text-[11px] font-bold text-indigo-500 leading-tight italic">
+                         Pensez aussi à ajuster votre <span className="underline">date de cycle budgétaire</span> (ex: jour de paie) tout en bas des <span className="font-black">Paramètres</span>.
+                       </p>
+                    </div>
+
+                    <div className="flex gap-3 px-1 items-start">
+                       <span className="font-black text-indigo-600">2.</span>
+                       <p className="text-[12px] font-medium text-slate-600 leading-tight">
+                         Saisissez vos dépenses variables dans le <span className="font-bold text-slate-800">Journal</span>, au jour le jour ou selon vos besoins.
+                       </p>
+                    </div>
+
+                    <div className="flex gap-3 px-1 items-start">
+                       <span className="font-black text-indigo-600">3.</span>
+                       <p className="text-[12px] font-medium text-slate-600 leading-tight">
+                         Vérifiez votre <span className="font-bold text-indigo-700">"Disponible Réel"</span> depuis le <span className="font-bold text-indigo-700">Board</span> pour éviter le découvert.
+                       </p>
+                    </div>
+
+                    <div className="flex gap-3 px-1 items-start opacity-80">
+                       <span className="font-black text-indigo-600">4.</span>
+                       <p className="text-[12px] font-medium text-slate-500 leading-tight italic">
+                         <span className="font-bold text-slate-800">Export Excel :</span> bientôt disponible pour les membres <span className="text-amber-600 font-bold">Premium</span> !
+                       </p>
+                    </div>
                 </div>
 
                 <button 
