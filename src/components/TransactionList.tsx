@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Transaction, Category } from '../types';
 import { MONTHS_FR } from '../constants';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCcw } from 'lucide-react';
 
 interface TransactionListProps {
   transactions: Transaction[];
@@ -74,8 +74,16 @@ const TransactionItem: React.FC<{
       <div className={`relative bg-white flex-1 h-full flex items-center gap-3 px-4 transition-transform duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] z-10 cursor-pointer ${!isLast ? 'border-b border-slate-50' : ''}`} style={{ transform: `translateX(${isOpen ? -threshold : 0}px)` }} onClick={onToggle}>
         <div className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0 ${isVirtual ? 'bg-amber-50 border border-amber-100' : 'bg-slate-50 border border-slate-100 shadow-sm'}`}>{category?.icon || '📦'}</div>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5"><span className="text-[13px] font-black text-slate-800 truncate uppercase tracking-tight">{category?.name}</span>{t.isRecurring && <span className="text-amber-500 text-[10px]">⚡️</span>}</div>
-          <div className="text-[10px] text-slate-400 font-medium truncate">{t.comment || 'Note vide'}</div>
+          <div className="flex items-center gap-1.5">
+            <span className="text-[13px] font-black text-slate-800 truncate uppercase tracking-tight">{category?.name}</span>
+            {t.isRecurring && (
+              <div className="flex items-center gap-0.5 bg-indigo-50 px-1.5 py-0.5 rounded-md border border-indigo-100">
+                <RefreshCcw size={8} className="text-indigo-500 animate-spin-slow" />
+                <span className="text-indigo-600 text-[7px] font-black uppercase tracking-tighter italic">Fixe</span>
+              </div>
+            )}
+          </div>
+          <div className="text-[9px] text-slate-400 font-medium truncate italic">{t.comment || 'Note vide'}</div>
         </div>
         <div className={`text-[13px] font-black shrink-0 ${t.type === 'INCOME' ? 'text-emerald-600' : 'text-slate-900'} ${isVirtual ? 'opacity-60' : ''}`}>
           {t.type === 'INCOME' ? '+' : '-'}{formatCurrency(t.amount)}€
@@ -131,10 +139,10 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
   return (
     <div className="space-y-3 pb-48 h-full overflow-y-auto no-scrollbar">
       <div className="flex items-center justify-between px-1">
-        <h2 className="text-xl font-black tracking-tighter text-slate-800">Journal</h2>
+        <h2 className="text-xl font-black tracking-tighter text-slate-800 italic">Journal</h2>
         <div className="bg-slate-900 rounded-xl px-2.5 py-1.5 flex items-center gap-2 shadow-lg">
-           <span className="text-[7px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">Fin de mois</span>
-           <span className={`text-[12px] font-black ${totalBalance >= 0 ? 'text-indigo-400' : 'text-red-400'} whitespace-nowrap`}>
+           <span className="text-[7px] font-black uppercase tracking-widest text-slate-400 whitespace-nowrap">Solde estimé</span>
+           <span className={`text-[12px] font-black ${totalBalance >= 0 ? 'text-emerald-400' : 'text-red-400'} whitespace-nowrap`}>
              {formatCurrency(totalBalance)}€
            </span>
         </div>
@@ -189,6 +197,7 @@ const TransactionList: React.FC<TransactionListProps> = ({ transactions, categor
                         <div className="flex gap-0.5 mt-1.5">
                           {dayT.some(t => t.type === 'INCOME') && <div className="w-1 h-1 rounded-full bg-emerald-400" />}
                           {dayT.some(t => t.type === 'EXPENSE') && <div className="w-1 h-1 rounded-full bg-red-400" />}
+                          {dayT.some(t => t.isRecurring) && <div className="w-1 h-1 rounded-full bg-indigo-500 animate-pulse" />}
                         </div>
                       </div>
                     </button>

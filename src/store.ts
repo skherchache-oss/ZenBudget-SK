@@ -1,4 +1,4 @@
-import { AppState, BudgetAccount, Category, User, Transaction } from './types';
+import { AppState, BudgetAccount, Category, User, Transaction, RecurringTemplate } from './types';
 import { DEFAULT_CATEGORIES } from './constants';
 import { db } from './firebase'; 
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -16,6 +16,39 @@ const isStorageAvailable = () => {
   } catch (e) { return false; }
 };
 
+// --- LOGIQUE DE SYNCHRONISATION ---
+/**
+ * Cette fonction prend une transaction et, si elle est récurrente, 
+ * s'assure qu'un template existe dans les charges fixes.
+ */
+export const syncTransactionToRecurring = (account: BudgetAccount, tx: Transaction): BudgetAccount => {
+  if (!tx.isRecurring) return account;
+
+  // On vérifie si un template similaire existe déjà (même catégorie et montant)
+  // pour éviter les doublons inutiles
+  const exists = account.recurringTemplates.find(
+    tpl => tpl.categoryId === tx.categoryId && tpl.amount === tx.amount && tpl.type === tx.type
+  );
+
+  if (exists) return account;
+
+  // Création du nouveau template de charge fixe
+  const newTemplate: RecurringTemplate = {
+    id: `tpl-${generateId()}`,
+    amount: tx.amount,
+    type: tx.type,
+    categoryId: tx.categoryId,
+    comment: tx.comment,
+    dayOfMonth: new Date(tx.date).getDate(),
+    isActive: true
+  };
+
+  return {
+    ...account,
+    recurringTemplates: [...account.recurringTemplates, newTemplate]
+  };
+};
+
 export const createDefaultAccount = (ownerId: string = 'local-user'): BudgetAccount => ({
   id: generateId(),
   name: 'Personnel',
@@ -31,7 +64,6 @@ export const createDefaultAccount = (ownerId: string = 'local-user'): BudgetAcco
 });
 
 const migrateData = (parsed: any, defaultState: AppState): AppState => {
-  // 1. Fusion des catégories (sans doublons)
   const savedCategories: Category[] = parsed.categories || [];
   const mergedCategories = [...DEFAULT_CATEGORIES];
   savedCategories.forEach(sc => {
@@ -40,7 +72,6 @@ const migrateData = (parsed: any, defaultState: AppState): AppState => {
     }
   });
 
-  // 2. Nettoyage et fusion des comptes
   const rawAccounts = Array.isArray(parsed.accounts) ? parsed.accounts : defaultState.accounts;
   const accounts = rawAccounts.map((acc: any) => {
     const rawTransactions: Transaction[] = acc.transactions || [];

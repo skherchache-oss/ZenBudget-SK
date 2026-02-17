@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { AppState, ViewType, Transaction } from './types';
-import { getInitialState, saveState, generateId, fetchUserData, saveUserData } from './store';
+import { getInitialState, saveState, generateId, fetchUserData, saveUserData, syncTransactionToRecurring } from './store';
 import { MONTHS_FR } from './constants';
 import { IconPlus, IconHome, IconCalendar, IconSettings } from './components/Icons';
 
@@ -253,22 +253,36 @@ const App: React.FC = () => {
   const handleUpsertTransaction = async (t: Omit<Transaction, 'id'> & { id?: string }) => {
     const accIndex = state.accounts.findIndex(a => a.id === state.activeAccountId);
     if (accIndex === -1) return;
-    const acc = { ...state.accounts[accIndex] };
+    
+    let acc = { ...state.accounts[accIndex] };
     let nextTx = [...acc.transactions];
     let nextDeleted = [...(acc.deletedVirtualIds || [])];
     const targetId = t.id || editingTransaction?.id;
     
+    let finalTx: Transaction;
+
     if (targetId?.startsWith('virtual-')) {
       nextDeleted.push(targetId!);
-      nextTx = [{ ...t, id: generateId(), templateId: targetId.split('-')[1] } as Transaction, ...nextTx];
+      finalTx = { ...t, id: generateId(), templateId: targetId.split('-')[1] } as Transaction;
+      nextTx = [finalTx, ...nextTx];
     } else if (targetId && nextTx.some(i => i.id === targetId)) {
-      nextTx = nextTx.map(i => i.id === targetId ? ({ ...t, id: targetId } as Transaction) : i);
+      finalTx = { ...t, id: targetId } as Transaction;
+      nextTx = nextTx.map(i => i.id === targetId ? finalTx : i);
     } else {
-      nextTx = [{ ...t, id: generateId() } as Transaction, ...nextTx];
+      finalTx = { ...t, id: generateId() } as Transaction;
+      nextTx = [finalTx, ...nextTx];
     }
     
+    // Mise à jour locale du compte avant synchronisation
+    acc.transactions = nextTx;
+    acc.deletedVirtualIds = nextDeleted;
+    
+    // Utilisation de la fonction de synchro pour créer un template si isRecurring est vrai
+    acc = syncTransactionToRecurring(acc, finalTx);
+    
     const nextAccounts = [...state.accounts];
-    nextAccounts[accIndex] = { ...acc, transactions: nextTx, deletedVirtualIds: nextDeleted };
+    nextAccounts[accIndex] = acc;
+    
     const newState = { ...state, accounts: nextAccounts };
     setState(newState);
     setShowAddModal(false); 
