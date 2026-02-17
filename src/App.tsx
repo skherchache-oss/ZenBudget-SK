@@ -309,6 +309,18 @@ const App: React.FC = () => {
     }
   };
 
+  // --- LOGIQUE DE MISE À JOUR DU JOUR DE CYCLE ---
+  const handleUpdateCycleDay = (day: number) => {
+    setState(prev => ({
+      ...prev,
+      accounts: prev.accounts.map(acc => 
+        acc.id === prev.activeAccountId 
+          ? { ...acc, cycleEndDay: day } 
+          : acc
+      )
+    }));
+  };
+
   const headerPhoto = (fbUser && fbUser.uid !== 'local-user' && localStorage.getItem(`user_photo_hd_${fbUser.uid}`)) || state.user?.photoURL;
 
   // --- ÉCRAN DE CHARGEMENT AMÉLIORÉ ---
@@ -481,7 +493,7 @@ const App: React.FC = () => {
                     } 
                   }}
                   onUpdateCategories={(cats) => setState(prev => ({ ...prev, categories: cats }))} 
-                  onUpdateBudget={()=>{}} onLogin={loginWithGoogle} onLogout={logout} onShowWelcome={() => setShowWelcome(true)}
+                  onUpdateBudget={handleUpdateCycleDay} onLogin={loginWithGoogle} onLogout={logout} onShowWelcome={() => setShowWelcome(true)}
                   onBackup={() => { 
                     const dataStr = JSON.stringify(state); 
                     const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr); 

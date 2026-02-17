@@ -1,4 +1,4 @@
-const CACHE_NAME = 'zenbudget-v2'; // Changement de version pour forcer le refresh
+const CACHE_NAME = 'zenbudget-v2.1'; // Version incrémentée
 const ASSETS = [
   '/',
   '/index.html',
@@ -11,14 +11,13 @@ const ASSETS = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      // On utilise addAll mais on ne bloque pas si certains assets échouent
       return cache.addAll(ASSETS).catch(err => console.warn("Erreur mise en cache initiale:", err));
     })
   );
   self.skipWaiting();
 });
 
-// Activation : Nettoyage radical des anciens caches
+// Activation : Nettoyage des anciens caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
@@ -31,34 +30,41 @@ self.addEventListener('activate', (event) => {
       );
     })
   );
-  // Prend le contrôle des pages immédiatement
   self.clients.claim();
 });
 
-// Stratégie : Stale-While-Revalidate (La plus sûre pour une PWA)
-// On sert le cache immédiatement MAIS on met à jour le cache en arrière-plan
+// Stratégie : Stale-While-Revalidate avec exclusions critiques
 self.addEventListener('fetch', (event) => {
-  // On ne gère pas les requêtes vers l'API Gemini ou les extensions Chrome
-  if (!event.request.url.startsWith('http') || event.request.url.includes('generativelanguage')) {
-    return;
+  const url = event.request.url;
+
+  // NE PAS INTERCEPTER : Requêtes Firebase, Gemini, et requêtes non-GET
+  if (
+    !url.startsWith('http') || 
+    event.request.method !== 'GET' ||
+    url.includes('generativelanguage') || 
+    url.includes('firestore.googleapis.com') || 
+    url.includes('firebaseinstallations.googleapis.com') ||
+    url.includes('identitytoolkit.googleapis.com') ||
+    url.includes('google-analytics')
+  ) {
+    return; // On laisse le navigateur gérer directement
   }
 
   event.respondWith(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.match(event.request).then((response) => {
+      return cache.match(event.request).then((cachedResponse) => {
         const fetchPromise = fetch(event.request).then((networkResponse) => {
-          // Si la réponse est valide, on met à jour le cache
+          // On met à jour le cache si la réponse est valide
           if (networkResponse && networkResponse.status === 200) {
             cache.put(event.request, networkResponse.clone());
           }
           return networkResponse;
         }).catch(() => {
-          // En cas de panne réseau totale, on espère avoir le match en cache
-          return response;
+          return cachedResponse;
         });
 
-        // On retourne la réponse du cache si elle existe, sinon on attend le réseau
-        return response || fetchPromise;
+        // Retourne la version cachée si elle existe, sinon attend le réseau
+        return cachedResponse || fetchPromise;
       });
     })
   );

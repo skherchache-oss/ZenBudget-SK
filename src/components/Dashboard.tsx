@@ -84,6 +84,12 @@ const Dashboard: React.FC<DashboardProps> = ({
       date: new Date().toISOString()
     });
     setShowFeedbackModal(false);
+    // Reset pour la prochaine ouverture
+    setTimeout(() => {
+        setFeedbackStep('RATING');
+        setUserRating(null);
+        setSelectedFeatures([]);
+    }, 500);
   };
 
   const toggleFeature = (feature: string) => {
@@ -99,12 +105,16 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const fetchAiAdvice = async (force: boolean = false) => {
-    const API_KEY = (import.meta as any).env?.VITE_GEMINI_API_KEY || (window as any).process?.env?.VITE_GEMINI_API_KEY || "";
+    // Récupération sécurisée de la clé API pour Vite/Vercel
+    const API_KEY = import.meta.env?.VITE_GEMINI_API_KEY || "";
+    
     if (!API_KEY) return;
     const cacheKey = `zentip_${activeAccount?.id}_${month}_${year}`;
     const cachedAdvice = sessionStorage.getItem(cacheKey);
+    
     if (cachedAdvice && !force) { setAiAdvice(cachedAdvice); return; }
     if (loadingAdvice) return;
+    
     setLoadingAdvice(true);
     try {
       const context = `Solde: ${availableBalance}€, Projeté: ${projectedBalance}€, État: ${projectedBalance < 0 ? 'Danger' : 'Zen'}. Compte: ${activeAccount.name}`;
@@ -208,8 +218,8 @@ const Dashboard: React.FC<DashboardProps> = ({
               </h3>
               <p className="text-sm text-slate-500 font-medium mb-6 leading-relaxed">
                 {premiumType === 'CSV' 
-                  ? "L'exportation vers Excel arrive bientôt dans ZenBudget Premium." 
-                  : "La gestion multi-projets arrive bientôt dans ZenBudget Premium."}
+                  ? "L'exportation vers Excel arrive bientôt dans ZenBudget Premium pour analyser vos finances en profondeur." 
+                  : "Épargnez pour vos rêves ! La gestion de vos projets arrive bientôt pour vous aider à financer vos vacances ou vos envies."}
               </p>
               <button 
                 onClick={() => { setPremiumType(null); setShowFeedbackModal(true); }} 
@@ -269,12 +279,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                     <h3 className="text-xl font-black text-slate-900 mb-1 italic">ZenBudget Premium</h3>
                     <p className="text-[11px] text-slate-500 font-medium mb-4">Qu'est-ce qui vous serait le plus utile ?</p>
                     
-                    {/* Grille serrée pour optimiser l'espace */}
                     <div className="grid grid-cols-2 gap-2 mb-6 text-left max-h-[220px] overflow-y-auto pr-1 no-scrollbar">
                       {[
                         { id: 'multi-accounts', label: 'Comptes Multiples', icon: '🏦' },
                         { id: 'share', label: 'Partage Zen', icon: '👥' },
-                        { id: 'projects', label: 'Multi-projets', icon: '🎯' }, 
+                        { id: 'projects', label: 'Projets (Vacances...)', icon: '🎯' }, 
                         { id: 'csv', label: 'Export Excel', icon: '📊' }, 
                         { id: 'ai', label: 'Conseils IA', icon: '🤖' }
                       ].map((feat) => (
@@ -386,8 +395,8 @@ const Dashboard: React.FC<DashboardProps> = ({
           <button onClick={() => setPremiumType('PROJECTS')} className="group p-4 border border-dashed border-slate-200 rounded-[24px] bg-slate-50/50 hover:bg-indigo-50/30 transition-all flex items-center gap-4">
             <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-lg shadow-sm">🎯</div>
             <div className="text-left">
-              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Épargnez pour vos rêves</p>
-              <span className="text-[9px] font-bold text-indigo-500/60 block mt-0.5">Bientôt disponible</span>
+              <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest leading-tight">Épargnez pour vos rêves <br/> <span className="text-[8px] font-bold text-slate-400">(Voyage Japon, Vacances été, etc.)</span></p>
+              <span className="text-[9px] font-bold text-indigo-500/60 block mt-1">Bientôt disponible dans Premium</span>
             </div>
           </button>
         </div>

@@ -1,161 +1,74 @@
-import React, { useState, useRef, useEffect } from 'react'; 
-import { AppState, BudgetAccount, Category } from '../types'; 
-import { IconPlus } from './Icons'; 
-import { createDefaultAccount, generateId } from '../store'; 
-import { User as FirebaseUser, updateProfile, deleteUser } from 'firebase/auth';
-import { Info, ShieldCheck, FileText, Scale, Star, Send, X } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { 
+  X, Star, Send, Camera, Trash2, Edit2, Plus as IconPlus, 
+  ChevronRight, Info, ShieldCheck, Scale, FileText, Users
+} from 'lucide-react';
+import { updateProfile } from 'firebase/auth';
 
-interface SettingsProps { 
-  state: AppState; 
-  user: FirebaseUser | null;
-  onUpdateAccounts: (accounts: BudgetAccount[]) => void; 
-  onSetActiveAccount: (id: string) => void; 
-  onDeleteAccount: (id: string) => void; 
-  onReset: () => void; 
-  onUpdateCategories: (cats: Category[]) => void; 
-  onUpdateBudget: (val: number) => void; 
-  onLogin: () => void; 
-  onLogout: () => void; 
-  onShowWelcome: () => void; 
-  onBackup: (accountName?: string) => void;
-  onImport: (file: File) => void;
-  onUpdateUser: (userData: { name?: string; photoURL?: string | null }) => void; 
-  onGiveFeedback?: (data: any) => void;
-} 
+const PRESET_COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#06b6d4'];
+const EMOJI_LIST = ['💰', '🏠', '🚗', '🍔', '🛒', '🎮', '🏥', '👔', '✈️', '🎁', '📱', '🎓', '🏋️', '🐈', '🍿'];
 
-const EMOJI_LIST = [
-  '💰', '🛒', '🚗', '🏠', '🍕', '🎮', '🏥', '🔌', '🎁', '✈️', 
-  '👕', '🎓', '🛡️', '🍿', '🏋️', '📱', '🐕', '🌿', '🛠️', '💼',
-  '👶', '🍼', '🧸', '🍭', '🚲', '🎨', '📚', '💄', '💇', '🕯️'
-];
+const SectionTitle = ({ title }: { title: string }) => (
+  <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400 mb-3 px-1">{title}</h2>
+);
 
-const PRESET_COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4', '#475569'];
+const AccountItem = ({ acc, isActive, onDelete, onRename, onSelect, onShowPremium, canDelete }: any) => (
+  <div className={`group flex items-center justify-between p-4 rounded-[24px] transition-all border-2 ${isActive ? 'bg-indigo-600 border-indigo-600 shadow-lg shadow-indigo-100' : 'bg-white border-slate-50 hover:border-indigo-100'}`}>
+    <div className="flex items-center gap-3 cursor-pointer flex-1" onClick={() => onSelect(acc.id)}>
+      <div className={`w-10 h-10 rounded-2xl flex items-center justify-center text-lg ${isActive ? 'bg-white/20 text-white' : 'bg-slate-50 text-indigo-600'}`}>
+        {acc.name.charAt(0).toUpperCase()}
+      </div>
+      <div className="flex flex-col">
+        <span className={`text-[11px] font-black uppercase tracking-widest ${isActive ? 'text-white' : 'text-slate-700'}`}>{acc.name}</span>
+        {isActive && <span className="text-[7px] font-black text-indigo-200 uppercase tracking-widest">Compte Actif</span>}
+      </div>
+    </div>
+    <div className="flex items-center gap-1">
+      <button onClick={() => onRename(acc)} className={`p-2 rounded-xl transition-colors ${isActive ? 'hover:bg-white/10 text-indigo-200' : 'hover:bg-slate-50 text-slate-300'}`}>
+        <Edit2 size={14} />
+      </button>
+      <button onClick={() => onShowPremium()} className={`p-2 rounded-xl transition-colors flex items-center gap-1 ${isActive ? 'hover:bg-white/10 text-indigo-200' : 'hover:bg-slate-50 text-indigo-400'}`}>
+        <span className="text-[10px]">💎</span>
+        <Users size={14} />
+      </button>
+      {canDelete && (
+        <button onClick={() => onDelete(acc.id)} className={`p-2 rounded-xl transition-colors ${isActive ? 'hover:bg-white/10 text-indigo-200' : 'hover:bg-slate-50 text-red-300'}`}>
+          <Trash2 size={14} />
+        </button>
+      )}
+    </div>
+  </div>
+);
 
-const AccountItem: React.FC<{ 
-  acc: BudgetAccount; 
-  isActive: boolean; 
-  onDelete: (id: string) => void; 
-  onRename: (acc: BudgetAccount) => void; 
-  onSelect: (id: string) => void; 
-  onShowPremium: () => void;
-  canDelete: boolean; 
-}> = ({ acc, isActive, onDelete, onRename, onSelect, onShowPremium, canDelete }) => { 
-  const [isConfirmingDelete, setIsConfirmingDelete] = useState(false); 
-
-  const handleDelete = (e: React.MouseEvent) => { 
-    e.stopPropagation(); 
-    if (!isConfirmingDelete) { 
-      setIsConfirmingDelete(true); 
-      setTimeout(() => setIsConfirmingDelete(false), 3000); 
-      return; 
-    } 
-    onDelete(acc.id); 
-  }; 
-
-  return ( 
-    <div 
-      className={`flex items-center justify-between bg-white rounded-2xl p-3.5 mb-2 border transition-all cursor-pointer ${isActive ? 'border-indigo-200 shadow-sm ring-2 ring-indigo-50' : 'border-slate-100 hover:border-slate-200'}`} 
-      onClick={() => onSelect(acc.id)} 
-    > 
-      <div className="flex items-center gap-3 min-w-0"> 
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: `${acc.color}15` }}> 
-          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: acc.color }} /> 
-        </div> 
-        <div className="flex flex-col min-w-0"> 
-          <span className="text-[11px] font-black text-slate-800 truncate uppercase tracking-tight">{acc.name}</span> 
-          {isActive && <span className="text-[7px] font-black text-indigo-500 uppercase tracking-[0.1em]">Compte actif</span>} 
-        </div> 
-      </div> 
-
-      <div className="flex items-center gap-1"> 
-        <button onClick={(e) => { e.stopPropagation(); onShowPremium(); }} className="p-2 text-slate-300 hover:text-indigo-500 flex items-center gap-1 transition-colors"> 
-          <span className="text-[10px]">💎</span>
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-        </button> 
-        <button onClick={(e) => { e.stopPropagation(); onRename(acc); }} className="p-2 text-slate-300 hover:text-indigo-600"> 
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg> 
-        </button> 
-        {canDelete && ( 
-          <button 
-            onClick={handleDelete} 
-            className={`px-3 py-1.5 rounded-lg text-[8px] font-black uppercase transition-all ${isConfirmingDelete ? 'bg-red-500 text-white' : 'text-red-200 hover:text-red-400'}`} 
-          > 
-            {isConfirmingDelete ? 'Sûr ?' : <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>} 
-          </button> 
-        )} 
-      </div> 
-    </div> 
-  ); 
-}; 
-
-const Settings: React.FC<SettingsProps> = ({ state, user, onUpdateAccounts, onSetActiveAccount, onDeleteAccount, onReset, onShowWelcome, onBackup, onImport, onLogin, onLogout, onUpdateUser, onUpdateCategories, onGiveFeedback }) => { 
-  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
-  const [feedbackStep, setFeedbackStep] = useState<'RATING' | 'FEATURES'>('RATING');
-  const [userRating, setUserRating] = useState<number | null>(null);
-  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
-  
-  const [editingAccountId, setEditingAccountId] = useState<string | null>(null); 
-  const [editName, setEditName] = useState(''); 
-  const [manualDay, setManualDay] = useState('');
+const Settings = ({ 
+  state, user, onUpdateUser, onLogout, onLogin, onDeleteAccount, 
+  onSetActiveAccount, onRenameAccount, onAddCategory, onDeleteCategory, 
+  onUpdateBudget, onBackup, onImport, onReset, onDeleteUserAccount, onShowWelcome 
+}: any) => {
   const [isUploading, setIsUploading] = useState(false);
   const [isEditingUserName, setIsEditingUserName] = useState(false);
   const [tempUserName, setTempUserName] = useState(user?.displayName || '');
-  
+  const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
+  const [editName, setEditName] = useState('');
   const [showAddCat, setShowAddCat] = useState(false);
-  const [newCat, setNewCat] = useState({ name: '', icon: '👶', color: '#6366f1' });
+  const [newCat, setNewCat] = useState({ name: '', icon: '💰', color: '#6366f1' });
+  const [manualDay, setManualDay] = useState('');
+  const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+  const [feedbackStep, setFeedbackStep] = useState<'INFO' | 'RATING' | 'FEATURES'>('INFO');
+  const [userRating, setUserRating] = useState<number | null>(null);
+  const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
+  const [premiumType, setPremiumType] = useState<'ACCOUNTS' | 'SHARE' | 'GENERAL'>('GENERAL');
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const photoInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (showFeedbackModal) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-    return () => { document.body.style.overflow = ''; };
-  }, [showFeedbackModal]);
-
-  const handleSendFeedback = () => {
-    onGiveFeedback?.({
-      rating: userRating,
-      interestedFeatures: selectedFeatures,
-      date: new Date().toISOString(),
-      source: 'settings_premium'
-    });
-    setShowFeedbackModal(false);
-    setTimeout(() => {
-      setFeedbackStep('RATING');
-      setUserRating(null);
-      setSelectedFeatures([]);
-    }, 500);
-  };
-
-  const toggleFeature = (feature: string) => {
-    setSelectedFeatures(prev => 
-      prev.includes(feature) ? prev.filter(f => f !== feature) : [...prev, feature]
-    );
-  };
-
-  const activeAccount = state.accounts.find(a => a.id === state.activeAccountId); 
-  const currentCycleDay = activeAccount?.cycleEndDay || 0;
-  const presets = [25, 26, 27, 28, 0];
+  const activeAccount = state.accounts.find((a: any) => a.id === state.activeAccountId);
+  
+  // CORRECTION : On utilise cycleEndDay pour correspondre à la structure de l'App
+  const currentCycleDay = activeAccount?.cycleEndDay !== undefined ? activeAccount.cycleEndDay : (state.cycleEndDay || 0);
+  const presets = [1, 5, 25, 28, 0];
   const isCustomDay = !presets.includes(currentCycleDay);
-
-  const SectionTitle: React.FC<{ title: string }> = ({ title }) => ( 
-    <h2 className="text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] px-1 mb-3">{title}</h2> 
-  ); 
-
-  const handleSaveRename = () => { 
-    if (!editingAccountId || !editName.trim()) { 
-      setEditingAccountId(null); 
-      return; 
-    } 
-    const nextAccounts = state.accounts.map(a => a.id === editingAccountId ? { ...a, name: editName.trim() } : a); 
-    onUpdateAccounts(nextAccounts); 
-    setEditingAccountId(null); 
-  }; 
 
   const handleSaveUserName = async () => {
     if (!user || !tempUserName.trim()) {
@@ -164,120 +77,31 @@ const Settings: React.FC<SettingsProps> = ({ state, user, onUpdateAccounts, onSe
     }
     try {
       await updateProfile(user, { displayName: tempUserName.trim() });
-      onUpdateUser({ name: tempUserName.trim() });
-      setIsEditingUserName(false);
+      onUpdateUser({ displayName: tempUserName.trim() });
     } catch (err) {
       console.error("Erreur mise à jour nom:", err);
+    } finally {
       setIsEditingUserName(false);
     }
-  };
-
-  const handleAddCategory = () => {
-    if (!newCat.name.trim()) return;
-    const cat: Category = {
-      id: `cat-user-${generateId()}`,
-      name: newCat.name.trim(),
-      icon: newCat.icon,
-      color: newCat.color
-    };
-    onUpdateCategories([...state.categories, cat]);
-    setNewCat({ name: '', icon: '👶', color: '#6366f1' });
-    setShowAddCat(false);
-  };
-
-  const handleDeleteCategory = (id: string) => {
-    if (state.categories.length <= 1) {
-        alert("Vous devez garder au moins une catégorie.");
-        return;
-    }
-    if (confirm("Supprimer cette catégorie ? Les transactions liées n'auront plus d'icône spécifique.")) {
-        onUpdateCategories(state.categories.filter(c => c.id !== id));
-    }
-  };
-
-  const handleDeleteUserAccount = async () => {
-    if (!user) return;
-    const confirmDelete = prompt("Pour supprimer définitivement votre compte ZenBudget et TOUTES vos données Cloud, tapez sans espaces 'SUPPRIMER'");
-    if (confirmDelete === 'SUPPRIMER') {
-      try {
-        await deleteUser(user);
-        alert("Votre compte a été supprimé. A bientôt ! ✨");
-        onLogout();
-      } catch (err: any) {
-        if (err.code === 'auth/requires-recent-login') {
-          alert("Action sensible : Veuillez vous reconnecter, puis réessayer immédiatement la suppression.");
-          onLogout();
-        } else {
-          alert("Une erreur est survenue lors de la suppression.");
-        }
-      }
-    }
-  };
-
-  const updateCycleDay = (day: number) => { 
-    if (!activeAccount) return; 
-    const nextAccounts = state.accounts.map(a => a.id === activeAccount.id ? { ...a, cycleEndDay: day } : a); 
-    onUpdateAccounts(nextAccounts); 
-  }; 
-
-  const handleManualDayUpdate = (e: React.FormEvent) => {
-    e.preventDefault();
-    const day = parseInt(manualDay);
-    if (!isNaN(day) && day >= 1 && day <= 31) {
-      updateCycleDay(day === 31 ? 0 : day);
-      setManualDay('');
-    }
-  };
-
-  const compressHighQuality = (file: File): Promise<string> => {
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = (event) => {
-        const img = new Image();
-        img.src = event.target?.result as string;
-        img.onload = () => {
-          const canvas = document.createElement('canvas');
-          const SIZE = 512;
-          canvas.width = SIZE;
-          canvas.height = SIZE;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            const ratio = Math.max(SIZE / img.width, SIZE / img.height);
-            const x = (SIZE - img.width * ratio) / 2;
-            const y = (SIZE - img.height * ratio) / 2;
-            ctx.fillStyle = "white";
-            ctx.fillRect(0, 0, SIZE, SIZE);
-            ctx.drawImage(img, x, y, img.width * ratio, img.height * ratio);
-          }
-          resolve(canvas.toDataURL('image/jpeg', 0.9));
-        };
-      };
-    });
   };
 
   const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && user) {
-      setIsUploading(true);
-      try {
-        const highQualityUrl = await compressHighQuality(file);
-        localStorage.setItem(`user_photo_hd_${user.uid}`, highQualityUrl);
-        onUpdateUser({ photoURL: highQualityUrl });
-        const canvas = document.createElement('canvas');
-        canvas.width = 40; canvas.height = 40;
-        const img = new Image();
-        img.src = highQualityUrl;
-        img.onload = async () => {
-            canvas.getContext('2d')?.drawImage(img, 0, 0, 40, 40);
-            const tiny = canvas.toDataURL('image/jpeg', 0.2);
-            try { await updateProfile(user, { photoURL: tiny }); } catch (e) { }
-        };
-      } catch (err) { console.error("Erreur photo:", err);
-      } finally {
-        setIsUploading(false);
-        if (photoInputRef.current) photoInputRef.current.value = "";
-      }
+    if (!file || !user) return;
+    setIsUploading(true);
+    try {
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const base64String = reader.result as string;
+        localStorage.setItem(`user_photo_hd_${user.uid}`, base64String);
+        await updateProfile(user, { photoURL: base64String });
+        onUpdateUser({ photoURL: base64String });
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error("Erreur photo:", err);
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -295,13 +119,68 @@ const Settings: React.FC<SettingsProps> = ({ state, user, onUpdateAccounts, onSe
     }
   };
 
+  const handleSaveRename = () => {
+    if (editingAccountId && editName.trim()) {
+      onRenameAccount(editingAccountId, editName.trim());
+      setEditingAccountId(null);
+    }
+  };
+
+  const handleAddCategory = () => {
+    if (newCat.name.trim()) {
+      onAddCategory(newCat);
+      setNewCat({ name: '', icon: '💰', color: '#6366f1' });
+      setShowAddCat(false);
+    }
+  };
+
+  const handleDeleteCategory = (id: string) => {
+    if (confirm("Supprimer cette catégorie ?")) {
+      onDeleteCategory(id);
+    }
+  };
+
+  const updateCycleDay = (day: number) => {
+    onUpdateBudget(day); // CORRECTION : appelle onUpdateBudget
+    setManualDay('');
+  };
+
+  const handleManualDayUpdate = (e: React.FormEvent) => {
+    e.preventDefault();
+    const day = parseInt(manualDay);
+    if (!isNaN(day) && day >= 1 && day <= 31) {
+      onUpdateBudget(day === 31 ? 0 : day); // CORRECTION : appelle onUpdateBudget
+      setManualDay('');
+    }
+  };
+
+  const toggleFeature = (id: string) => {
+    setSelectedFeatures(prev => 
+      prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]
+    );
+  };
+
+  const handleSendFeedback = () => {
+    alert("Merci pour votre retour ! Nous vous préviendrons dès que ces fonctionnalités seront prêtes.");
+    setShowFeedbackModal(false);
+    setFeedbackStep('INFO');
+    setUserRating(null);
+    setSelectedFeatures([]);
+  };
+
+  const handleDeleteUserAccount = () => {
+    if (confirm("Attention : cette action supprimera définitivement votre compte et vos données cloud. Continuer ?")) {
+      onDeleteUserAccount();
+    }
+  };
+
   const isRealUser = user && user.uid !== 'local-user';
-  const currentPhoto = (user && localStorage.getItem(`user_photo_hd_${user.uid}`)) || state.user.photoURL;
+  const currentPhoto = (user && localStorage.getItem(`user_photo_hd_${user.uid}`)) || (user ? user.photoURL : null);
 
   return ( 
     <div className="space-y-6 pb-32 overflow-y-auto no-scrollbar h-full px-4 pt-6"> 
       
-      {/* MODAL FEEDBACK PREMIUM */}
+      {/* MODAL FEEDBACK PREMIUM DYNAMIQUE */}
       <AnimatePresence>
         {showFeedbackModal && (
           <div className="fixed inset-0 flex items-center justify-center p-4 z-[99999]" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0 }}>
@@ -323,10 +202,24 @@ const Settings: React.FC<SettingsProps> = ({ state, user, onUpdateAccounts, onSe
 
               <div className="text-center">
                 <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-2xl mx-auto mb-4">
-                  {feedbackStep === 'RATING' ? '✨' : '💎'}
+                  {feedbackStep === 'INFO' ? '💎' : feedbackStep === 'RATING' ? '✨' : '🚀'}
                 </div>
 
-                {feedbackStep === 'RATING' ? (
+                {feedbackStep === 'INFO' ? (
+                  <>
+                    <h3 className="text-xl font-black text-slate-900 mb-2 italic">ZenBudget Premium</h3>
+                    <div className="bg-indigo-50/50 rounded-2xl p-4 mb-6">
+                      <p className="text-[11px] text-indigo-600 font-black uppercase tracking-wider leading-relaxed">
+                        {premiumType === 'SHARE' 
+                          ? "Le partage de compte sera bientôt disponible !" 
+                          : "La création de plusieurs comptes sera bientôt disponible !"}
+                      </p>
+                    </div>
+                    <button onClick={() => setFeedbackStep('RATING')}
+                      className="w-full py-4 bg-slate-900 text-white rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-xl"
+                    >Donner mon avis</button>
+                  </>
+                ) : feedbackStep === 'RATING' ? (
                   <>
                     <h3 className="text-xl font-black text-slate-900 mb-1 italic">L'app vous plaît ?</h3>
                     <p className="text-xs text-slate-500 font-medium mb-6">Votre avis nous aide énormément.</p>
@@ -391,7 +284,7 @@ const Settings: React.FC<SettingsProps> = ({ state, user, onUpdateAccounts, onSe
                 </span>
               )}
               <div className="absolute inset-0 bg-indigo-900/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                 <svg className="w-6 h-6 text-white drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /></svg>
+                  <svg className="w-6 h-6 text-white drop-shadow-md" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" /></svg>
               </div>
               {isUploading && <div className="absolute inset-0 flex items-center justify-center bg-black/20"><div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /></div>}
             </div>
@@ -439,15 +332,15 @@ const Settings: React.FC<SettingsProps> = ({ state, user, onUpdateAccounts, onSe
       <section> 
         <SectionTitle title="Mes Comptes" /> 
         <div className="space-y-1"> 
-          {state.accounts.map(acc => ( 
+          {state.accounts.map((acc: any) => ( 
             <AccountItem 
               key={acc.id} 
               acc={acc} 
               isActive={state.activeAccountId === acc.id} 
               onDelete={onDeleteAccount} 
-              onRename={(a) => { setEditingAccountId(a.id); setEditName(a.name); }} 
+              onRename={(a: any) => { setEditingAccountId(a.id); setEditName(a.name); }} 
               onSelect={onSetActiveAccount} 
-              onShowPremium={() => setShowFeedbackModal(true)}
+              onShowPremium={() => { setPremiumType('SHARE'); setShowFeedbackModal(true); setFeedbackStep('INFO'); }}
               canDelete={state.accounts.length > 1} 
             /> 
           ))} 
@@ -462,19 +355,19 @@ const Settings: React.FC<SettingsProps> = ({ state, user, onUpdateAccounts, onSe
             </div> 
           )} 
 
-          <button onClick={() => setShowFeedbackModal(true)} className="w-full py-3.5 border-2 border-dashed border-slate-100 text-slate-300 font-black text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 rounded-2xl hover:border-indigo-200 hover:text-indigo-500 transition-all group"> 
+          <button onClick={() => { setPremiumType('ACCOUNTS'); setShowFeedbackModal(true); setFeedbackStep('INFO'); }} className="w-full py-3.5 border-2 border-dashed border-slate-100 text-slate-300 font-black text-[9px] uppercase tracking-widest flex items-center justify-center gap-2 rounded-2xl hover:border-indigo-200 hover:text-indigo-500 transition-all group"> 
             <span className="opacity-40 group-hover:opacity-100">💎</span>
             <IconPlus className="w-3 h-3" /> Ajouter un compte 
           </button> 
         </div> 
       </section>
 
-      {/* GESTION CATÉGORIES AMÉLIORÉE */}
+      {/* GESTION CATÉGORIES */}
       <section>
         <SectionTitle title="Mes Catégories" />
         <div className="bg-white rounded-[32px] border border-slate-100 p-5 shadow-sm space-y-5">
           <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1 no-scrollbar">
-            {state.categories.map(cat => (
+            {state.categories.map((cat: any) => (
               <div key={cat.id} className="group flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100 hover:bg-white hover:border-indigo-100 transition-all">
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs shrink-0" style={{ backgroundColor: `${cat.color}15` }}>
@@ -501,7 +394,6 @@ const Settings: React.FC<SettingsProps> = ({ state, user, onUpdateAccounts, onSe
                   ))}
                 </div>
               </div>
-
               <div className="space-y-2">
                 <span className="text-[8px] font-black uppercase text-indigo-400 tracking-widest ml-1">2. Nom & Couleur</span>
                 <div className="flex gap-2">
@@ -513,7 +405,6 @@ const Settings: React.FC<SettingsProps> = ({ state, user, onUpdateAccounts, onSe
                   </div>
                 </div>
               </div>
-
               <div className="flex gap-2 pt-2">
                 <button onClick={handleAddCategory} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-indigo-200">Enregistrer</button>
                 <button onClick={() => setShowAddCat(false)} className="px-5 py-3 text-slate-400 text-[9px] font-black uppercase hover:text-slate-600">Annuler</button>
@@ -527,28 +418,51 @@ const Settings: React.FC<SettingsProps> = ({ state, user, onUpdateAccounts, onSe
         </div>
       </section>
 
-      {/* CYCLE BUDGÉTAIRE */}
+      {/* CYCLE BUDGÉTAIRE CORRIGÉ */}
       <section>
         <SectionTitle title="Cycle Budgétaire" />
         <div className="bg-white p-4 rounded-[28px] border border-slate-100 shadow-sm space-y-4">
           <p className="text-[10px] text-slate-400 font-medium leading-relaxed px-1">Définissez le jour de clôture du mois (jour de paie).</p>
           <div className="grid grid-cols-5 gap-1.5">
             {presets.map((day) => (
-              <button key={day} onClick={() => updateCycleDay(day)} className={`py-3 rounded-xl border-2 transition-all flex flex-col items-center justify-center gap-1 ${currentCycleDay === day ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-50 bg-slate-50 text-slate-400'}`}>
+              <button 
+                key={day} 
+                type="button"
+                onClick={() => updateCycleDay(day)} 
+                className={`py-3 rounded-xl border-2 transition-all flex flex-col items-center justify-center gap-1 ${currentCycleDay === day ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-50 bg-slate-50 text-slate-400'}`}
+              >
                 <span className="text-[11px] font-black">{day === 0 ? '31' : day}</span>
                 <span className="text-[5px] font-black uppercase tracking-tighter">{day === 0 ? 'Fin de mois' : 'Du mois'}</span>
               </button>
             ))}
-            {isCustomDay && <button disabled className="py-3 rounded-xl border-2 border-indigo-600 bg-indigo-600 text-white flex flex-col items-center justify-center gap-1 shadow-lg"><span className="text-[11px] font-black">{currentCycleDay}</span><span className="text-[5px] font-black uppercase tracking-tighter">Actif</span></button>}
+            {isCustomDay && (
+              <button disabled className="py-3 rounded-xl border-2 border-indigo-600 bg-indigo-600 text-white flex flex-col items-center justify-center gap-1 shadow-lg">
+                <span className="text-[11px] font-black">{currentCycleDay}</span>
+                <span className="text-[5px] font-black uppercase tracking-tighter">Actif</span>
+              </button>
+            )}
           </div>
           <form onSubmit={handleManualDayUpdate} className="flex gap-2">
-            <input type="number" min="1" max="31" value={manualDay} onChange={e => setManualDay(e.target.value)} placeholder={isCustomDay ? `Jour actuel: ${currentCycleDay}` : "Autre jour (1-31)"} className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-2.5 text-[10px] font-bold outline-none placeholder:text-slate-300" />
-            <button type="submit" className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest">OK</button>
+            <input 
+              type="number" 
+              min="1" 
+              max="31" 
+              value={manualDay} 
+              onChange={e => setManualDay(e.target.value)} 
+              placeholder={isCustomDay ? `Jour actuel: ${currentCycleDay === 0 ? 31 : currentCycleDay}` : "Autre jour (1-31)"} 
+              className="flex-1 bg-slate-50 border-none rounded-xl px-4 py-2.5 text-[10px] font-bold outline-none placeholder:text-slate-300" 
+            />
+            <button 
+              type="submit" 
+              className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[8px] font-black uppercase tracking-widest active:scale-95 transition-transform"
+            >
+              OK
+            </button>
           </form>
         </div>
       </section>
 
-      {/* SAUVEGARDE DES DONNÉES */}
+      {/* SAUVEGARDE */}
       <section>
         <SectionTitle title="Sauvegarde des données" />
         <div className="bg-white rounded-[24px] border border-slate-50 overflow-hidden shadow-sm">
@@ -562,7 +476,7 @@ const Settings: React.FC<SettingsProps> = ({ state, user, onUpdateAccounts, onSe
         </div>
       </section>
 
-      {/* À PROPOS & LÉGAL */}
+      {/* LÉGAL */}
       <section>
         <SectionTitle title="À propos & Légal" />
         <div className="bg-white rounded-[28px] border border-slate-100 overflow-hidden shadow-sm">
@@ -577,58 +491,26 @@ const Settings: React.FC<SettingsProps> = ({ state, user, onUpdateAccounts, onSe
                 </div>
              </div>
           </div>
-
           <div className="flex flex-col">
-            <button 
-              onClick={() => window.open('https://tonsite.com/confidentialite', '_blank')}
-              className="px-4 py-2.5 flex items-center justify-between hover:bg-slate-50 transition-colors border-b border-slate-50"
-            >
-               <div className="flex items-center gap-3">
-                  <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0">
-                    <ShieldCheck size={14} />
-                  </div>
-                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">Politique de Confidentialité</span>
-               </div>
+            <button onClick={() => window.open('https://tonsite.com/confidentialite', '_blank')} className="px-4 py-2.5 flex items-center justify-between hover:bg-slate-50 transition-colors border-b border-slate-50">
+               <div className="flex items-center gap-3"><div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0"><ShieldCheck size={14} /></div><span className="text-[9px] font-black uppercase tracking-widest text-slate-600">Politique de Confidentialité</span></div>
                <FileText size={12} className="text-slate-200" />
             </button>
-
-            <button 
-              onClick={() => window.open('https://tonsite.com/cgu', '_blank')}
-              className="px-4 py-2.5 flex items-center justify-between hover:bg-slate-50 transition-colors border-b border-slate-50"
-            >
-               <div className="flex items-center gap-3">
-                  <div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0">
-                    <Scale size={14} />
-                  </div>
-                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">Conditions d'Utilisation</span>
-               </div>
-               <FileText size={12} className="text-slate-200" />
-            </button>
-
-            <button 
-              onClick={() => window.open('https://tonsite.com/mentions-legales', '_blank')}
-              className="px-4 py-2.5 flex items-center justify-between hover:bg-slate-50 transition-colors"
-            >
-               <div className="flex items-center gap-3">
-                  <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center text-slate-600 shrink-0">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                  </div>
-                  <span className="text-[9px] font-black uppercase tracking-widest text-slate-600">Mentions Légales</span>
-               </div>
+            <button onClick={() => window.open('https://tonsite.com/cgu', '_blank')} className="px-4 py-2.5 flex items-center justify-between hover:bg-slate-50 transition-colors border-b border-slate-50">
+               <div className="flex items-center gap-3"><div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0"><Scale size={14} /></div><span className="text-[9px] font-black uppercase tracking-widest text-slate-600">Conditions d'Utilisation</span></div>
                <FileText size={12} className="text-slate-200" />
             </button>
           </div>
         </div>
       </section>
 
-      {/* FOOTER & DANGER ZONE */}
+      {/* FOOTER */}
       <section className="pt-4 space-y-4"> 
         <div className="bg-slate-900 rounded-[32px] p-6 text-center relative overflow-hidden"> 
           <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/20 blur-3xl rounded-full" /> 
           <p className="text-[11px] font-medium text-indigo-100/80 mb-4 px-2 leading-relaxed">Un bug ou une idée ? Dites-le nous pour améliorer ZenBudget !</p> 
           <button onClick={() => window.location.href = `mailto:s.kherchache@gmail.com?subject=ZenBudget : Retour Bug/Idée`} className="w-full py-3.5 bg-white text-slate-900 font-black rounded-xl uppercase text-[9px] tracking-widest active:scale-95 transition-all shadow-xl">Signaler un bug ou proposer une idée ✨</button> 
         </div> 
-
         <div className="flex flex-col gap-2">
           <button onClick={onReset} className="w-full py-3 text-slate-400 font-black uppercase text-[8px] tracking-[0.2em] active:scale-95 transition-all hover:bg-slate-50 rounded-xl">Réinitialiser les données locales</button> 
           {isRealUser && <button onClick={handleDeleteUserAccount} className="w-full py-3 text-red-300 font-black uppercase text-[8px] tracking-[0.2em] active:scale-95 transition-all hover:bg-red-50 rounded-xl">Supprimer mon compte & données cloud</button>}
