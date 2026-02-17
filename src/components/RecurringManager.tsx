@@ -2,7 +2,9 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { RecurringTemplate, TransactionType, Category } from '../types';
 import { generateId } from '../store';
 import { IconPlus } from './Icons';
-import { ArrowUpCircle, PieChart, ChevronDown, ChevronRight, List, Edit3 } from 'lucide-react';
+import { ArrowUpCircle, PieChart as PieIcon, ChevronDown, ChevronRight, List, Edit3 } from 'lucide-react';
+// Import Recharts pour la cohérence avec le Dashboard
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 
 interface RecurringManagerProps {
   recurringTemplates: RecurringTemplate[];
@@ -14,41 +16,7 @@ interface RecurringManagerProps {
   onMonthChange: (offset: number) => void;
 }
 
-// --- COMPOSANT GRAPHIQUE ---
-const RecurringPieChart: React.FC<{ data: { name: string, value: number, color: string }[], total: number }> = ({ data, total }) => {
-  let cumulativePercent = 0;
-  function getCoordinatesForPercent(percent: number) {
-    const x = Math.cos(2 * Math.PI * percent);
-    const y = Math.sin(2 * Math.PI * percent);
-    return [x, y];
-  }
-  return (
-    <div className="relative w-44 h-44 mx-auto flex items-center justify-center">
-      <svg viewBox="-1 -1 2 2" className="transform -rotate-90 w-full h-full">
-        {total === 0 ? (
-          <circle cx="0" cy="0" r="1" fill="#f1f5f9" />
-        ) : (
-          data.map((slice, i) => {
-            const [startX, startY] = getCoordinatesForPercent(cumulativePercent);
-            cumulativePercent += slice.value / total;
-            const [endX, endY] = getCoordinatesForPercent(cumulativePercent);
-            const largeArcFlag = slice.value / total > 0.5 ? 1 : 0;
-            const pathData = [`M ${startX} ${startY}`, `A 1 1 0 ${largeArcFlag} 1 ${endX} ${endY}`, `L 0 0`].join(' ');
-            return <path key={i} d={pathData} fill={slice.color} className="transition-all duration-500" />;
-          })
-        )}
-        <circle cx="0" cy="0" r="0.78" fill="white" />
-      </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="text-[9px] font-black text-slate-400 uppercase tracking-tighter italic">Total Charges</span>
-        <span className="text-xl font-black text-slate-900 leading-none">
-          -{Math.round(total).toLocaleString('fr-FR')}€
-        </span>
-      </div>
-    </div>
-  );
-};
-
+// --- COMPOSANT ITEM (PRÉSERVÉ) ---
 const RecurringItem: React.FC<{
   tpl: RecurringTemplate;
   category?: Category;
@@ -74,7 +42,6 @@ const RecurringItem: React.FC<{
 
   return (
     <div className="flex items-center mb-1.5 bg-slate-50/40 rounded-xl border border-slate-100 overflow-hidden relative h-14 transition-all shadow-[0_1px_2px_rgba(0,0,0,0.02)]">
-      {/* Actions de swipe */}
       <div className={`absolute inset-y-0 right-0 flex transition-transform duration-300 ease-out z-50 pointer-events-auto ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <button onClick={handleEditAction} className="w-16 h-full bg-indigo-600 text-white flex items-center justify-center active:bg-indigo-700">
           <Edit3 className="w-4 h-4" />
@@ -84,7 +51,6 @@ const RecurringItem: React.FC<{
         </button>
       </div>
 
-      {/* Contenu de l'item */}
       <div 
         className={`relative flex items-center gap-3 px-3 transition-transform duration-300 ease-out z-10 flex-1 cursor-pointer h-full ${!tpl.isActive ? 'opacity-30 grayscale' : ''}`} 
         style={{ 
@@ -122,12 +88,16 @@ const RecurringItem: React.FC<{
   );
 };
 
-const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates, categories, onUpdate, totalBalance, month, year, onMonthChange }) => {
+// --- COMPOSANT PRINCIPAL ---
+const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates, categories, onUpdate }) => {
   const [editingTpl, setEditingTpl] = useState<RecurringTemplate | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [openItemId, setOpenItemId] = useState<string | null>(null);
-  // Initialisé à vide pour que tout soit fermé par défaut
   const [expandedCats, setExpandedCats] = useState<Record<string, boolean>>({});
+  
+  // État pour le survol du graphique
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  
   const formRef = useRef<HTMLDivElement>(null);
   
   const [type, setType] = useState<TransactionType>('EXPENSE');
@@ -151,10 +121,15 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
     const chartMap = expenses.reduce((acc, tpl) => {
       const cat = categories.find(c => c.id === tpl.categoryId);
       const catId = cat?.id || 'other';
-      if (!acc[catId]) acc[catId] = { name: cat?.name || 'Autre', value: 0, color: cat?.color || '#94a3b8' };
+      if (!acc[catId]) acc[catId] = { id: catId, name: cat?.name || 'Autre', value: 0, color: cat?.color || '#94a3b8', icon: cat?.icon || '📦', percent: 0 };
       acc[catId].value += Math.abs(tpl.amount);
       return acc;
-    }, {} as Record<string, { name: string, value: number, color: string }>);
+    }, {} as Record<string, { id: string, name: string, value: number, color: string, icon: string, percent: number }>);
+
+    const formattedChartData = Object.values(chartMap).map(item => ({
+      ...item,
+      percent: totalE > 0 ? (item.value / totalE) * 100 : 0
+    })).sort((a, b) => b.value - a.value);
 
     const listMap = recurringTemplates.reduce((acc, tpl) => {
         const catId = tpl.categoryId || 'other';
@@ -164,7 +139,7 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
     }, {} as Record<string, RecurringTemplate[]>);
 
     return { 
-      expenseChartData: Object.values(chartMap).sort((a, b) => b.value - a.value), 
+      expenseChartData: formattedChartData, 
       totalExpenses: totalE, totalIncomes: totalI, groupedByCat: listMap
     };
   }, [recurringTemplates, categories]);
@@ -194,39 +169,86 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
     setEditingTpl(null); setShowAdd(false); setAmount(''); setCategoryId(''); setComment(''); setDay('1'); setType('EXPENSE');
   };
 
+  const formatVal = (v: number) => {
+    return new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v || 0);
+  };
+
   return (
-    <div className="space-y-6 pb-32 h-full overflow-y-auto no-scrollbar px-1">
+    <div className="flex flex-col h-full space-y-6 overflow-y-auto no-scrollbar pb-32 px-1 fade-in">
       <div className="flex items-center justify-between px-1 mt-4">
         <h2 className="text-xl font-black tracking-tighter text-slate-800 italic uppercase">Flux Fixes</h2>
       </div>
 
-      <div className="bg-emerald-500 p-8 rounded-[40px] shadow-lg relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-2xl" />
-        <div className="flex items-center gap-3 mb-2">
-          <ArrowUpCircle className="text-emerald-200 w-5 h-5" />
-          <span className="text-[10px] font-black text-emerald-100 uppercase tracking-[0.2em]">Revenus fixes</span>
+      {/* REVENUS FIXES (Style Dashboard - Corrigé et Aligné) */}
+      <div className="bg-emerald-500 px-6 py-8 rounded-[40px] shadow-2xl relative overflow-hidden flex items-center justify-between">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl" />
+        
+        <span className="text-emerald-100 text-[10px] font-black uppercase tracking-[0.3em] z-10">
+          Revenus fixes mensuels
+        </span>
+
+        <div className="flex items-baseline gap-1 z-10">
+          <span className="text-3xl font-black tracking-tighter text-white">
+            +{Math.round(totalIncomes).toLocaleString('fr-FR')}
+          </span>
+          <span className="text-lg font-bold text-emerald-200">€</span>
         </div>
-        <div className="text-4xl font-black text-white">+{totalIncomes.toLocaleString('fr-FR')}€</div>
       </div>
 
-      <div className="bg-white rounded-[40px] p-8 shadow-sm border border-slate-100">
-        <div className="flex items-center gap-2 mb-8">
-          <PieChart className="text-indigo-500 w-4 h-4" />
-          <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Répartition des charges</h3>
-        </div>
+      {/* REPARTITION DES CHARGES - JUMEAU DASHBOARD */}
+      <div className="bg-white rounded-[45px] p-8 border border-slate-50 shadow-xl">
         <div className="flex flex-col items-center">
-          <RecurringPieChart data={expenseChartData} total={totalExpenses} />
-          <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 mt-10">
-            {expenseChartData.slice(0, 6).map((cat, i) => (
-              <div key={i} className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-100/50">
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }} />
-                <span className="text-[9px] font-black text-slate-500 uppercase tracking-tight">{cat.name}</span>
-              </div>
-            ))}
+          <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-8">Répartition des charges</h2>
+          <div className="h-[220px] w-full relative">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie 
+                  data={expenseChartData} 
+                  innerRadius={72} 
+                  outerRadius={88} 
+                  paddingAngle={0} 
+                  dataKey="value" 
+                  stroke="none"
+                  onMouseEnter={(_, index) => setActiveIndex(index)}
+                  onMouseLeave={() => setActiveIndex(null)}
+                  animationDuration={800}
+                >
+                  {expenseChartData.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={entry.color} 
+                      style={{ 
+                        filter: activeIndex === index ? 'drop-shadow(0px 0px 8px rgba(0,0,0,0.1))' : 'none',
+                        transition: 'all 0.3s ease'
+                      }}
+                      strokeWidth={activeIndex === index ? 2 : 0}
+                      stroke="#fff"
+                    />
+                  ))}
+                </Pie>
+                <Tooltip content={<></>} />
+              </PieChart>
+            </ResponsiveContainer>
+            
+            {/* Overlay central dynamique avec intitulé explicite */}
+            <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-10 text-center">
+              <span className="text-[9px] font-black uppercase text-slate-400 mb-0.5 leading-tight truncate w-full">
+                {activeIndex !== null ? expenseChartData[activeIndex].name : 'Charges Fixes'}
+              </span>
+              <span className="text-2xl font-black text-slate-900 leading-none">
+                -{formatVal(activeIndex !== null ? expenseChartData[activeIndex].value : totalExpenses)}€
+              </span>
+              {activeIndex !== null && (
+                <span className="text-[10px] font-bold text-indigo-500 mt-1">
+                  {expenseChartData[activeIndex].percent.toFixed(1)}%
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
+      {/* LISTE DÉTAILLÉE (ACCORDÉONS) */}
       <div className="space-y-4">
         <div className="px-2 flex items-center justify-between">
           <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Détails par catégorie</h3>
@@ -235,7 +257,6 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
 
         {Object.entries(groupedByCat).map(([catId, templates]) => {
             const category = categories.find(c => c.id === catId);
-            // On vérifie si c'est explicitement true, sinon c'est false par défaut
             const isExpanded = !!expandedCats[catId];
             const catTotal = templates.reduce((sum, t) => sum + (t.isActive ? (t.type === 'INCOME' ? t.amount : -t.amount) : 0), 0);
 
@@ -277,6 +298,7 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
             );
         })}
 
+        {/* FORMULAIRE D'AJOUT / ÉDITION */}
         <div ref={formRef} className="pt-4">
           {showAdd ? (
             <div className={`p-6 rounded-[32px] border shadow-xl animate-in slide-in-from-bottom duration-300 ${editingTpl ? 'bg-indigo-50/30 border-indigo-100' : 'bg-white border-slate-100'}`}>
@@ -321,7 +343,7 @@ const RecurringManager: React.FC<RecurringManagerProps> = ({ recurringTemplates,
               </form>
             </div>
           ) : (
-            <button onClick={() => setShowAdd(true)} className="w-full py-6 border-2 border-dashed border-slate-200 rounded-[32px] text-slate-400 font-black text-[9px] uppercase tracking-widest flex items-center justify-center gap-3 bg-white active:scale-95 transition-all shadow-sm">
+            <button onClick={() => setShowAdd(true)} className="w-full py-6 border-2 border-dashed border-slate-200 rounded-[32px] text-slate-400 font-black text-[9px] uppercase tracking-widest flex items-center justify-center gap-3 bg-white active:scale-95 transition-all shadow-sm hover:border-indigo-200 hover:text-indigo-400">
               <IconPlus className="w-5 h-5" /> Programmer un nouveau flux
             </button>
           )}

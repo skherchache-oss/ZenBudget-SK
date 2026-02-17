@@ -121,7 +121,6 @@ const Dashboard: React.FC<DashboardProps> = ({
     
     setLoadingAdvice(true);
     try {
-      // Utilisation de la SDK Google Generative AI au lieu de fetch direct
       const genAI = new GoogleGenerativeAI(API_KEY);
       const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
@@ -398,7 +397,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="flex-1"><p className="text-[13px] font-bold text-slate-700 leading-snug italic">{aiAdvice}</p></div>
       </div>
 
-      {/* SECTION PROJETS - RÉDUITE */}
+      {/* SECTION PROJETS */}
       <div className="px-1">
         <div className="flex justify-between items-center mb-4">
           <div className="flex items-center gap-2">
@@ -421,7 +420,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* REPARTITION DES CHARGES - GRAPHIQUE AMÉLIORÉ */}
+      {/* REPARTITION DES CHARGES - GRAPHIQUE CORRIGÉ */}
       <div className="bg-white rounded-[45px] p-8 border border-slate-50 shadow-xl">
         <div className="flex flex-col items-center mb-10">
           <h2 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-8">Répartition des charges</h2>
@@ -430,13 +429,14 @@ const Dashboard: React.FC<DashboardProps> = ({
               <PieChart>
                 <Pie 
                   data={categorySummary} 
-                  innerRadius={70} 
-                  outerRadius={90} 
+                  innerRadius={72} 
+                  outerRadius={88} 
                   paddingAngle={0} 
                   dataKey="value" 
                   stroke="none"
                   onMouseEnter={onPieEnter}
                   onMouseLeave={onPieLeave}
+                  animationDuration={800}
                 >
                   {categorySummary.map((entry, index) => (
                     <Cell 
@@ -455,7 +455,7 @@ const Dashboard: React.FC<DashboardProps> = ({
               </PieChart>
             </ResponsiveContainer>
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-10 text-center">
-              <span className="text-[9px] font-black uppercase text-slate-400 mb-0.5">
+              <span className="text-[9px] font-black uppercase text-slate-400 mb-0.5 leading-tight truncate w-full">
                 {activeIndex !== null ? categorySummary[activeIndex].name : 'Total Dépenses'}
               </span>
               <span className="text-2xl font-black text-slate-900 leading-none">
