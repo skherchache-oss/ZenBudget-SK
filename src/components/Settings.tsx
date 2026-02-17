@@ -43,7 +43,7 @@ const AccountItem = ({ acc, isActive, onDelete, onRename, onSelect, onShowPremiu
 
 const Settings = ({ 
   state, user, onUpdateUser, onLogout, onLogin, onDeleteAccount, 
-  onSetActiveAccount, onRenameAccount, onAddCategory, onDeleteCategory, 
+  onSetActiveAccount, onRenameAccount, onAddCategory, onDeleteCategory, onUpdateCategory,
   onUpdateBudget, onBackup, onImport, onReset, onDeleteUserAccount, onShowWelcome 
 }: any) => {
   const [isUploading, setIsUploading] = useState(false);
@@ -51,8 +51,12 @@ const Settings = ({
   const [tempUserName, setTempUserName] = useState(user?.displayName || '');
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  
+  // États pour les catégories
   const [showAddCat, setShowAddCat] = useState(false);
+  const [editingCatId, setEditingCatId] = useState<string | null>(null);
   const [newCat, setNewCat] = useState({ name: '', icon: '💰', color: '#6366f1' });
+  
   const [manualDay, setManualDay] = useState('');
   const [showFeedbackModal, setShowFeedbackModal] = useState(false);
   const [feedbackStep, setFeedbackStep] = useState<'INFO' | 'RATING' | 'FEATURES'>('INFO');
@@ -65,7 +69,6 @@ const Settings = ({
 
   const activeAccount = state.accounts.find((a: any) => a.id === state.activeAccountId);
   
-  // CORRECTION : On utilise cycleEndDay pour correspondre à la structure de l'App
   const currentCycleDay = activeAccount?.cycleEndDay !== undefined ? activeAccount.cycleEndDay : (state.cycleEndDay || 0);
   const presets = [1, 5, 25, 28, 0];
   const isCustomDay = !presets.includes(currentCycleDay);
@@ -128,10 +131,21 @@ const Settings = ({
 
   const handleAddCategory = () => {
     if (newCat.name.trim()) {
-      onAddCategory(newCat);
+      if (editingCatId) {
+        onUpdateCategory(editingCatId, newCat);
+        setEditingCatId(null);
+      } else {
+        onAddCategory(newCat);
+      }
       setNewCat({ name: '', icon: '💰', color: '#6366f1' });
       setShowAddCat(false);
     }
+  };
+
+  const handleEditCategory = (cat: any) => {
+    setEditingCatId(cat.id);
+    setNewCat({ name: cat.name, icon: cat.icon, color: cat.color });
+    setShowAddCat(true);
   };
 
   const handleDeleteCategory = (id: string) => {
@@ -141,7 +155,7 @@ const Settings = ({
   };
 
   const updateCycleDay = (day: number) => {
-    onUpdateBudget(day); // CORRECTION : appelle onUpdateBudget
+    onUpdateBudget(day);
     setManualDay('');
   };
 
@@ -149,7 +163,7 @@ const Settings = ({
     e.preventDefault();
     const day = parseInt(manualDay);
     if (!isNaN(day) && day >= 1 && day <= 31) {
-      onUpdateBudget(day === 31 ? 0 : day); // CORRECTION : appelle onUpdateBudget
+      onUpdateBudget(day === 31 ? 0 : day);
       setManualDay('');
     }
   };
@@ -369,11 +383,12 @@ const Settings = ({
           <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1 no-scrollbar">
             {state.categories.map((cat: any) => (
               <div key={cat.id} className="group flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100 hover:bg-white hover:border-indigo-100 transition-all">
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex items-center gap-2 min-w-0 cursor-pointer" onClick={() => handleEditCategory(cat)}>
                   <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs shrink-0" style={{ backgroundColor: `${cat.color}15` }}>
                     {cat.icon}
                   </div>
                   <span className="text-[9px] font-black uppercase tracking-tight text-slate-600 truncate">{cat.name}</span>
+                  <Edit2 size={10} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
                 <button onClick={() => handleDeleteCategory(cat.id)} className="p-1.5 text-slate-300 hover:text-red-500 transition-colors">
                   <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -388,7 +403,7 @@ const Settings = ({
                 <span className="text-[8px] font-black uppercase text-indigo-400 tracking-widest ml-1">1. Choisir une icône</span>
                 <div className="grid grid-cols-5 gap-1.5 p-2 bg-white rounded-2xl border border-indigo-100 max-h-40 overflow-y-auto no-scrollbar">
                   {EMOJI_LIST.map(e => (
-                    <button key={e} onClick={() => setNewCat({...newCat, icon: e})} className={`w-8 h-8 flex items-center justify-center rounded-xl text-lg transition-all ${newCat.icon === e ? 'bg-indigo-600 shadow-md scale-110' : 'hover:bg-slate-50'}`}>
+                    <button key={e} onClick={() => setNewCat({...newCat, icon: e})} className={`w-8 h-8 flex items-center justify-center rounded-xl text-lg transition-all ${newCat.icon === e ? 'bg-indigo-600 shadow-md scale-110 text-white' : 'hover:bg-slate-50'}`}>
                       {e}
                     </button>
                   ))}
@@ -406,8 +421,10 @@ const Settings = ({
                 </div>
               </div>
               <div className="flex gap-2 pt-2">
-                <button onClick={handleAddCategory} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-indigo-200">Enregistrer</button>
-                <button onClick={() => setShowAddCat(false)} className="px-5 py-3 text-slate-400 text-[9px] font-black uppercase hover:text-slate-600">Annuler</button>
+                <button onClick={handleAddCategory} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-indigo-200">
+                  {editingCatId ? 'Modifier' : 'Enregistrer'}
+                </button>
+                <button onClick={() => { setShowAddCat(false); setEditingCatId(null); setNewCat({ name: '', icon: '💰', color: '#6366f1' }); }} className="px-5 py-3 text-slate-400 text-[9px] font-black uppercase hover:text-slate-600">Annuler</button>
               </div>
             </div>
           ) : (
@@ -481,7 +498,7 @@ const Settings = ({
         <SectionTitle title="À propos & Légal" />
         <div className="bg-white rounded-[28px] border border-slate-100 overflow-hidden shadow-sm">
           <div className="px-4 py-3 border-b border-slate-50 flex items-center justify-between">
-             <div className="flex items-center gap-3">
+              <div className="flex items-center gap-3">
                 <div className="w-7 h-7 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 shrink-0">
                   <Info size={14} />
                 </div>
@@ -489,16 +506,16 @@ const Settings = ({
                   <span className="text-[9px] font-black uppercase tracking-widest text-slate-700 leading-none mb-0.5">ZenBudget App</span>
                   <span className="text-[8px] font-bold text-slate-400">Version 1.0.0 Stable</span>
                 </div>
-             </div>
+              </div>
           </div>
           <div className="flex flex-col">
             <button onClick={() => window.open('https://tonsite.com/confidentialite', '_blank')} className="px-4 py-2.5 flex items-center justify-between hover:bg-slate-50 transition-colors border-b border-slate-50">
-               <div className="flex items-center gap-3"><div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0"><ShieldCheck size={14} /></div><span className="text-[9px] font-black uppercase tracking-widest text-slate-600">Politique de Confidentialité</span></div>
-               <FileText size={12} className="text-slate-200" />
+                <div className="flex items-center gap-3"><div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center text-emerald-600 shrink-0"><ShieldCheck size={14} /></div><span className="text-[9px] font-black uppercase tracking-widest text-slate-600">Politique de Confidentialité</span></div>
+                <FileText size={12} className="text-slate-200" />
             </button>
             <button onClick={() => window.open('https://tonsite.com/cgu', '_blank')} className="px-4 py-2.5 flex items-center justify-between hover:bg-slate-50 transition-colors border-b border-slate-50">
-               <div className="flex items-center gap-3"><div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0"><Scale size={14} /></div><span className="text-[9px] font-black uppercase tracking-widest text-slate-600">Conditions d'Utilisation</span></div>
-               <FileText size={12} className="text-slate-200" />
+                <div className="flex items-center gap-3"><div className="w-7 h-7 rounded-lg bg-indigo-50 flex items-center justify-center text-indigo-600 shrink-0"><Scale size={14} /></div><span className="text-[9px] font-black uppercase tracking-widest text-slate-600">Conditions d'Utilisation</span></div>
+                <FileText size={12} className="text-slate-200" />
             </button>
           </div>
         </div>

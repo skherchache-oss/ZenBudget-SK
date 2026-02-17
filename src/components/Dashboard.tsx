@@ -6,6 +6,8 @@ import { fr } from 'date-fns/locale';
 import { ChevronLeft, ChevronRight, RefreshCw, AlertCircle, MessageSquareHeart, Target, Plus, Pencil, Trash2, Trophy, Star, Send, X } from 'lucide-react';
 import { MONTHS_FR } from '../constants';
 import { motion, AnimatePresence } from 'framer-motion';
+// Importation de Google Generative AI
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 interface DashboardProps {
   transactions: Transaction[];
@@ -105,10 +107,9 @@ const Dashboard: React.FC<DashboardProps> = ({
   };
 
   const fetchAiAdvice = async (force: boolean = false) => {
-    // Récupération sécurisée de la clé API pour Vite/Vercel
     const API_KEY = import.meta.env?.VITE_GEMINI_API_KEY || "";
-    
     if (!API_KEY) return;
+
     const cacheKey = `zentip_${activeAccount?.id}_${month}_${year}`;
     const cachedAdvice = sessionStorage.getItem(cacheKey);
     
@@ -117,21 +118,28 @@ const Dashboard: React.FC<DashboardProps> = ({
     
     setLoadingAdvice(true);
     try {
-      const context = `Solde: ${availableBalance}€, Projeté: ${projectedBalance}€, État: ${projectedBalance < 0 ? 'Danger' : 'Zen'}. Compte: ${activeAccount.name}`;
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: `Tu es un coach financier zen. Donne un conseil très court (max 60 car.) inspirant basé sur : ${context}. Pas de guillemets.` }] }] })
-      });
-      const data = await response.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      // Utilisation de la SDK Google Generative AI au lieu de fetch direct
+      const genAI = new GoogleGenerativeAI(API_KEY);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+      const context = `Solde actuel: ${availableBalance}€, Solde projeté fin de mois: ${projectedBalance}€, État émotionnel du compte: ${projectedBalance < 0 ? 'Danger/Stress' : 'Zen/Stable'}. Nom du compte: ${activeAccount.name}.`;
+      const prompt = `Tu es un coach financier zen et minimaliste. Donne un conseil très court (max 60 caractères) inspirant et actionnable basé sur ces chiffres : ${context}. Pas de guillemets, pas de ponctuation inutile.`;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+
       if (text) {
         const cleanedText = text.replace(/["']/g, "").trim();
         setAiAdvice(cleanedText);
         sessionStorage.setItem(cacheKey, cleanedText);
       }
-    } catch (err) { console.error("Erreur Gemini:", err); } 
-    finally { setLoadingAdvice(false); }
+    } catch (err) { 
+      console.error("Erreur Gemini SDK:", err); 
+      setAiAdvice("Respirez, vos finances sont entre de bonnes mains. ✨");
+    } finally { 
+      setLoadingAdvice(false); 
+    }
   };
 
   useEffect(() => {

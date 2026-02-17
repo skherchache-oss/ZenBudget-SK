@@ -273,11 +273,8 @@ const App: React.FC = () => {
       nextTx = [finalTx, ...nextTx];
     }
     
-    // Mise à jour locale du compte avant synchronisation
     acc.transactions = nextTx;
     acc.deletedVirtualIds = nextDeleted;
-    
-    // Utilisation de la fonction de synchro pour créer un template si isRecurring est vrai
     acc = syncTransactionToRecurring(acc, finalTx);
     
     const nextAccounts = [...state.accounts];
@@ -323,7 +320,6 @@ const App: React.FC = () => {
     }
   };
 
-  // --- LOGIQUE DE MISE À JOUR DU JOUR DE CYCLE ---
   const handleUpdateCycleDay = (day: number) => {
     setState(prev => ({
       ...prev,
@@ -337,7 +333,6 @@ const App: React.FC = () => {
 
   const headerPhoto = (fbUser && fbUser.uid !== 'local-user' && localStorage.getItem(`user_photo_hd_${fbUser.uid}`)) || state.user?.photoURL;
 
-  // --- ÉCRAN DE CHARGEMENT AMÉLIORÉ ---
   if (authLoading) return (
     <div className="h-screen flex flex-col items-center justify-center bg-slate-950 gap-8">
       <style>{`
@@ -506,7 +501,19 @@ const App: React.FC = () => {
                       setTimeout(() => window.location.reload(), 200);
                     } 
                   }}
+                  // --- LOGIQUE CATÉGORIES ---
+                  onAddCategory={(newCat) => {
+                    const categoryWithId = { ...newCat, id: generateId() };
+                    setState(prev => ({ ...prev, categories: [...prev.categories, categoryWithId] }));
+                  }}
+                  onUpdateCategory={(id, updatedData) => {
+                    setState(prev => ({ ...prev, categories: prev.categories.map(c => c.id === id ? { ...c, ...updatedData } : c) }));
+                  }}
+                  onDeleteCategory={(id) => {
+                    setState(prev => ({ ...prev, categories: prev.categories.filter(c => c.id !== id) }));
+                  }}
                   onUpdateCategories={(cats) => setState(prev => ({ ...prev, categories: cats }))} 
+                  // --------------------------
                   onUpdateBudget={handleUpdateCycleDay} onLogin={loginWithGoogle} onLogout={logout} onShowWelcome={() => setShowWelcome(true)}
                   onBackup={() => { 
                     const dataStr = JSON.stringify(state); 
