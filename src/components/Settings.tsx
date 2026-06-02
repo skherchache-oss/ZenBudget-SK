@@ -1,30 +1,10 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  X, Star, Send, Trash2, Edit2, Plus as IconPlus, 
-  Info, ShieldCheck, Scale, FileText, Users
+  X, Star, Send, Camera, Trash2, Edit2, Plus as IconPlus, 
+  ChevronRight, Info, ShieldCheck, Scale, FileText, Users
 } from 'lucide-react';
-import { AppState, User, Category, BudgetAccount } from '../types';
-
-interface SettingsProps {
-  state: AppState;
-  user: User | null;
-  onUpdateUser: (userInfo: Partial<User>) => void;
-  onLogout: () => void;
-  onLogin: () => void;
-  onDeleteAccount: (id: string) => void;
-  onSetActiveAccount: (id: string) => void;
-  onRenameAccount: (id: string, name: string) => void;
-  onAddCategory: (cat: { name: string; icon: string; color: string }) => void;
-  onDeleteCategory: (id: string) => void;
-  onUpdateCategory: (id: string, cat: { name: string; icon: string; color: string }) => void;
-  onUpdateBudget: (day: number) => void;
-  onBackup: (accountName?: string) => void;
-  onImport: (file: File) => void;
-  onReset: () => void;
-  onDeleteUserAccount: () => void;
-  onShowWelcome: () => void;
-}
+import { updateProfile } from 'firebase/auth';
 
 const PRESET_COLORS = ['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#3b82f6', '#8b5cf6', '#ef4444', '#06b6d4'];
 const EMOJI_LIST = ['💰', '🏠', '🚗', '🍔', '🛒', '🎮', '🏥', '👔', '✈️', '🎁', '📱', '🎓', '🏋️', '🐈', '🍿'];
@@ -61,14 +41,14 @@ const AccountItem = ({ acc, isActive, onDelete, onRename, onSelect, onShowPremiu
   </div>
 );
 
-const Settings: React.FC<SettingsProps> = ({ 
+const Settings = ({ 
   state, user, onUpdateUser, onLogout, onLogin, onDeleteAccount, 
   onSetActiveAccount, onRenameAccount, onAddCategory, onDeleteCategory, onUpdateCategory,
   onUpdateBudget, onBackup, onImport, onReset, onDeleteUserAccount, onShowWelcome 
-}) => {
+}: any) => {
   const [isUploading, setIsUploading] = useState(false);
   const [isEditingUserName, setIsEditingUserName] = useState(false);
-  const [tempUserName, setTempUserName] = useState(user?.name || user?.email?.split('@')[0] || '');
+  const [tempUserName, setTempUserName] = useState(user?.displayName || '');
   const [editingAccountId, setEditingAccountId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   
@@ -87,53 +67,58 @@ const Settings: React.FC<SettingsProps> = ({
   const photoInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const activeAccount = state.accounts.find((a: BudgetAccount) => a.id === state.activeAccountId);
+  const activeAccount = state.accounts.find((a: any) => a.id === state.activeAccountId);
   
-  const currentCycleDay = activeAccount?.cycleEndDay !== undefined ? activeAccount.cycleEndDay : 0;
+  const currentCycleDay = activeAccount?.cycleEndDay !== undefined ? activeAccount.cycleEndDay : (state.cycleEndDay || 0);
   const presets = [1, 5, 25, 28, 0];
   const isCustomDay = !presets.includes(currentCycleDay);
 
-  const handleSaveUserName = () => {
+  const handleSaveUserName = async () => {
     if (!user || !tempUserName.trim()) {
       setIsEditingUserName(false);
       return;
     }
-    onUpdateUser({ name: tempUserName.trim() });
-    setIsEditingUserName(false);
+    try {
+      await updateProfile(user, { displayName: tempUserName.trim() });
+      onUpdateUser({ displayName: tempUserName.trim() });
+    } catch (err) {
+      console.error("Erreur mise à jour nom:", err);
+    } finally {
+      setIsEditingUserName(false);
+    }
   };
 
-  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
     setIsUploading(true);
     try {
       const reader = new FileReader();
-      reader.onloadend = () => {
+      reader.onloadend = async () => {
         const base64String = reader.result as string;
-        localStorage.setItem(`user_photo_hd_${user.id}`, base64String);
+        localStorage.setItem(`user_photo_hd_${user.uid}`, base64String);
+        await updateProfile(user, { photoURL: base64String });
         onUpdateUser({ photoURL: base64String });
-        setIsUploading(false);
       };
       reader.readAsDataURL(file);
     } catch (err) {
       console.error("Erreur photo:", err);
+    } finally {
       setIsUploading(false);
     }
   };
 
-  const handleRemovePhoto = (e: React.MouseEvent) => {
+  const handleRemovePhoto = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user || isUploading) return;
     if (confirm("Supprimer la photo de profil ?")) {
       setIsUploading(true);
       try {
-        localStorage.removeItem(`user_photo_hd_${user.id}`);
-        onUpdateUser({ photoURL: undefined });
-      } catch (err) { 
-        console.error("Erreur suppression photo:", err);
-      } finally { 
-        setIsUploading(false); 
-      }
+        localStorage.removeItem(`user_photo_hd_${user.uid}`);
+        await updateProfile(user, { photoURL: null });
+        onUpdateUser({ photoURL: null });
+      } catch (err) { console.error("Erreur suppression photo:", err);
+      } finally { setIsUploading(false); }
     }
   };
 
@@ -157,7 +142,7 @@ const Settings: React.FC<SettingsProps> = ({
     }
   };
 
-  const handleEditCategory = (cat: Category) => {
+  const handleEditCategory = (cat: any) => {
     setEditingCatId(cat.id);
     setNewCat({ name: cat.name, icon: cat.icon, color: cat.color });
     setShowAddCat(true);
@@ -203,8 +188,8 @@ const Settings: React.FC<SettingsProps> = ({
     }
   };
 
-  const isRealUser = user && user.id !== 'local-user';
-  const currentPhoto = (user && localStorage.getItem(`user_photo_hd_${user.id}`)) || (user ? user.photoURL : null);
+  const isRealUser = user && user.uid !== 'local-user';
+  const currentPhoto = (user && localStorage.getItem(`user_photo_hd_${user.uid}`)) || (user ? user.photoURL : null);
 
   return ( 
     <div className="space-y-6 pb-32 overflow-y-auto no-scrollbar h-full px-4 pt-6"> 
@@ -309,7 +294,7 @@ const Settings: React.FC<SettingsProps> = ({
                 <img src={currentPhoto} alt="Profil" className="w-full h-full object-cover" />
               ) : (
                 <span className="text-2xl font-black text-indigo-600 uppercase">
-                  {user?.name?.charAt(0) || 'Z'}
+                  {user?.displayName?.charAt(0) || 'Z'}
                 </span>
               )}
               <div className="absolute inset-0 bg-indigo-900/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -332,7 +317,7 @@ const Settings: React.FC<SettingsProps> = ({
               </div>
             ) : (
               <div className="flex items-center gap-2 mb-1 max-w-full cursor-pointer group" onClick={() => isRealUser && setIsEditingUserName(true)}>
-                <h3 className="font-black text-slate-800 text-lg leading-tight truncate group-hover:text-indigo-600 transition-colors">{user?.name || 'Utilisateur Invité'}</h3>
+                <h3 className="font-black text-slate-800 text-lg leading-tight truncate group-hover:text-indigo-600 transition-colors">{user?.displayName || 'Utilisateur Invité'}</h3>
                 {isRealUser && <svg className="w-3.5 h-3.5 text-slate-300 group-hover:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>}
                 <div className={`w-2 h-2 rounded-full shrink-0 ${isRealUser ? 'bg-emerald-500' : 'bg-amber-400'}`} />
               </div>
@@ -361,7 +346,7 @@ const Settings: React.FC<SettingsProps> = ({
       <section> 
         <SectionTitle title="Mes Comptes" /> 
         <div className="space-y-1"> 
-          {state.accounts.map((acc: BudgetAccount) => ( 
+          {state.accounts.map((acc: any) => ( 
             <AccountItem 
               key={acc.id} 
               acc={acc} 
@@ -396,7 +381,7 @@ const Settings: React.FC<SettingsProps> = ({
         <SectionTitle title="Mes Catégories" />
         <div className="bg-white rounded-[32px] border border-slate-100 p-5 shadow-sm space-y-5">
           <div className="grid grid-cols-2 gap-2 max-h-60 overflow-y-auto pr-1 no-scrollbar">
-            {state.categories.map((cat: Category) => (
+            {state.categories.map((cat: any) => (
               <div key={cat.id} className="group flex items-center justify-between p-3 bg-slate-50 rounded-2xl border border-slate-100 hover:bg-white hover:border-indigo-100 transition-all">
                 <div className="flex items-center gap-2 min-w-0 cursor-pointer" onClick={() => handleEditCategory(cat)}>
                   <div className="w-7 h-7 rounded-lg flex items-center justify-center text-xs shrink-0" style={{ backgroundColor: `${cat.color}15` }}>
