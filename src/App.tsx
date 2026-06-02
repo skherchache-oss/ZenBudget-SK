@@ -170,9 +170,11 @@ const App: React.FC = () => {
             setState({ ...initialState, user: userProfile });
 
             // ✅ FIX IMPORTANT ICI
-            if (!localStorage.getItem('zb_hide_welcome')) {
-              setShowWelcome(true);
-            }
+          if (localStorage.getItem('zb_hide_welcome') !== 'true') {
+  setTimeout(() => {
+    setShowWelcome(true);
+  }, 300);
+}
 
           } catch (error) {
             console.error("Erreur lors de la création du profil Firestore:", error);
