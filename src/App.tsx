@@ -9,6 +9,9 @@ import { auth, loginWithGoogle, logout, db } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, setDoc, addDoc, collection } from 'firebase/firestore';
 
+// React
+import { useState, useEffect, useRef } from 'react';
+
 // Framer Motion
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -22,29 +25,49 @@ import AuthScreen from './components/AuthScreen';
 const VIEW_ORDER: ViewType[] = ['DASHBOARD', 'TRANSACTIONS', 'RECURRING', 'SETTINGS'];
 
 const App: React.FC = () => {
+
+  // ---------------- STATE ----------------
   const [fbUser, setFbUser] = useState<FirebaseUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+
   const [state, setState] = useState<AppState>(() => getInitialState());
   const [activeView, setActiveView] = useState<ViewType>('DASHBOARD');
+
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+
   const [slideDirection, setSlideDirection] = useState<'next' | 'prev' | null>(null);
+
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+
   const [modalInitialDate, setModalInitialDate] = useState<string>(new Date().toISOString());
   const [selectedDay, setSelectedDay] = useState<number | null>(new Date().getDate());
+
   const [showWelcome, setShowWelcome] = useState(false);
   const [viewDirection, setViewDirection] = useState(0);
-  
-  // État pour le message de remerciement
+
   const [showToast, setShowToast] = useState(false);
 
   const [isInitializing, setIsInitializing] = useState(true);
   const isImporting = useRef(false);
 
-  // --- LOGIQUE DE CHANGEMENT DE MOIS ---
+  // ✅ NEW: contrôle localStorage propre
+  const [dontShowWelcomeAgain, setDontShowWelcomeAgain] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('zb_hide_welcome') === 'true';
+  });
+
+  // ---------------- EFFECT LOCAL STORAGE ----------------
+  useEffect(() => {
+    const saved = localStorage.getItem('zb_hide_welcome');
+    setDontShowWelcomeAgain(saved === 'true');
+  }, []);
+
+  // ---------------- MONTH CHANGE ----------------
   const changeMonth = (offset: number) => {
     setSlideDirection(offset > 0 ? 'next' : 'prev');
+
     let nextMonth = currentMonth + offset;
     let nextYear = currentYear;
 
@@ -61,9 +84,9 @@ const App: React.FC = () => {
     setSelectedDay(null);
   };
 
-  // --- LOGIQUE BOUTON RETOUR ANDROID / MOBILE BROWSER ---
+  // ---------------- BACK BUTTON MODAL ----------------
   useEffect(() => {
-    const handlePopState = (event: PopStateEvent) => {
+    const handlePopState = () => {
       if (showAddModal) {
         setShowAddModal(false);
         setEditingTransaction(null);
@@ -80,13 +103,14 @@ const App: React.FC = () => {
     };
   }, [showAddModal]);
 
+  // ---------------- OPEN MODAL ----------------
   const openAddModal = (date?: string, editItem?: Transaction | null) => {
     if (editItem) {
       setEditingTransaction(editItem);
     } else {
       setEditingTransaction(null);
     }
-    
+
     if (date) {
       setModalInitialDate(date);
     } else if (!editItem) {
@@ -97,19 +121,22 @@ const App: React.FC = () => {
         setModalInitialDate(new Date().toISOString());
       }
     }
-    
+
     setShowAddModal(true);
   };
 
-  const sanitizeForFirebase = (obj: any): any => JSON.parse(JSON.stringify(obj));
+  // ---------------- FIREBASE SANITIZE ----------------
+  const sanitizeForFirebase = (obj: any) =>
+    JSON.parse(JSON.stringify(obj));
 
-  // --- SYNCHRONISATION AUTH & INITIALISATION FIRESTORE ---
+  // ---------------- AUTH SYNC ----------------
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setAuthLoading(true);
+
       if (firebaseUser) {
         const cloudData = await fetchUserData(firebaseUser);
-        
+
         if (cloudData && cloudData.accounts) {
           setState({
             ...cloudData,
@@ -117,11 +144,13 @@ const App: React.FC = () => {
               id: firebaseUser.uid,
               name: firebaseUser.displayName || 'Utilisateur',
               email: firebaseUser.email || '',
-              photoURL: firebaseUser.photoURL || null 
+              photoURL: firebaseUser.photoURL || null
             }
           });
+
         } else {
           const initialState = getInitialState();
+
           const userProfile = {
             id: firebaseUser.uid,
             name: firebaseUser.displayName || 'Utilisateur',
@@ -130,24 +159,37 @@ const App: React.FC = () => {
           };
 
           try {
-            await setDoc(doc(db, "users", firebaseUser.uid), sanitizeForFirebase({
-              ...initialState,
-              user: userProfile
-            }));
+            await setDoc(
+              doc(db, "users", firebaseUser.uid),
+              sanitizeForFirebase({
+                ...initialState,
+                user: userProfile
+              })
+            );
+
             setState({ ...initialState, user: userProfile });
-            setShowWelcome(true);
+
+            // ✅ FIX IMPORTANT ICI
+            if (!localStorage.getItem('zb_hide_welcome')) {
+              setShowWelcome(true);
+            }
+
           } catch (error) {
             console.error("Erreur lors de la création du profil Firestore:", error);
           }
         }
+
         setFbUser(firebaseUser);
+
       } else {
         setFbUser(null);
         setState(getInitialState());
       }
+
       setAuthLoading(false);
       setTimeout(() => setIsInitializing(false), 1000);
     });
+
     return () => unsubscribe();
   }, []);
 
