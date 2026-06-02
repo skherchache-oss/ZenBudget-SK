@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
-import { 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword, 
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   updateProfile,
   sendPasswordResetEmail
 } from 'firebase/auth';
 import { auth, loginWithGoogle } from '../firebase';
-import { IconLogo } from './Icons';
 
 interface AuthScreenProps {
   onLocalMode: () => void;
@@ -21,7 +20,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLocalMode }) => {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // 👁️ AJOUT OUIE DE MOSCOU
+  // 👁️ état œil de Moscou
   const [showPassword, setShowPassword] = useState(false);
 
   const getGreeting = () => {
@@ -62,30 +61,31 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLocalMode }) => {
     try {
       await sendPasswordResetEmail(auth, email);
       setSuccess('Mail envoyé !');
-    } catch (err) {
-      setError('Erreur d\'envoi.');
-    } finally { setLoading(false); }
+    } catch {
+      setError("Erreur d'envoi.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
     <div className="h-screen w-full flex items-center justify-center bg-white lg:bg-slate-950 font-sans overflow-hidden">
-      
+
       <div className="w-full max-w-[480px] h-full lg:h-auto lg:max-h-[95vh] bg-white lg:rounded-[50px] flex flex-col items-center justify-between p-8 sm:p-12 shadow-2xl">
-        
+
         {/* HEADER */}
         <div className="w-full flex flex-col items-center shrink-0">
-          <div className="relative mb-4">
-            <img 
-              src="/ZB-logo-192.png" 
-              alt="ZenBudget" 
-              className="w-16 h-16 rounded-[22px] shadow-lg border border-slate-200"
-            />
-          </div>
+          <img
+            src="/ZB-logo-192.png"
+            alt="ZenBudget"
+            className="w-16 h-16 rounded-[22px] shadow-lg border border-slate-200 mb-4"
+          />
+
           <div className="text-center">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600 leading-none mb-1">
-                {isLogin ? getGreeting() : "Bienvenue"}
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-600 mb-1">
+              {isLogin ? getGreeting() : "Bienvenue"}
             </p>
-            <h1 className="text-3xl font-black tracking-tighter italic text-slate-900 leading-none">
+            <h1 className="text-3xl font-black italic text-slate-900">
               ZenBudget
             </h1>
           </div>
@@ -100,7 +100,7 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLocalMode }) => {
               placeholder="Nom de profil"
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-xl text-base font-bold text-slate-900 outline-none"
+              className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-xl font-bold"
               required
             />
           )}
@@ -110,112 +110,115 @@ const AuthScreen: React.FC<AuthScreenProps> = ({ onLocalMode }) => {
             placeholder="Email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-xl text-base font-bold text-slate-900 outline-none"
+            className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-xl font-bold"
             required
           />
 
-          {/* PASSWORD AVEC OEIL 👁️ */}
+          {/* PASSWORD + OEIL FIXÉ */}
           <div className="relative w-full">
+
             <input
               type={showPassword ? "text" : "password"}
               placeholder="Mot de passe"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-xl text-base font-bold text-slate-900 outline-none pr-12"
-              required={isLogin}
+              className="w-full px-5 py-3.5 bg-slate-50 border border-slate-100 rounded-xl font-bold pr-12"
+              required
             />
 
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600 transition"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-indigo-600"
             >
               {showPassword ? (
-                /* œil ouvert */
+                // 👁️ OUVERT (propre)
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
                   <path
-                    d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"
+                    d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  <circle
+                    cx="12"
+                    cy="12"
+                    r="3"
                     stroke="currentColor"
                     strokeWidth="2"
                   />
-                  <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="2"/>
                 </svg>
               ) : (
-                /* œil barré */
+                // 🙈 FERMÉ (corrigé — plus de coupe)
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                  <path d="M3 3l18 18" stroke="currentColor" strokeWidth="2"/>
                   <path
-                    d="M10.5 5.5C12 5 13.5 5 15 5c6.5 0 10 7 10 7s-1.2 2.4-3.5 4.6"
+                    d="M3 3l18 18"
                     stroke="currentColor"
                     strokeWidth="2"
+                    strokeLinecap="round"
+                  />
+                  <path
+                    d="M2 12s4-7 10-7c3.5 0 6.5 1.5 8.5 3.5M21 12s-3.5 7-10 7c-3.5 0-6.5-1.5-8.5-3.5"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
                   />
                 </svg>
               )}
             </button>
+
           </div>
 
-          {error && <div className="text-rose-600 text-[10px] font-black uppercase text-center">{error}</div>}
-          {success && <div className="text-emerald-600 text-[10px] font-black uppercase text-center">{success}</div>}
+          {error && <div className="text-rose-600 text-[10px] font-black text-center">{error}</div>}
+          {success && <div className="text-emerald-600 text-[10px] font-black text-center">{success}</div>}
 
-          <div className="pt-2">
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full py-5 bg-indigo-600 text-white rounded-xl font-black"
+          >
+            {loading ? 'Traitement...' : isLogin ? 'Se connecter' : 'Créer un compte'}
+          </button>
+
+          {isLogin && (
             <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-5 bg-indigo-600 text-white rounded-[20px] font-black shadow-xl hover:bg-indigo-700 transition-all text-xs uppercase tracking-widest disabled:opacity-50"
+              type="button"
+              onClick={handleForgotPassword}
+              className="w-full text-[10px] font-black text-slate-400"
             >
-              {loading ? 'Traitement...' : isLogin ? 'Se connecter' : 'Créer mon compte'}
+              Mot de passe oublié ?
             </button>
-
-            {isLogin && (
-              <button type="button" onClick={handleForgotPassword} className="w-full text-[9px] font-black uppercase tracking-widest text-slate-400 mt-2">
-                Mot de passe oublié ?
-              </button>
-            )}
-          </div>
+          )}
         </form>
 
-        {/* SECURITY */}
-        <div className="w-full py-4 bg-slate-50 rounded-3xl border border-slate-100 px-4 shrink-0">
-          <div className="flex items-center justify-center gap-2 mb-1">
-            <span className="text-[11px] font-black uppercase tracking-widest text-slate-700">Sécurité Cloud</span>
-          </div>
-          <p className="text-[10px] text-slate-500 font-bold leading-tight text-center">
-            Pas de connexion bancaire. Vos données sont cryptées sur Google Cloud. Confidentialité totale.
-          </p>
+        {/* BOTTOM */}
+        <div className="w-full space-y-3">
+          <button
+            type="button"
+            onClick={() => setIsLogin(!isLogin)}
+            className="text-[11px] font-black text-slate-400 mx-auto block"
+          >
+            {isLogin ? "Créer un compte" : "Se connecter"}
+          </button>
+
+          <button
+            type="button"
+            onClick={loginWithGoogle}
+            className="w-full py-5 bg-white border rounded-xl font-black"
+          >
+            Continuer avec Google
+          </button>
+
+          <button
+            type="button"
+            onClick={onLocalMode}
+            className="w-full py-5 bg-slate-900 text-white rounded-xl font-black"
+          >
+            Mode Invité
+          </button>
         </div>
 
-        {/* BOUTONS */}
-        <div className="w-full space-y-4 shrink-0 mt-2">
-          <div className="flex flex-col gap-3">
-             <button 
-              type="button"
-              onClick={() => { setIsLogin(!isLogin); setError(''); }}
-              className="text-[11px] font-black uppercase tracking-widest text-slate-400 hover:text-indigo-600 transition-colors mx-auto"
-            >
-              {isLogin ? "Créer un compte" : "Se connecter"}
-            </button>
-
-            <button 
-              type="button"
-              onClick={loginWithGoogle} 
-              className="w-full py-5 bg-white border-2 border-slate-100 rounded-[20px] flex items-center justify-center gap-3 font-black text-xs uppercase text-slate-700 shadow-sm"
-            >
-              Continuer avec Google
-            </button>
-
-            <button 
-              type="button"
-              onClick={onLocalMode} 
-              className="w-full py-5 bg-slate-900 text-white rounded-[20px] text-xs font-black uppercase tracking-widest shadow-lg"
-            >
-              Mode Invité
-            </button>
-          </div>
-        </div>
-
-        <p className="text-slate-300 text-[9px] font-bold uppercase tracking-[0.3em] py-2">
-          ZenBudget — 2026
-        </p>
       </div>
     </div>
   );
