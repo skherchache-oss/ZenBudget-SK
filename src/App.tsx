@@ -9,9 +9,6 @@ import { auth, loginWithGoogle, logout, db } from './firebase';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { doc, setDoc, addDoc, collection } from 'firebase/firestore';
 
-// React
-import { useState, useEffect, useRef } from 'react';
-
 // Framer Motion
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -21,6 +18,7 @@ import TransactionList from './components/TransactionList';
 import AddTransactionModal from './components/AddTransactionModal';
 import Settings from './components/Settings';
 import AuthScreen from './components/AuthScreen';
+import FeedbackModal from './components/FeedbackModal';
 
 const VIEW_ORDER: ViewType[] = ['DASHBOARD', 'TRANSACTIONS', 'RECURRING', 'SETTINGS'];
 
@@ -52,7 +50,7 @@ const App: React.FC = () => {
   const [isInitializing, setIsInitializing] = useState(true);
   const isImporting = useRef(false);
 
-  // ✅ NEW: contrôle localStorage propre
+  // contrôle localStorage propre
   const [dontShowWelcomeAgain, setDontShowWelcomeAgain] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false;
     return localStorage.getItem('zb_hide_welcome') === 'true';
@@ -169,12 +167,11 @@ const App: React.FC = () => {
 
             setState({ ...initialState, user: userProfile });
 
-            // ✅ FIX IMPORTANT ICI
-          if (localStorage.getItem('zb_hide_welcome') !== 'true') {
-  setTimeout(() => {
-    setShowWelcome(true);
-  }, 300);
-}
+            if (localStorage.getItem('zb_hide_welcome') !== 'true') {
+              setTimeout(() => {
+                setShowWelcome(true);
+              }, 300);
+            }
 
           } catch (error) {
             console.error("Erreur lors de la création du profil Firestore:", error);
@@ -597,6 +594,10 @@ const App: React.FC = () => {
           <NavBtn active={activeView === 'RECURRING'} onClick={() => handleViewChange('RECURRING')} icon={<IconPlus className="rotate-45" />} label="Fixes" fullLabel="Charges fixes" />
           <NavBtn active={activeView === 'SETTINGS'} onClick={() => handleViewChange('SETTINGS')} icon={<IconSettings />} label="Param." fullLabel="Paramètres" />
         </nav>
+
+        {!state.hasGivenFeedback && (
+          <FeedbackModal onSubmit={handleFeedbackCapture} />
+        )}
 
         {showAddModal && (
           <AddTransactionModal 
